@@ -55,6 +55,9 @@ export default function HealthRecordsClientPage() {
   const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState("summary")
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null)
+  const [editCurrentConditionsOpen, setEditCurrentConditionsOpen] = useState(false)
+  const [editPastConditionsOpen, setEditPastConditionsOpen] = useState(false)
+  const [editFamilyHistoryOpen, setEditFamilyHistoryOpen] = useState(false)
 
   // Ensure data exists with fallbacks
   const bloodPressureData = healthMetrics?.bloodPressure || []
@@ -1527,10 +1530,86 @@ export default function HealthRecordsClientPage() {
                   <CardTitle>{t("health.currentConditions")}</CardTitle>
                   <CardDescription>{t("health.activeConditions")}</CardDescription>
                 </div>
-                <Button variant="outline" size="sm" className="h-8 gap-1 bg-transparent">
-                  <PencilIcon className="h-3.5 w-3.5" />
-                  <span>{t("action.edit")}</span>
-                </Button>
+                <Dialog open={editCurrentConditionsOpen} onOpenChange={setEditCurrentConditionsOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1 bg-transparent">
+                      <PencilIcon className="h-3.5 w-3.5" />
+                      <span>{t("action.edit")}</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[600px]">
+                    <DialogHeader>
+                      <DialogTitle>{t("health.editCurrentConditions")}</DialogTitle>
+                      <DialogDescription>{t("health.editCurrentConditionsDesc")}</DialogDescription>
+                    </DialogHeader>
+                    <div className="max-h-[400px] overflow-y-auto">
+                      <div className="space-y-4 p-4">
+                        {medicalConditions.current.map((condition, index) => (
+                          <div key={index} className="border rounded-lg p-4">
+                            <div className="grid gap-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-sm font-medium">{t("health.condition")}</label>
+                                  <input
+                                    type="text"
+                                    defaultValue={condition.condition}
+                                    className="w-full mt-1 px-3 py-2 border border-input rounded-md text-sm"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">{t("health.status")}</label>
+                                  <select
+                                    defaultValue={condition.status}
+                                    className="w-full mt-1 px-3 py-2 border border-input rounded-md text-sm"
+                                  >
+                                    <option value={t("health.status.controlled")}>
+                                      {t("health.status.controlled")}
+                                    </option>
+                                    <option value={t("health.status.partiallyControlled")}>
+                                      {t("health.status.partiallyControlled")}
+                                    </option>
+                                    <option value={t("health.status.uncontrolled")}>
+                                      {t("health.status.uncontrolled")}
+                                    </option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium">{t("health.treatment")}</label>
+                                <input
+                                  type="text"
+                                  defaultValue={condition.treatedWith}
+                                  className="w-full mt-1 px-3 py-2 border border-input rounded-md text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium">{t("health.notes")}</label>
+                                <textarea
+                                  defaultValue={condition.notes}
+                                  className="w-full mt-1 px-3 py-2 border border-input rounded-md text-sm"
+                                  rows={2}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setEditCurrentConditionsOpen(false)}>
+                        {t("action.cancel")}
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          alert(t("health.conditionsUpdated"))
+                          setEditCurrentConditionsOpen(false)
+                        }}
+                      >
+                        {t("action.save")}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -1568,10 +1647,77 @@ export default function HealthRecordsClientPage() {
                   <CardTitle>{t("health.pastConditions")}</CardTitle>
                   <CardDescription>{t("health.resolvedConditions")}</CardDescription>
                 </div>
-                <Button variant="outline" size="sm" className="h-8 gap-1 bg-transparent">
-                  <PencilIcon className="h-3.5 w-3.5" />
-                  <span>{t("action.edit")}</span>
-                </Button>
+                <Dialog open={editPastConditionsOpen} onOpenChange={setEditPastConditionsOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1 bg-transparent">
+                      <PencilIcon className="h-3.5 w-3.5" />
+                      <span>{t("action.edit")}</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[600px]">
+                    <DialogHeader>
+                      <DialogTitle>{t("health.editPastConditions")}</DialogTitle>
+                      <DialogDescription>{t("health.editPastConditionsDesc")}</DialogDescription>
+                    </DialogHeader>
+                    <div className="max-h-[400px] overflow-y-auto">
+                      <div className="space-y-4 p-4">
+                        {medicalConditions.past.map((condition, index) => (
+                          <div key={index} className="border rounded-lg p-4">
+                            <div className="grid gap-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-sm font-medium">{t("health.condition")}</label>
+                                  <input
+                                    type="text"
+                                    defaultValue={condition.condition}
+                                    className="w-full mt-1 px-3 py-2 border border-input rounded-md text-sm"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">{t("health.resolvedDate")}</label>
+                                  <input
+                                    type="date"
+                                    defaultValue="2022-12-01"
+                                    className="w-full mt-1 px-3 py-2 border border-input rounded-md text-sm"
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium">{t("health.treatment")}</label>
+                                <input
+                                  type="text"
+                                  defaultValue={condition.treatedWith}
+                                  className="w-full mt-1 px-3 py-2 border border-input rounded-md text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium">{t("health.notes")}</label>
+                                <textarea
+                                  defaultValue={condition.notes}
+                                  className="w-full mt-1 px-3 py-2 border border-input rounded-md text-sm"
+                                  rows={2}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setEditPastConditionsOpen(false)}>
+                        {t("action.cancel")}
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          alert(t("health.conditionsUpdated"))
+                          setEditPastConditionsOpen(false)
+                        }}
+                      >
+                        {t("action.save")}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -1608,10 +1754,89 @@ export default function HealthRecordsClientPage() {
                 <CardTitle>{t("health.familyHistory")}</CardTitle>
                 <CardDescription>{t("health.familyConditions")}</CardDescription>
               </div>
-              <Button variant="outline" size="sm" className="h-8 gap-1 bg-transparent">
-                <PencilIcon className="h-3.5 w-3.5" />
-                <span>{t("action.edit")}</span>
-              </Button>
+              <Dialog open={editFamilyHistoryOpen} onOpenChange={setEditFamilyHistoryOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 gap-1 bg-transparent">
+                    <PencilIcon className="h-3.5 w-3.5" />
+                    <span>{t("action.edit")}</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[600px]">
+                  <DialogHeader>
+                    <DialogTitle>{t("health.editFamilyHistory")}</DialogTitle>
+                    <DialogDescription>{t("health.editFamilyHistoryDesc")}</DialogDescription>
+                  </DialogHeader>
+                  <div className="max-h-[400px] overflow-y-auto">
+                    <div className="space-y-4 p-4">
+                      {medicalConditions.family.map((condition, index) => (
+                        <div key={index} className="border rounded-lg p-4">
+                          <div className="grid gap-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-sm font-medium">{t("health.condition")}</label>
+                                <input
+                                  type="text"
+                                  defaultValue={condition.condition}
+                                  className="w-full mt-1 px-3 py-2 border border-input rounded-md text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium">{t("health.relation")}</label>
+                                <select
+                                  defaultValue={condition.relation}
+                                  className="w-full mt-1 px-3 py-2 border border-input rounded-md text-sm"
+                                >
+                                  <option value={t("health.relations.father")}>{t("health.relations.father")}</option>
+                                  <option value={t("health.relations.mother")}>{t("health.relations.mother")}</option>
+                                  <option value={t("health.relations.fatherMother")}>
+                                    {t("health.relations.fatherMother")}
+                                  </option>
+                                  <option value={t("health.relations.maternalAunt")}>
+                                    {t("health.relations.maternalAunt")}
+                                  </option>
+                                  <option value="Sibling">Sibling</option>
+                                  <option value="Grandparent">Grandparent</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-sm font-medium">{t("health.ageOfOnset")}</label>
+                                <input
+                                  type="text"
+                                  defaultValue={condition.ageOfOnset}
+                                  className="w-full mt-1 px-3 py-2 border border-input rounded-md text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium">{t("health.outcome")}</label>
+                                <input
+                                  type="text"
+                                  defaultValue={condition.outcome}
+                                  className="w-full mt-1 px-3 py-2 border border-input rounded-md text-sm"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setEditFamilyHistoryOpen(false)}>
+                      {t("action.cancel")}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        alert(t("health.familyHistoryUpdated"))
+                        setEditFamilyHistoryOpen(false)
+                      }}
+                    >
+                      {t("action.save")}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">

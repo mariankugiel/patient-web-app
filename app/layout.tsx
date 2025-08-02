@@ -3,13 +3,14 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { LanguageProvider } from "@/contexts/language-context"
+import { ReduxProvider } from "@/components/providers/redux-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Saluso - Integrated Health Platform",
   description: "Manage your health records, medications, and appointments in one place.",
-    generator: 'v0.dev'
+  generator: "v0.dev",
 }
 
 export default function RootLayout({
@@ -20,7 +21,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <LanguageProvider>{children}</LanguageProvider>
+        <ReduxProvider>
+          <LanguageProvider>{children}</LanguageProvider>
+        </ReduxProvider>
       </body>
     </html>
   )

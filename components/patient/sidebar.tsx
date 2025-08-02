@@ -95,7 +95,7 @@ export default function PatientSidebar() {
       </div>
 
       {/* Desktop sidebar */}
-      <div className="hidden h-screen w-64 flex-col justify-between border-r bg-white p-5 dark:bg-gray-950 md:flex">
+      <div className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col justify-between border-r bg-white p-5 dark:bg-gray-950 md:flex">
         <div className="space-y-6">
           <div className="flex h-28 items-center justify-center mb-4">
             <Logo size="md" className="w-full max-w-[180px]" />

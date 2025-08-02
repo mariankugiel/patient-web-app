@@ -9,10 +9,51 @@ import { Progress } from "@/components/ui/progress"
 import { CheckCircle2, Clock, Download, Edit, Plus, Target, TrendingUp } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useLanguage } from "@/contexts/language-context"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function HealthPlanClientPage() {
   const [activeTab, setActiveTab] = useState("overview")
   const { t, language } = useLanguage()
+
+  // Dialog states
+  const [isAddGoalOpen, setIsAddGoalOpen] = useState(false)
+  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false)
+  const [isAddRecommendationOpen, setIsAddRecommendationOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<any>(null)
+
+  // Form states
+  const [goalForm, setGoalForm] = useState({
+    name: "",
+    target: "",
+    startDate: "",
+    endDate: "",
+  })
+
+  const [taskForm, setTaskForm] = useState({
+    name: "",
+    category: "",
+    frequency: "",
+    time: "",
+  })
+
+  const [recommendationForm, setRecommendationForm] = useState({
+    title: "",
+    description: "",
+    category: "",
+  })
 
   // Sample data
   const healthGoals = [
@@ -174,6 +215,36 @@ export default function HealthPlanClientPage() {
     return t("health.recommendations")
   }
 
+  // Handle form submissions
+  const handleAddGoal = () => {
+    console.log("Adding goal:", goalForm)
+    setGoalForm({ name: "", target: "", startDate: "", endDate: "" })
+    setIsAddGoalOpen(false)
+  }
+
+  const handleAddTask = () => {
+    console.log("Adding task:", taskForm)
+    setTaskForm({ name: "", category: "", frequency: "", time: "" })
+    setIsAddTaskOpen(false)
+  }
+
+  const handleAddRecommendation = () => {
+    console.log("Adding recommendation:", recommendationForm)
+    setRecommendationForm({ title: "", description: "", category: "" })
+    setIsAddRecommendationOpen(false)
+  }
+
+  const handleEdit = (item: any, type: string) => {
+    setEditingItem({ ...item, type })
+    setIsEditOpen(true)
+  }
+
+  const handleSaveEdit = () => {
+    console.log("Saving edit:", editingItem)
+    setEditingItem(null)
+    setIsEditOpen(false)
+  }
+
   return (
     <div className="container py-6">
       <div className="flex items-center gap-4 mb-6">
@@ -273,7 +344,7 @@ export default function HealthPlanClientPage() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button variant="outline" className="w-full" onClick={() => setActiveTab("goals")}>
+                <Button variant="outline" className="w-full bg-transparent" onClick={() => setActiveTab("goals")}>
                   <Target className="mr-2 h-4 w-4" />
                   {t("health.viewAllGoals")}
                 </Button>
@@ -319,7 +390,7 @@ export default function HealthPlanClientPage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button variant="outline" className="w-full" onClick={() => setActiveTab("tasks")}>
+              <Button variant="outline" className="w-full bg-transparent" onClick={() => setActiveTab("tasks")}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
                 {t("health.viewAllTasks")}
               </Button>
@@ -334,10 +405,75 @@ export default function HealthPlanClientPage() {
                 <CardTitle>{t("nav.healthGoals")}</CardTitle>
                 <CardDescription>{t("health.personalizedTargets")}</CardDescription>
               </div>
-              <Button className="bg-teal-600 hover:bg-teal-700 dark:bg-teal-600 dark:hover:bg-teal-700">
-                <Plus className="mr-2 h-4 w-4" />
-                {t("health.addNewGoal")}
-              </Button>
+              <Dialog open={isAddGoalOpen} onOpenChange={setIsAddGoalOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-teal-600 hover:bg-teal-700 dark:bg-teal-600 dark:hover:bg-teal-700">
+                    <Plus className="mr-2 h-4 w-4" />
+                    {t("health.addNewGoal")}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>{t("health.addNewGoal")}</DialogTitle>
+                    <DialogDescription>Create a new health goal to track your progress.</DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="goal-name" className="text-right">
+                        Name
+                      </Label>
+                      <Input
+                        id="goal-name"
+                        value={goalForm.name}
+                        onChange={(e) => setGoalForm({ ...goalForm, name: e.target.value })}
+                        className="col-span-3"
+                        placeholder="e.g., Lower Blood Pressure"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="goal-target" className="text-right">
+                        Target
+                      </Label>
+                      <Input
+                        id="goal-target"
+                        value={goalForm.target}
+                        onChange={(e) => setGoalForm({ ...goalForm, target: e.target.value })}
+                        className="col-span-3"
+                        placeholder="e.g., Below 120/80 mmHg"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="goal-start" className="text-right">
+                        Start Date
+                      </Label>
+                      <Input
+                        id="goal-start"
+                        type="date"
+                        value={goalForm.startDate}
+                        onChange={(e) => setGoalForm({ ...goalForm, startDate: e.target.value })}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="goal-end" className="text-right">
+                        End Date
+                      </Label>
+                      <Input
+                        id="goal-end"
+                        type="date"
+                        value={goalForm.endDate}
+                        onChange={(e) => setGoalForm({ ...goalForm, endDate: e.target.value })}
+                        className="col-span-3"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit" onClick={handleAddGoal}>
+                      Add Goal
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
@@ -346,7 +482,7 @@ export default function HealthPlanClientPage() {
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <CardTitle>{goal.name}</CardTitle>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(goal, "goal")}>
                           <Edit className="h-4 w-4" />
                         </Button>
                       </div>
@@ -390,14 +526,93 @@ export default function HealthPlanClientPage() {
                 <CardDescription>{t("health.activitiesDaily")}</CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => handleEdit(dailyTasks[0], "task")}>
                   <Edit className="mr-2 h-4 w-4" />
                   {t("action.edit")}
                 </Button>
-                <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-                  <Plus className="mr-2 h-4 w-4" />
-                  {t("health.addTask")}
-                </Button>
+                <Dialog open={isAddTaskOpen} onOpenChange={setIsAddTaskOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
+                      <Plus className="mr-2 h-4 w-4" />
+                      {t("health.addTask")}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>{t("health.addTask")}</DialogTitle>
+                      <DialogDescription>Add a new task to your health plan.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="task-name" className="text-right">
+                          Name
+                        </Label>
+                        <Input
+                          id="task-name"
+                          value={taskForm.name}
+                          onChange={(e) => setTaskForm({ ...taskForm, name: e.target.value })}
+                          className="col-span-3"
+                          placeholder="e.g., 30 min walk"
+                        />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="task-category" className="text-right">
+                          Category
+                        </Label>
+                        <Select
+                          value={taskForm.category}
+                          onValueChange={(value) => setTaskForm({ ...taskForm, category: value })}
+                        >
+                          <SelectTrigger className="col-span-3">
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="physical-activity">Physical Activity</SelectItem>
+                            <SelectItem value="nutrition">Nutrition</SelectItem>
+                            <SelectItem value="monitoring">Monitoring</SelectItem>
+                            <SelectItem value="mental-wellness">Mental Wellness</SelectItem>
+                            <SelectItem value="medication">Medication</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="task-frequency" className="text-right">
+                          Frequency
+                        </Label>
+                        <Select
+                          value={taskForm.frequency}
+                          onValueChange={(value) => setTaskForm({ ...taskForm, frequency: value })}
+                        >
+                          <SelectTrigger className="col-span-3">
+                            <SelectValue placeholder="Select frequency" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="daily">Daily</SelectItem>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="task-time" className="text-right">
+                          Time
+                        </Label>
+                        <Input
+                          id="task-time"
+                          value={taskForm.time}
+                          onChange={(e) => setTaskForm({ ...taskForm, time: e.target.value })}
+                          className="col-span-3"
+                          placeholder="e.g., Morning"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit" onClick={handleAddTask}>
+                        Add Task
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
             </CardHeader>
             <CardContent>
@@ -429,14 +644,18 @@ export default function HealthPlanClientPage() {
                 <CardDescription>{t("health.activitiesWeekly")}</CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => handleEdit(weeklyTasks[0], "task")}>
                   <Edit className="mr-2 h-4 w-4" />
                   {t("action.edit")}
                 </Button>
-                <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-                  <Plus className="mr-2 h-4 w-4" />
-                  {t("health.addTask")}
-                </Button>
+                <Dialog open={isAddTaskOpen} onOpenChange={setIsAddTaskOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
+                      <Plus className="mr-2 h-4 w-4" />
+                      {t("health.addTask")}
+                    </Button>
+                  </DialogTrigger>
+                </Dialog>
               </div>
             </CardHeader>
             <CardContent>
@@ -465,14 +684,18 @@ export default function HealthPlanClientPage() {
                 <CardDescription>{t("health.activitiesMonthly")}</CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => handleEdit(monthlyTasks[0], "task")}>
                   <Edit className="mr-2 h-4 w-4" />
                   {t("action.edit")}
                 </Button>
-                <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-                  <Plus className="mr-2 h-4 w-4" />
-                  {t("health.addTask")}
-                </Button>
+                <Dialog open={isAddTaskOpen} onOpenChange={setIsAddTaskOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
+                      <Plus className="mr-2 h-4 w-4" />
+                      {t("health.addTask")}
+                    </Button>
+                  </DialogTrigger>
+                </Dialog>
               </div>
             </CardHeader>
             <CardContent>
@@ -506,14 +729,76 @@ export default function HealthPlanClientPage() {
                 <CardDescription>{t("health.recommendationsDesc")}</CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => handleEdit(recommendations[0], "recommendation")}>
                   <Edit className="mr-2 h-4 w-4" />
                   {t("action.edit")}
                 </Button>
-                <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-                  <Plus className="mr-2 h-4 w-4" />
-                  {t("health.addRecommendation")}
-                </Button>
+                <Dialog open={isAddRecommendationOpen} onOpenChange={setIsAddRecommendationOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
+                      <Plus className="mr-2 h-4 w-4" />
+                      {t("health.addRecommendation")}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>{t("health.addRecommendation")}</DialogTitle>
+                      <DialogDescription>Add a new health recommendation.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="rec-title" className="text-right">
+                          Title
+                        </Label>
+                        <Input
+                          id="rec-title"
+                          value={recommendationForm.title}
+                          onChange={(e) => setRecommendationForm({ ...recommendationForm, title: e.target.value })}
+                          className="col-span-3"
+                          placeholder="e.g., Reduce Sodium Intake"
+                        />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="rec-description" className="text-right">
+                          Description
+                        </Label>
+                        <Textarea
+                          id="rec-description"
+                          value={recommendationForm.description}
+                          onChange={(e) =>
+                            setRecommendationForm({ ...recommendationForm, description: e.target.value })
+                          }
+                          className="col-span-3"
+                          placeholder="Detailed description of the recommendation..."
+                        />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="rec-category" className="text-right">
+                          Category
+                        </Label>
+                        <Select
+                          value={recommendationForm.category}
+                          onValueChange={(value) => setRecommendationForm({ ...recommendationForm, category: value })}
+                        >
+                          <SelectTrigger className="col-span-3">
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="nutrition">Nutrition</SelectItem>
+                            <SelectItem value="physical-activity">Physical Activity</SelectItem>
+                            <SelectItem value="mental-wellness">Mental Wellness</SelectItem>
+                            <SelectItem value="monitoring">Monitoring</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit" onClick={handleAddRecommendation}>
+                        Add Recommendation
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
             </CardHeader>
             <CardContent>
@@ -542,6 +827,101 @@ export default function HealthPlanClientPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit {editingItem?.type}</DialogTitle>
+            <DialogDescription>Make changes to your {editingItem?.type} here.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {editingItem?.type === "goal" && (
+              <>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-name" className="text-right">
+                    Name
+                  </Label>
+                  <Input
+                    id="edit-name"
+                    value={editingItem?.name || ""}
+                    onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-target" className="text-right">
+                    Target
+                  </Label>
+                  <Input
+                    id="edit-target"
+                    value={editingItem?.target || ""}
+                    onChange={(e) => setEditingItem({ ...editingItem, target: e.target.value })}
+                    className="col-span-3"
+                  />
+                </div>
+              </>
+            )}
+            {editingItem?.type === "task" && (
+              <>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-task-name" className="text-right">
+                    Name
+                  </Label>
+                  <Input
+                    id="edit-task-name"
+                    value={editingItem?.name || ""}
+                    onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-task-category" className="text-right">
+                    Category
+                  </Label>
+                  <Input
+                    id="edit-task-category"
+                    value={editingItem?.category || ""}
+                    onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value })}
+                    className="col-span-3"
+                  />
+                </div>
+              </>
+            )}
+            {editingItem?.type === "recommendation" && (
+              <>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-rec-title" className="text-right">
+                    Title
+                  </Label>
+                  <Input
+                    id="edit-rec-title"
+                    value={editingItem?.title || ""}
+                    onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-rec-description" className="text-right">
+                    Description
+                  </Label>
+                  <Textarea
+                    id="edit-rec-description"
+                    value={editingItem?.description || ""}
+                    onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
+                    className="col-span-3"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="submit" onClick={handleSaveEdit}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
