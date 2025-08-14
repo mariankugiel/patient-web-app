@@ -1,12 +1,14 @@
-import type { Metadata } from "next"
+"use client"
 
-export const metadata: Metadata = {
-  title: "Registos de Saúde | Saluso",
-  description: "Visualize e gerencie os seus registos de saúde",
-}
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 
-import HealthRecordsPage from "./health-records-client-page"
+export default function HealthRecordsPage() {
+  const router = useRouter()
 
-export default function Page() {
-  return <HealthRecordsPage />
+  useEffect(() => {
+    router.replace("/patient/health-records/summary")
+  }, [router])
+
+  return null
 }

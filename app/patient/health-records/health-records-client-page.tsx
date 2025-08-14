@@ -50,6 +50,10 @@ import {
 } from "lucide-react"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useLanguage } from "@/contexts/language-context"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function HealthRecordsClientPage() {
   const { t } = useLanguage()
@@ -58,6 +62,26 @@ export default function HealthRecordsClientPage() {
   const [editCurrentConditionsOpen, setEditCurrentConditionsOpen] = useState(false)
   const [editPastConditionsOpen, setEditPastConditionsOpen] = useState(false)
   const [editFamilyHistoryOpen, setEditFamilyHistoryOpen] = useState(false)
+
+  // New state for global new metric dialog
+  const [newMetricDialogOpen, setNewMetricDialogOpen] = useState(false)
+  const [newMetricName, setNewMetricName] = useState("")
+  const [newMetricCategory, setNewMetricCategory] = useState("")
+  const [newMetricUnit, setNewMetricUnit] = useState("")
+  const [newMetricNormalRange, setNewMetricNormalRange] = useState("")
+  const [metricExistsAlert, setMetricExistsAlert] = useState(false)
+
+  // New state for add value dialog
+  const [addValueDialogOpen, setAddValueDialogOpen] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState("")
+  const [selectedSubMetric, setSelectedSubMetric] = useState("")
+  const [newSubMetricName, setNewSubMetricName] = useState("")
+  const [metricValue, setMetricValue] = useState("")
+  const [metricUnit, setMetricUnit] = useState("")
+  const [metricDate, setMetricDate] = useState(new Date().toISOString().split("T")[0])
+  const [normalRangeMin, setNormalRangeMin] = useState("")
+  const [normalRangeMax, setNormalRangeMax] = useState("")
+  const [showNewSubMetricInput, setShowNewSubMetricInput] = useState(false)
 
   // Ensure data exists with fallbacks
   const bloodPressureData = healthMetrics?.bloodPressure || []
@@ -903,6 +927,108 @@ export default function HealthRecordsClientPage() {
       fileUrl: "/documents/lipid-20230115.pdf",
     },
   ]
+
+  // Check if metric name already exists
+  const checkMetricExists = (name: string) => {
+    const allMetrics = analysisCategories.flatMap((category) => category.metrics.map((m) => m.name.toLowerCase()))
+    return allMetrics.includes(name.toLowerCase())
+  }
+
+  // Handle new metric name change
+  const handleNewMetricNameChange = (value: string) => {
+    setNewMetricName(value)
+    setMetricExistsAlert(checkMetricExists(value))
+  }
+
+  // Handle new metric creation
+  const handleCreateNewMetric = () => {
+    if (!newMetricName || !newMetricCategory || !newMetricUnit || !newMetricNormalRange) {
+      alert("Please fill in all required fields")
+      return
+    }
+
+    if (metricExistsAlert) {
+      alert("This metric already exists. Please choose a different name.")
+      return
+    }
+
+    // In a real app, this would create the metric in the database
+    alert(`New metric "${newMetricName}" created successfully in ${newMetricCategory} category!`)
+
+    // Reset form
+    setNewMetricName("")
+    setNewMetricCategory("")
+    setNewMetricUnit("")
+    setNewMetricNormalRange("")
+    setMetricExistsAlert(false)
+    setNewMetricDialogOpen(false)
+  }
+
+  // Handle add value for category
+  const handleAddValueForCategory = (categoryName: string) => {
+    setSelectedCategory(categoryName)
+    setAddValueDialogOpen(true)
+  }
+
+  // Handle sub-metric selection change
+  const handleSubMetricChange = (value: string) => {
+    if (value === "new") {
+      setShowNewSubMetricInput(true)
+      setSelectedSubMetric("")
+    } else {
+      setShowNewSubMetricInput(false)
+      setSelectedSubMetric(value)
+
+      // Find the selected metric and populate normal range
+      const category = analysisCategories.find((cat) => cat.name === selectedCategory)
+      const metric = category?.metrics.find((m) => m.name === value)
+      if (metric) {
+        // Extract min and max from reference range
+        const reference = metric.reference
+        const rangeMatch = reference.match(/(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)/)
+        if (rangeMatch) {
+          setNormalRangeMin(rangeMatch[1])
+          setNormalRangeMax(rangeMatch[2])
+        } else if (reference.includes("<")) {
+          const maxMatch = reference.match(/<(\d+(?:\.\d+)?)/)
+          if (maxMatch) {
+            setNormalRangeMin("0")
+            setNormalRangeMax(maxMatch[1])
+          }
+        } else if (reference.includes(">")) {
+          const minMatch = reference.match(/>(\d+(?:\.\d+)?)/)
+          if (minMatch) {
+            setNormalRangeMin(minMatch[1])
+            setNormalRangeMax("999")
+          }
+        }
+      }
+    }
+  }
+
+  // Handle add value submission
+  const handleAddValueSubmit = () => {
+    const metricName = showNewSubMetricInput ? newSubMetricName : selectedSubMetric
+
+    if (!metricName || !metricValue || !metricUnit || !metricDate) {
+      alert("Please fill in all required fields")
+      return
+    }
+
+    // In a real app, this would save the value to the database
+    alert(`Value added successfully: ${metricName} = ${metricValue} ${metricUnit} on ${metricDate}`)
+
+    // Reset form
+    setSelectedSubMetric("")
+    setNewSubMetricName("")
+    setMetricValue("")
+    setMetricUnit("")
+    setMetricDate(new Date().toISOString().split("T")[0])
+    setNormalRangeMin("")
+    setNormalRangeMax("")
+    setShowNewSubMetricInput(false)
+    setAddValueDialogOpen(false)
+  }
 
   // Render metric box for analysis tab
   const renderMetricBox = (metric: any) => {
@@ -1925,60 +2051,59 @@ export default function HealthRecordsClientPage() {
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                       <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="docDate" className="text-right text-sm">
+                        <Label htmlFor="docDate" className="text-right text-sm">
                           {t("health.date")}
-                        </label>
-                        <input
+                        </Label>
+                        <Input
                           id="docDate"
                           type="date"
                           defaultValue={new Date().toISOString().split("T")[0]}
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="col-span-3"
                         />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="docType" className="text-right text-sm">
+                        <Label htmlFor="docType" className="text-right text-sm">
                           {t("health.type")}
-                        </label>
-                        <select
-                          id="docType"
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <option value="Complete Blood Count">{t("health.documents.completeBloodCount")}</option>
-                          <option value="Comprehensive Metabolic Panel">
-                            {t("health.documents.comprehensiveMetabolicPanel")}
-                          </option>
-                          <option value="Lipid Panel">{t("health.documents.lipidPanel")}</option>
-                          <option value="Hemoglobin A1C">{t("health.documents.hemoglobinA1C")}</option>
-                          <option value="Urinalysis">{t("health.documents.urinalysis")}</option>
-                          <option value="Thyroid Panel">{t("health.documents.thyroidPanel")}</option>
-                          <option value="Other">{t("health.other")}</option>
-                        </select>
+                        </Label>
+                        <Select>
+                          <SelectTrigger className="col-span-3">
+                            <SelectValue placeholder="Select document type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Complete Blood Count">
+                              {t("health.documents.completeBloodCount")}
+                            </SelectItem>
+                            <SelectItem value="Comprehensive Metabolic Panel">
+                              {t("health.documents.comprehensiveMetabolicPanel")}
+                            </SelectItem>
+                            <SelectItem value="Lipid Panel">{t("health.documents.lipidPanel")}</SelectItem>
+                            <SelectItem value="Hemoglobin A1C">{t("health.documents.hemoglobinA1C")}</SelectItem>
+                            <SelectItem value="Urinalysis">{t("health.documents.urinalysis")}</SelectItem>
+                            <SelectItem value="Thyroid Panel">{t("health.documents.thyroidPanel")}</SelectItem>
+                            <SelectItem value="Other">{t("health.other")}</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="provider" className="text-right text-sm">
+                        <Label htmlFor="provider" className="text-right text-sm">
                           {t("health.provider")}
-                        </label>
-                        <input
-                          id="provider"
-                          type="text"
-                          defaultValue="Lab Corp"
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
+                        </Label>
+                        <Input id="provider" type="text" defaultValue="Lab Corp" className="col-span-3" />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="docFile" className="text-right text-sm">
+                        <Label htmlFor="docFile" className="text-right text-sm">
                           {t("health.file")}
-                        </label>
+                        </Label>
                         <div className="col-span-3">
-                          <label
+                          <Label
                             htmlFor="docFile"
                             className="flex h-32 w-full cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-input bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-accent/50"
                           >
                             <FileText className="mb-2 h-6 w-6" />
                             <span className="font-medium">{t("health.clickToUpload")}</span>
                             <span className="text-xs">{t("health.pdfMaxSize")}</span>
-                            <input id="docFile" type="file" accept=".pdf" className="sr-only" />
-                          </label>
+                            <Input id="docFile" type="file" accept=".pdf" className="sr-only" />
+                          </Label>
                         </div>
                       </div>
                     </div>
@@ -2074,192 +2199,100 @@ export default function HealthRecordsClientPage() {
             </Card>
           </div>
 
+          {/* Global New Metric Button */}
+          <div className="mb-4 flex justify-end">
+            <Dialog open={newMetricDialogOpen} onOpenChange={setNewMetricDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2 bg-transparent">
+                  <Plus className="h-4 w-4" />
+                  {t("health.newMetric")}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>{t("health.createNewMetric")}</DialogTitle>
+                  <DialogDescription>{t("health.addCustomMetric")}</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="new-metric-name">{t("health.metricName")}</Label>
+                    <Input
+                      id="new-metric-name"
+                      placeholder="e.g., Vitamin D"
+                      value={newMetricName}
+                      onChange={(e) => handleNewMetricNameChange(e.target.value)}
+                    />
+                    {metricExistsAlert && (
+                      <Alert className="mt-2">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>This metric already exists. Please choose a different name.</AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="new-metric-category">{t("health.category")}</Label>
+                    <Select value={newMetricCategory} onValueChange={setNewMetricCategory}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {analysisCategories.map((category) => (
+                          <SelectItem key={category.name} value={category.name}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="new-metric-unit">{t("health.unit")}</Label>
+                    <Input
+                      id="new-metric-unit"
+                      placeholder="e.g., ng/mL"
+                      value={newMetricUnit}
+                      onChange={(e) => setNewMetricUnit(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="new-metric-range">{t("health.normalRange")}</Label>
+                    <Input
+                      id="new-metric-range"
+                      placeholder="e.g., 30-100"
+                      value={newMetricNormalRange}
+                      onChange={(e) => setNewMetricNormalRange(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setNewMetricDialogOpen(false)}>
+                    {t("action.cancel")}
+                  </Button>
+                  <Button onClick={handleCreateNewMetric} disabled={metricExistsAlert}>
+                    {t("action.create")}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
           <Accordion type="multiple" defaultValue={analysisCategories.map((cat) => cat.name)} className="mb-6">
             {analysisCategories.map((category, index) => (
               <AccordionItem key={index} value={category.name}>
                 <AccordionTrigger className="text-lg">
                   <div className="flex items-center justify-between w-full pr-4">
                     <span>{category.name}</span>
-                    <Dialog>
-                      <DialogTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="outline" size="sm" className="h-7 gap-1 bg-transparent">
-                          <Plus className="h-3.5 w-3.5" />
-                          <span className="text-xs">{t("health.addValue")}</span>
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader>
-                          <DialogTitle>{t("health.addMetric", { category: category.name })}</DialogTitle>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <label htmlFor="metric" className="text-right text-sm">
-                              {t("health.metric")}
-                            </label>
-                            <select
-                              id="metric"
-                              className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {category.metrics.map((metric) => (
-                                <option key={metric.name} value={metric.name}>
-                                  {metric.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <label htmlFor="value" className="text-right text-sm">
-                              {t("health.value")}
-                            </label>
-                            <input
-                              id="value"
-                              type="text"
-                              className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <label htmlFor="unit" className="text-right text-sm">
-                              {t("health.unit")}
-                            </label>
-                            <select
-                              id="unit"
-                              className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {category.name === t("health.categories.hematology") && (
-                                <>
-                                  <option value="K/uL">K/uL</option>
-                                  <option value="M/uL">M/uL</option>
-                                  <option value="g/dL">g/dL</option>
-                                  <option value="%">%</option>
-                                </>
-                              )}
-                              {category.name === t("health.categories.biochemistry") && (
-                                <>
-                                  <option value="mg/dL">mg/dL</option>
-                                  <option value="ratio">ratio</option>
-                                </>
-                              )}
-                              {category.name === t("health.categories.endocrinology") && (
-                                <>
-                                  <option value="mg/dL">mg/dL</option>
-                                  <option value="%">%</option>
-                                  <option value="mIU/L">mIU/L</option>
-                                  <option value="ng/dL">ng/dL</option>
-                                  <option value="μIU/mL">μIU/mL</option>
-                                </>
-                              )}
-                              {category.name === t("health.categories.kidneyfunction") && (
-                                <>
-                                  <option value="mg/dL">mg/dL</option>
-                                  <option value="mL/min">mL/min</option>
-                                  <option value="ratio">ratio</option>
-                                </>
-                              )}
-                              {category.name === t("health.categories.electrolytes") && (
-                                <>
-                                  <option value="mmol/L">mmol/L</option>
-                                  <option value="mg/dL">mg/dL</option>
-                                </>
-                              )}
-                              {category.name === t("health.categories.urinalysis") && (
-                                <>
-                                  <option value="Negative">{t("health.values.negative")}</option>
-                                  <option value="Positive">{t("health.values.positive")}</option>
-                                  <option value="pH">pH</option>
-                                  <option value="sg">sg</option>
-                                </>
-                              )}
-                            </select>
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <label htmlFor="date" className="text-right text-sm">
-                              {t("health.date")}
-                            </label>
-                            <input
-                              id="date"
-                              type="date"
-                              defaultValue={new Date().toISOString().split("T")[0]}
-                              className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button type="submit" onClick={() => alert(t("health.metricSaved"))}>
-                            {t("health.saveMetric")}
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                    <Dialog>
-                      <DialogTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="outline" size="sm" className="h-7 gap-1 ml-2 bg-transparent">
-                          <Plus className="h-3.5 w-3.5" />
-                          <span className="text-xs">{t("health.newMetric")}</span>
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader>
-                          <DialogTitle>{t("health.createNewMetric")}</DialogTitle>
-                          <DialogDescription>{t("health.addCustomMetric")}</DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <label htmlFor="new-metric-name" className="text-right text-sm">
-                              {t("health.newMetric")}
-                            </label>
-                            <input
-                              id="new-metric-name"
-                              type="text"
-                              placeholder={t("health.vitaminDExample")}
-                              className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <label htmlFor="new-metric-unit" className="text-right text-sm">
-                              {t("health.unit")}
-                            </label>
-                            <input
-                              id="new-metric-unit"
-                              type="text"
-                              placeholder={t("health.ngmlExample")}
-                              className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <label htmlFor="new-metric-normal" className="text-right text-sm">
-                              {t("health.normalValue")}
-                            </label>
-                            <input
-                              id="new-metric-normal"
-                              type="text"
-                              placeholder={t("health.rangeExample")}
-                              className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <label htmlFor="new-metric-type" className="text-right text-sm">
-                              {t("health.type")}
-                            </label>
-                            <select
-                              id="new-metric-type"
-                              className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <option value="Hematology">{t("health.categories.hematology")}</option>
-                              <option value="Biochemistry">{t("health.categories.biochemistry")}</option>
-                              <option value="Endocrinology">{t("health.categories.endocrinology")}</option>
-                              <option value="Kidney Function">{t("health.categories.kidneyfunction")}</option>
-                              <option value="Electrolytes">{t("health.categories.electrolytes")}</option>
-                              <option value="Urinalysis">{t("health.categories.urinalysis")}</option>
-                            </select>
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button type="submit" onClick={() => alert(t("health.metricSaved"))}>
-                            {t("health.createMetric")}
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1 bg-transparent"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleAddValueForCategory(category.name)
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span className="text-xs">{t("health.addValue")}</span>
+                    </Button>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
@@ -2270,6 +2303,105 @@ export default function HealthRecordsClientPage() {
               </AccordionItem>
             ))}
           </Accordion>
+
+          {/* Add Value Dialog */}
+          <Dialog open={addValueDialogOpen} onOpenChange={setAddValueDialogOpen}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>
+                  {t("health.addValue")} - {selectedCategory}
+                </DialogTitle>
+                <DialogDescription>{t("health.selectOrCreateMetric")}</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="sub-metric">{t("health.metric")}</Label>
+                  <Select value={selectedSubMetric} onValueChange={handleSubMetricChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select existing metric or create new" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {analysisCategories
+                        .find((cat) => cat.name === selectedCategory)
+                        ?.metrics.map((metric) => (
+                          <SelectItem key={metric.name} value={metric.name}>
+                            {metric.name}
+                          </SelectItem>
+                        ))}
+                      <SelectItem value="new">+ Create New Metric</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {showNewSubMetricInput && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="new-sub-metric">{t("health.newMetricName")}</Label>
+                    <Input
+                      id="new-sub-metric"
+                      placeholder="Enter new metric name"
+                      value={newSubMetricName}
+                      onChange={(e) => setNewSubMetricName(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="metric-value">{t("health.value")}</Label>
+                    <Input
+                      id="metric-value"
+                      type="number"
+                      step="0.01"
+                      placeholder="Enter value"
+                      value={metricValue}
+                      onChange={(e) => setMetricValue(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="metric-unit">{t("health.unit")}</Label>
+                    <Input
+                      id="metric-unit"
+                      placeholder="e.g., mg/dL"
+                      value={metricUnit}
+                      onChange={(e) => setMetricUnit(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label>{t("health.normalRange")}</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder="Min"
+                      value={normalRangeMin}
+                      onChange={(e) => setNormalRangeMin(e.target.value)}
+                    />
+                    <Input
+                      placeholder="Max"
+                      value={normalRangeMax}
+                      onChange={(e) => setNormalRangeMax(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="metric-date">{t("health.date")}</Label>
+                  <Input
+                    id="metric-date"
+                    type="date"
+                    value={metricDate}
+                    onChange={(e) => setMetricDate(e.target.value)}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAddValueDialogOpen(false)}>
+                  {t("action.cancel")}
+                </Button>
+                <Button onClick={handleAddValueSubmit}>{t("health.addValue")}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* Body Composition Tab */}
@@ -2331,131 +2463,52 @@ export default function HealthRecordsClientPage() {
                       <DialogDescription>{t("health.enterBodyMetricDetails")}</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="metric" className="text-right text-sm">
-                          {t("health.metric")}
-                        </label>
-                        <select
-                          id="metric"
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <option value="Body Fat">{t("health.metrics.bodyFat")}</option>
-                          <option value="Muscle Mass">{t("health.metrics.muscleMass")}</option>
-                          <option value="BMI">{t("health.metrics.bmi")}</option>
-                          <option value="Waist Circumference">{t("health.metrics.waistCircumference")}</option>
-                          <option value="Waist-Hip Ratio">{t("health.metrics.waistHipRatio")}</option>
-                          <option value="Visceral Fat">{t("health.metrics.visceralFat")}</option>
-                        </select>
+                      <div className="grid gap-2">
+                        <Label htmlFor="metric">{t("health.metric")}</Label>
+                        <Select>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select metric" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Body Fat">{t("health.metrics.bodyFat")}</SelectItem>
+                            <SelectItem value="Muscle Mass">{t("health.metrics.muscleMass")}</SelectItem>
+                            <SelectItem value="BMI">{t("health.metrics.bmi")}</SelectItem>
+                            <SelectItem value="Waist Circumference">
+                              {t("health.metrics.waistCircumference")}
+                            </SelectItem>
+                            <SelectItem value="Waist-Hip Ratio">{t("health.metrics.waistHipRatio")}</SelectItem>
+                            <SelectItem value="Visceral Fat">{t("health.metrics.visceralFat")}</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="value" className="text-right text-sm">
-                          {t("health.value")}
-                        </label>
-                        <input
-                          id="value"
-                          type="number"
-                          step="0.1"
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
+                      <div className="grid gap-2">
+                        <Label htmlFor="value">{t("health.value")}</Label>
+                        <Input id="value" type="number" step="0.1" placeholder="Enter value" />
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="unit" className="text-right text-sm">
-                          {t("health.unit")}
-                        </label>
-                        <select
-                          id="unit"
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <option value="%">%</option>
-                          <option value="kg/m²">kg/m²</option>
-                          <option value="inches">{t("health.units.inches")}</option>
-                          <option value="cm">cm</option>
-                          <option value="ratio">ratio</option>
-                          <option value="level">{t("health.units.level")}</option>
-                        </select>
+                      <div className="grid gap-2">
+                        <Label htmlFor="unit">{t("health.unit")}</Label>
+                        <Select>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select unit" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="%">%</SelectItem>
+                            <SelectItem value="kg/m²">kg/m²</SelectItem>
+                            <SelectItem value="inches">{t("health.units.inches")}</SelectItem>
+                            <SelectItem value="cm">cm</SelectItem>
+                            <SelectItem value="ratio">ratio</SelectItem>
+                            <SelectItem value="level">{t("health.units.level")}</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="date" className="text-right text-sm">
-                          {t("health.date")}
-                        </label>
-                        <input
-                          id="date"
-                          type="date"
-                          defaultValue={new Date().toISOString().split("T")[0]}
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
+                      <div className="grid gap-2">
+                        <Label htmlFor="date">{t("health.date")}</Label>
+                        <Input id="date" type="date" defaultValue={new Date().toISOString().split("T")[0]} />
                       </div>
                     </div>
                     <DialogFooter>
                       <Button type="submit" onClick={() => alert(t("health.metricSaved"))}>
                         {t("health.saveMetric")}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 gap-1 bg-transparent">
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>{t("health.newMetric")}</span>
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>{t("health.createNewBodyMetric")}</DialogTitle>
-                      <DialogDescription>{t("health.addCustomBodyMetric")}</DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="new-body-metric" className="text-right text-sm">
-                          {t("health.newMetric")}
-                        </label>
-                        <input
-                          id="new-body-metric"
-                          type="text"
-                          placeholder={t("health.boneDensityExample")}
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="new-body-unit" className="text-right text-sm">
-                          {t("health.unit")}
-                        </label>
-                        <input
-                          id="new-body-unit"
-                          type="text"
-                          placeholder={t("health.gcm2Example")}
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="new-body-normal" className="text-right text-sm">
-                          {t("health.normalValue")}
-                        </label>
-                        <input
-                          id="new-body-normal"
-                          type="text"
-                          placeholder={t("health.rangeExample")}
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="new-body-type" className="text-right text-sm">
-                          {t("health.type")}
-                        </label>
-                        <select
-                          id="new-body-type"
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <option value="Body Composition">{t("health.bodyComposition")}</option>
-                          <option value="Anthropometric">{t("health.anthropometric")}</option>
-                          <option value="Fitness">{t("health.fitness")}</option>
-                        </select>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button type="submit" onClick={() => alert(t("health.newBodyMetricCreated"))}>
-                        {t("health.createMetric")}
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -2529,133 +2582,50 @@ export default function HealthRecordsClientPage() {
                       <DialogDescription>{t("health.enterLifestyleDetails")}</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="lifestyle-metric" className="text-right text-sm">
-                          {t("health.metric")}
-                        </label>
-                        <select
-                          id="lifestyle-metric"
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <option value="Sleep">{t("health.metrics.sleep")}</option>
-                          <option value="Steps">{t("health.metrics.steps")}</option>
-                          <option value="Workouts">{t("health.metrics.workouts")}</option>
-                          <option value="Stress Level">{t("health.metrics.stressLevel")}</option>
-                          <option value="Screen Time">{t("health.metrics.screenTime")}</option>
-                          <option value="Nutrition Score">{t("health.metrics.nutritionScore")}</option>
-                        </select>
+                      <div className="grid gap-2">
+                        <Label htmlFor="lifestyle-metric">{t("health.metric")}</Label>
+                        <Select>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select metric" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Sleep">{t("health.metrics.sleep")}</SelectItem>
+                            <SelectItem value="Steps">{t("health.metrics.steps")}</SelectItem>
+                            <SelectItem value="Workouts">{t("health.metrics.workouts")}</SelectItem>
+                            <SelectItem value="Stress Level">{t("health.metrics.stressLevel")}</SelectItem>
+                            <SelectItem value="Screen Time">{t("health.metrics.screenTime")}</SelectItem>
+                            <SelectItem value="Nutrition Score">{t("health.metrics.nutritionScore")}</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="lifestyle-value" className="text-right text-sm">
-                          {t("health.value")}
-                        </label>
-                        <input
-                          id="lifestyle-value"
-                          type="number"
-                          step="0.1"
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
+                      <div className="grid gap-2">
+                        <Label htmlFor="lifestyle-value">{t("health.value")}</Label>
+                        <Input id="lifestyle-value" type="number" step="0.1" placeholder="Enter value" />
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="lifestyle-unit" className="text-right text-sm">
-                          {t("health.unit")}
-                        </label>
-                        <select
-                          id="lifestyle-unit"
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <option value="hrs">{t("health.units.hours")}</option>
-                          <option value="steps">steps</option>
-                          <option value="/week">/{t("health.units.week")}</option>
-                          <option value="level">{t("health.units.level")}</option>
-                          <option value="hrs/day">{t("health.units.hoursPerDay")}</option>
-                          <option value="/100">/100</option>
-                        </select>
+                      <div className="grid gap-2">
+                        <Label htmlFor="lifestyle-unit">{t("health.unit")}</Label>
+                        <Select>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select unit" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="hrs">{t("health.units.hours")}</SelectItem>
+                            <SelectItem value="steps">steps</SelectItem>
+                            <SelectItem value="/week">/{t("health.units.week")}</SelectItem>
+                            <SelectItem value="level">{t("health.units.level")}</SelectItem>
+                            <SelectItem value="hrs/day">{t("health.units.hoursPerDay")}</SelectItem>
+                            <SelectItem value="/100">/100</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="lifestyle-date" className="text-right text-sm">
-                          {t("health.date")}
-                        </label>
-                        <input
-                          id="lifestyle-date"
-                          type="date"
-                          defaultValue={new Date().toISOString().split("T")[0]}
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
+                      <div className="grid gap-2">
+                        <Label htmlFor="lifestyle-date">{t("health.date")}</Label>
+                        <Input id="lifestyle-date" type="date" defaultValue={new Date().toISOString().split("T")[0]} />
                       </div>
                     </div>
                     <DialogFooter>
                       <Button type="submit" onClick={() => alert(t("health.metricSaved"))}>
                         {t("health.saveMetric")}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 gap-1 bg-transparent">
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>{t("health.newMetric")}</span>
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>{t("health.createNewLifestyleMetric")}</DialogTitle>
-                      <DialogDescription>{t("health.addCustomLifestyleMetric")}</DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="new-lifestyle-metric" className="text-right text-sm">
-                          {t("health.newMetric")}
-                        </label>
-                        <input
-                          id="new-lifestyle-metric"
-                          type="text"
-                          placeholder={t("health.meditationExample")}
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="new-lifestyle-unit" className="text-right text-sm">
-                          {t("health.unit")}
-                        </label>
-                        <input
-                          id="new-lifestyle-unit"
-                          type="text"
-                          placeholder={t("health.minDayExample")}
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="new-lifestyle-normal" className="text-right text-sm">
-                          {t("health.normalValue")}
-                        </label>
-                        <input
-                          id="new-lifestyle-normal"
-                          type="text"
-                          placeholder={t("health.greaterThanExample")}
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="new-lifestyle-type" className="text-right text-sm">
-                          {t("health.type")}
-                        </label>
-                        <select
-                          id="new-lifestyle-type"
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <option value="Physical Activity">{t("health.physicalActivity")}</option>
-                          <option value="Sleep">{t("health.metrics.sleep")}</option>
-                          <option value="Nutrition">{t("health.nutrition")}</option>
-                          <option value="Mental Wellness">{t("health.mentalWellness")}</option>
-                          <option value="Habits">{t("health.habits")}</option>
-                        </select>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button type="submit" onClick={() => alert(t("health.newLifestyleMetricCreated"))}>
-                        {t("health.createMetric")}
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -2729,131 +2699,49 @@ export default function HealthRecordsClientPage() {
                       <DialogDescription>{t("health.enterVitalDetails")}</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="vitals-metric" className="text-right text-sm">
-                          {t("health.metric")}
-                        </label>
-                        <select
-                          id="vitals-metric"
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <option value="Heart Rate">{t("health.metrics.heartRate")}</option>
-                          <option value="Blood Pressure">{t("health.metrics.bloodPressure")}</option>
-                          <option value="O₂ Saturation">{t("health.metrics.oxygenSaturation")}</option>
-                          <option value="Respiratory Rate">{t("health.metrics.respiratoryRate")}</option>
-                          <option value="Temperature">{t("health.metrics.temperature")}</option>
-                        </select>
+                      <div className="grid gap-2">
+                        <Label htmlFor="vitals-metric">{t("health.metric")}</Label>
+                        <Select>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select metric" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Heart Rate">{t("health.metrics.heartRate")}</SelectItem>
+                            <SelectItem value="Blood Pressure">{t("health.metrics.bloodPressure")}</SelectItem>
+                            <SelectItem value="O₂ Saturation">{t("health.metrics.oxygenSaturation")}</SelectItem>
+                            <SelectItem value="Respiratory Rate">{t("health.metrics.respiratoryRate")}</SelectItem>
+                            <SelectItem value="Temperature">{t("health.metrics.temperature")}</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="vitals-value" className="text-right text-sm">
-                          {t("health.value")}
-                        </label>
-                        <input
-                          id="vitals-value"
-                          type="number"
-                          step="0.1"
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
+                      <div className="grid gap-2">
+                        <Label htmlFor="vitals-value">{t("health.value")}</Label>
+                        <Input id="vitals-value" type="number" step="0.1" placeholder="Enter value" />
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="vitals-unit" className="text-right text-sm">
-                          {t("health.unit")}
-                        </label>
-                        <select
-                          id="vitals-unit"
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <option value="bpm">bpm</option>
-                          <option value="mmHg">mmHg</option>
-                          <option value="%">%</option>
-                          <option value="breaths/min">{t("health.units.breathsPerMinute")}</option>
-                          <option value="°F">°F</option>
-                          <option value="°C">°C</option>
-                        </select>
+                      <div className="grid gap-2">
+                        <Label htmlFor="vitals-unit">{t("health.unit")}</Label>
+                        <Select>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select unit" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bpm">bpm</SelectItem>
+                            <SelectItem value="mmHg">mmHg</SelectItem>
+                            <SelectItem value="%">%</SelectItem>
+                            <SelectItem value="breaths/min">{t("health.units.breathsPerMinute")}</SelectItem>
+                            <SelectItem value="°F">°F</SelectItem>
+                            <SelectItem value="°C">°C</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="vitals-date" className="text-right text-sm">
-                          {t("health.date")}
-                        </label>
-                        <input
-                          id="vitals-date"
-                          type="date"
-                          defaultValue={new Date().toISOString().split("T")[0]}
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
+                      <div className="grid gap-2">
+                        <Label htmlFor="vitals-date">{t("health.date")}</Label>
+                        <Input id="vitals-date" type="date" defaultValue={new Date().toISOString().split("T")[0]} />
                       </div>
                     </div>
                     <DialogFooter>
                       <Button type="submit" onClick={() => alert(t("health.vitalSignSaved"))}>
                         {t("health.saveVitalSign")}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 gap-1 bg-transparent">
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>{t("health.newMetric")}</span>
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>{t("health.createNewVitalSign")}</DialogTitle>
-                      <DialogDescription>{t("health.addCustomVitalSign")}</DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="new-vital-metric" className="text-right text-sm">
-                          {t("health.newMetric")}
-                        </label>
-                        <input
-                          id="new-vital-metric"
-                          type="text"
-                          placeholder={t("health.peakFlowExample")}
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="new-vital-unit" className="text-right text-sm">
-                          {t("health.unit")}
-                        </label>
-                        <input
-                          id="new-vital-unit"
-                          type="text"
-                          placeholder={t("health.lminExample")}
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="new-vital-normal" className="text-right text-sm">
-                          {t("health.normalValue")}
-                        </label>
-                        <input
-                          id="new-vital-normal"
-                          type="text"
-                          placeholder={t("health.rangeExample")}
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <label htmlFor="new-vital-type" className="text-right text-sm">
-                          {t("health.type")}
-                        </label>
-                        <select
-                          id="new-vital-type"
-                          className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <option value="Cardiovascular">{t("health.cardiovascular")}</option>
-                          <option value="Respiratory">{t("health.respiratory")}</option>
-                          <option value="Temperature">{t("health.metrics.temperature")}</option>
-                          <option value="Other">{t("health.other")}</option>
-                        </select>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button type="submit" onClick={() => alert(t("health.newVitalSignCreated"))}>
-                        {t("health.createMetric")}
                       </Button>
                     </DialogFooter>
                   </DialogContent>
