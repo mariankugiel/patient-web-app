@@ -3,7 +3,7 @@
 import type React from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePathname, useRouter } from "next/navigation"
-import { Activity, Calendar, LineChart, Scale, Dumbbell, Heart, Dna } from "lucide-react"
+import { Activity, Calendar, LineChart, Scale, Dumbbell, Heart, FileImage } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 
 export default function HealthRecordsLayout({
@@ -75,10 +75,10 @@ export default function HealthRecordsLayout({
                 <span>{t("health.vitals")}</span>
               </div>
             </TabsTrigger>
-            <TabsTrigger value="genetics" className="flex-1 py-2">
+            <TabsTrigger value="images" className="flex-1 py-2">
               <div className="flex items-center gap-2">
-                <Dna className="h-4 w-4" />
-                <span>{t("health.genetics")}</span>
+                <FileImage className="h-4 w-4" />
+                <span>{t("health.images")}</span>
               </div>
             </TabsTrigger>
           </TabsList>
