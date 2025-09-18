@@ -21,11 +21,23 @@ import { AddDropdown } from "@/components/add-dropdown"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Logo } from "@/components/logo"
 import { useLanguage } from "@/contexts/language-context"
+import { useDispatch } from "react-redux"
+import { AppDispatch } from "@/lib/store"
+import { logout } from "@/lib/features/auth/authSlice"
+import { useRouter } from "next/navigation"
+import { toast } from "react-toastify"
 
 export default function PatientSidebar() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const { t } = useLanguage()
+  const dispatch = useDispatch<AppDispatch>()
+  const router = useRouter()
+
+  const handleLogout = () => {
+    dispatch(logout())
+    router.push('/')
+  }
 
   const navigation = [
     { name: t("nav.dashboard"), href: "/patient/dashboard", icon: Home },
@@ -83,7 +95,11 @@ export default function PatientSidebar() {
                   </nav>
                 </div>
                 <div className="p-4">
-                  <Button variant="ghost" className="w-full justify-start text-red-600 dark:text-red-400">
+                  <Button 
+                    variant="ghost" 
+                    className="w-full justify-start text-red-600 dark:text-red-400"
+                    onClick={handleLogout}
+                  >
                     <LogOut className="h-5 w-5 shrink-0" />
                     <span className="ml-3">{t("nav.logout")}</span>
                   </Button>
@@ -126,7 +142,11 @@ export default function PatientSidebar() {
           </nav>
         </div>
         <div>
-          <Button variant="ghost" className="w-full justify-start text-red-600 dark:text-red-400">
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start text-red-600 dark:text-red-400"
+            onClick={handleLogout}
+          >
             <LogOut className="h-5 w-5 shrink-0" />
             <span className="ml-3">{t("nav.logout")}</span>
           </Button>

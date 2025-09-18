@@ -1,6 +1,6 @@
-"use client"
+'use client'
 
-import { useState } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,585 +34,681 @@ import {
   Minus,
   ChevronsUpDown,
   Check,
+  Loader2,
+  Upload,
+  ArrowRight,
+  Activity,
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { HealthMetricsChart } from "@/components/patient/health-metrics-chart"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { cn } from "@/lib/utils"
+import { useAnalysisDashboard, formatMetricValue, formatReferenceRange, getStatusColor, getTrendColor } from "@/hooks/use-health-records"
+import { useAIAnalysis } from "@/hooks/use-ai-analysis"
+import { 
+  HealthRecordsApiService, 
+  MetricWithData, 
+  HealthRecordSection,
+  HealthRecord,
+  HealthRecordMetric,
+  SectionWithMetrics
+} from "@/lib/api/health-records-api"
+import { LabDocumentUpload } from "@/components/lab-document-upload"
+import { toast } from "react-toastify"
+import { NewSectionDialog } from "@/components/health-records/new-section-dialog"
+import { NewMetricDialog } from "@/components/health-records/new-metric-dialog"
+import { NewValueDialogWithSpecial } from "@/components/health-records/new-value-dialog"
+import { MetricDetailDialog } from "@/components/health-records/metric-detail-dialog"
+import { medicalDocumentsApiService, MedicalDocument } from "@/lib/api/medical-documents-api"
+
+// Use HealthRecordSection as the base type for sections with metrics
+type HealthRecordSectionWithMetrics = HealthRecordSection & {
+  metrics?: MetricWithData[]
+}
+
+interface LabAnalysisResult {
+  metric_name: string
+  value: string
+  unit: string
+  reference_range: string
+  status: 'normal' | 'abnormal' | 'critical'
+  confidence: number
+}
 
 export default function AnalysisPage() {
   const { t } = useLanguage()
+  const { dashboard, sections, setSections, loading, createSection, createMetric, createRecord, refresh } = useAnalysisDashboard()
+  const { analysis: aiAnalysis, loading: aiLoading, generateAnalysis, error: aiError } = useAIAnalysis()
 
-  // New state for global new section dialog
+  // Track if we've already attempted to load AI analysis
+  const aiAnalysisAttempted = useRef(false)
+
+  // Dialog states
   const [newSectionDialogOpen, setNewSectionDialogOpen] = useState(false)
-  const [newSectionName, setNewSectionName] = useState("")
-  const [sectionExistsAlert, setSectionExistsAlert] = useState(false)
+  const [newMetricDialogOpen, setNewMetricDialogOpen] = useState(false)
+  const [newValueDialogOpen, setNewValueDialogOpen] = useState(false)
+  const [selectedSectionForMetric, setSelectedSectionForMetric] = useState<SectionWithMetrics | null>(null)
+  const [metricDetailDialogOpen, setMetricDetailDialogOpen] = useState(false)
+  const [selectedMetric, setSelectedMetric] = useState<MetricWithData | null>(null)
+  const [selectedSectionForValue, setSelectedSectionForValue] = useState<SectionWithMetrics | null>(null)
+  const [labUploadOpen, setLabUploadOpen] = useState(false)
 
-  // New state for add metric dialog (previously add value dialog)
-  const [addMetricDialogOpen, setAddMetricDialogOpen] = useState(false)
-  const [selectedSection, setSelectedSection] = useState("")
-  const [selectedMetric, setSelectedMetric] = useState("")
-  const [metricValue, setMetricValue] = useState("")
-  const [metricUnit, setMetricUnit] = useState("")
-  const [metricDate, setMetricDate] = useState(new Date().toISOString().split("T")[0])
-  const [normalRangeMin, setNormalRangeMin] = useState("")
-  const [normalRangeMax, setNormalRangeMax] = useState("")
+  // Medical documents state
+  const [medicalDocuments, setMedicalDocuments] = useState<MedicalDocument[]>([])
+  const [documentsLoading, setDocumentsLoading] = useState(false)
+  const [allDocumentsOpen, setAllDocumentsOpen] = useState(false)
+  const [allDocuments, setAllDocuments] = useState<MedicalDocument[]>([])
+  const [allDocumentsLoading, setAllDocumentsLoading] = useState(false)
+  const [currentPage, setCurrentPage] = useState(0)
+  const [totalDocuments, setTotalDocuments] = useState(0)
 
-  // Add new state for comboboxes
-  const [metricComboboxOpen, setMetricComboboxOpen] = useState(false)
-  const [selectedMetricForValue, setSelectedMetricForValue] = useState("")
+  // Show sections that have data OR sections without data (newly created)
+  const displaySections = sections.filter(section => {
+    const hasData = section.metrics && section.metrics.some((metric: any) => 
+      metric.data_points && metric.data_points.length > 0
+    )
+    
+    // Always show sections with data
+    if (hasData) {
+      return true
+    }
+    
+    // For sections without data, show them if they have metrics OR if they are custom sections
+    // This handles newly created sections that don't have data yet
+    const hasMetrics = section.metrics && section.metrics.length > 0
+    const isCustomSection = !section.is_default // Custom sections have is_default = false
+    
+    console.log(`Section "${section.display_name}": hasData=${hasData}, hasMetrics=${hasMetrics}, isCustomSection=${isCustomSection}, is_default=${section.is_default}`)
+    
+    return hasMetrics || isCustomSection
+  })
+  
+  console.log('All sections:', sections.map(s => ({ name: s.display_name, is_default: s.is_default, metrics_count: s.metrics?.length || 0 })))
+  console.log('Display sections:', displaySections.map(s => ({ name: s.display_name, is_default: s.is_default, metrics_count: s.metrics?.length || 0 })))
 
-  // Add state for new section dialog combobox
-  const [newSectionNameComboboxOpen, setNewSectionNameComboboxOpen] = useState(false)
+  // Generate AI Analysis based on current health data
+  const generateAIAnalysis = () => {
+    const concerns: string[] = []
+    const positiveTrends: string[] = []
+    const recommendations: string[] = []
 
-  // State for managing sections - this will be updated when new sections are added
-  const [analysisSections, setAnalysisSections] = useState([
-    {
-      name: "Blood Work",
-      metrics: [
-        {
-          name: "White Blood Cells",
-          current: "11.2 K/uL",
-          reference: "4.5-10.0 K/uL",
-          trend: "improving",
-          change: "-0.8 K/uL",
-          status: "abnormal",
-          data: [
-            { date: new Date("2023-01-15"), value: 12.0 },
-            { date: new Date("2023-04-15"), value: 11.2 },
-          ],
-        },
-        {
-          name: "Red Blood Cells",
-          current: "4.8 M/uL",
-          reference: "4.5-5.5 M/uL",
-          trend: "stable",
-          change: "+0.1 M/uL",
-          status: "normal",
-          data: [
-            { date: new Date("2023-01-15"), value: 4.7 },
-            { date: new Date("2023-04-15"), value: 4.8 },
-          ],
-        },
-        {
-          name: "Hemoglobin",
-          current: "14.2 g/dL",
-          reference: "13.5-17.5 g/dL",
-          trend: "stable",
-          change: "+0.2 g/dL",
-          status: "normal",
-          data: [
-            { date: new Date("2023-01-15"), value: 14.0 },
-            { date: new Date("2023-04-15"), value: 14.2 },
-          ],
-        },
-      ],
-    },
-    {
-      name: "Chemistry Panel",
-      metrics: [
-        {
-          name: "Total Cholesterol",
-          current: "195 mg/dL",
-          reference: "<200 mg/dL",
-          trend: "improving",
-          change: "-15 mg/dL",
-          status: "normal",
-          data: [
-            { date: new Date("2023-01-15"), value: 210 },
-            { date: new Date("2023-04-15"), value: 195 },
-          ],
-        },
-        {
-          name: "LDL Cholesterol",
-          current: "125 mg/dL",
-          reference: "<100 mg/dL",
-          trend: "improving",
-          change: "-10 mg/dL",
-          status: "abnormal",
-          data: [
-            { date: new Date("2023-01-15"), value: 135 },
-            { date: new Date("2023-04-15"), value: 125 },
-          ],
-        },
-      ],
-    },
-    {
-      name: "Hormones & Vitamins",
-      metrics: [
-        {
-          name: "Glucose",
-          current: "98 mg/dL",
-          reference: "70-99 mg/dL",
-          trend: "improving",
-          change: "-12 mg/dL",
-          status: "normal",
-          data: [
-            { date: new Date("2023-01-15"), value: 110 },
-            { date: new Date("2023-02-15"), value: 108 },
-            { date: new Date("2023-03-15"), value: 105 },
-            { date: new Date("2023-04-15"), value: 102 },
-            { date: new Date("2023-05-15"), value: 98 },
-          ],
-        },
-      ],
-    },
-  ])
+    // Analyze each section and metric
+    displaySections.forEach(section => {
+      section.metrics?.forEach(metric => {
+        if (metric.latest_status === 'abnormal' || metric.latest_status === 'critical') {
+          concerns.push(`Your ${metric.display_name} is ${metric.latest_status} at ${formatMetricValue(metric.latest_value)} ${metric.unit}. Let's work on getting this back to a healthy range together.`)
+        }
+        
+        if (metric.trend === 'improving') {
+          positiveTrends.push(`Great news! Your ${metric.display_name} is trending in the right direction. Keep up the excellent work you're doing.`)
+        }
+        
+        if (metric.latest_status === 'abnormal' || metric.latest_status === 'critical') {
+          if (metric.name.toLowerCase().includes('cholesterol')) {
+            recommendations.push('Try adding more heart-healthy foods like oats and fish to your diet, and aim for 30 minutes of daily exercise.')
+          } else if (metric.name.toLowerCase().includes('blood pressure') || metric.name.toLowerCase().includes('bp')) {
+            recommendations.push('Cut back on salty foods and try walking for 20-30 minutes most days to help lower your blood pressure naturally.')
+          } else if (metric.name.toLowerCase().includes('glucose') || metric.name.toLowerCase().includes('sugar')) {
+            recommendations.push('Focus on whole grains and limit sugary snacks. Regular meals and staying active can help balance your glucose levels.')
+    } else {
+            recommendations.push(`Let's discuss your ${metric.display_name} results with your doctor to create a personalized plan for improvement.`)
+          }
+        }
+      })
+    })
 
-  // Predefined section names for the combobox
-  const predefinedSections = [
-    "Blood Work",
-    "Chemistry Panel",
-    "Hormones & Vitamins",
-    "Heart Health",
-    "Kidney Function",
-    "Liver Function",
-    "Bone Health",
-    "Immune System",
-    "Metabolism",
-    "Inflammation Markers",
-    "Thyroid Function",
-    "Cardiac Markers",
-    "Tumor Markers",
-    "Coagulation Studies",
-    "Electrolytes",
-    "Proteins",
-    "Enzymes",
-    "Lipid Profile",
-    "Diabetes Markers",
-    "Nutritional Status",
-  ]
+    // Ensure we have at least one item in each category
+    if (concerns.length === 0) {
+      concerns.push('Your health metrics look good overall! Keep monitoring regularly to maintain this positive trend.')
+    }
 
-  // Predefined metric names with default units and thresholds for each section
-  const predefinedMetrics = {
-    "Blood Work": [
-      { name: "White Blood Cells", unit: "K/uL", min: "4.5", max: "10.0" },
-      { name: "Red Blood Cells", unit: "M/uL", min: "4.5", max: "5.5" },
-      { name: "Hemoglobin", unit: "g/dL", min: "13.5", max: "17.5" },
-      { name: "Hematocrit", unit: "%", min: "41", max: "50" },
-      { name: "Platelets", unit: "K/uL", min: "150", max: "450" },
-      { name: "Neutrophils", unit: "%", min: "50", max: "70" },
-      { name: "Lymphocytes", unit: "%", min: "20", max: "40" },
-      { name: "Monocytes", unit: "%", min: "2", max: "8" },
-      { name: "Eosinophils", unit: "%", min: "1", max: "4" },
-      { name: "Basophils", unit: "%", min: "0.5", max: "1" },
-      { name: "MCV", unit: "fL", min: "80", max: "100" },
-      { name: "MCH", unit: "pg", min: "27", max: "32" },
-      { name: "MCHC", unit: "g/dL", min: "32", max: "36" },
-      { name: "RDW", unit: "%", min: "11.5", max: "14.5" },
-    ],
-    "Chemistry Panel": [
-      { name: "Total Cholesterol", unit: "mg/dL", min: "0", max: "200" },
-      { name: "LDL Cholesterol", unit: "mg/dL", min: "0", max: "100" },
-      { name: "HDL Cholesterol", unit: "mg/dL", min: "40", max: "999" },
-      { name: "VLDL Cholesterol", unit: "mg/dL", min: "5", max: "40" },
-      { name: "Triglycerides", unit: "mg/dL", min: "0", max: "150" },
-      { name: "Creatinine", unit: "mg/dL", min: "0.7", max: "1.3" },
-      { name: "BUN", unit: "mg/dL", min: "7", max: "20" },
-      { name: "Albumin", unit: "g/dL", min: "3.5", max: "5.0" },
-      { name: "Total Protein", unit: "g/dL", min: "6.0", max: "8.3" },
-      { name: "Calcium", unit: "mg/dL", min: "8.5", max: "10.5" },
-      { name: "Magnesium", unit: "mg/dL", min: "1.7", max: "2.2" },
-      { name: "Phosphorus", unit: "mg/dL", min: "2.5", max: "4.5" },
-      { name: "Potassium", unit: "mEq/L", min: "3.5", max: "5.0" },
-      { name: "Sodium", unit: "mEq/L", min: "136", max: "145" },
-      { name: "Chloride", unit: "mEq/L", min: "98", max: "107" },
-      { name: "CO2", unit: "mEq/L", min: "22", max: "28" },
-    ],
-    "Hormones & Vitamins": [
-      { name: "Glucose", unit: "mg/dL", min: "70", max: "99" },
-      { name: "Insulin", unit: "uU/mL", min: "2.6", max: "24.9" },
-      { name: "HbA1c", unit: "%", min: "0", max: "5.7" },
-      { name: "C-Peptide", unit: "ng/mL", min: "1.1", max: "4.4" },
-      { name: "TSH", unit: "mIU/L", min: "0.27", max: "4.2" },
-      { name: "T3", unit: "pg/mL", min: "2.0", max: "4.4" },
-      { name: "T4", unit: "ug/dL", min: "4.5", max: "12.0" },
-      { name: "Cortisol", unit: "ug/dL", min: "6.2", max: "19.4" },
-      { name: "Testosterone", unit: "ng/dL", min: "264", max: "916" },
-      { name: "Estrogen", unit: "pg/mL", min: "15", max: "350" },
-      { name: "Progesterone", unit: "ng/mL", min: "0.2", max: "25" },
-      { name: "Vitamin D", unit: "ng/mL", min: "30", max: "100" },
-      { name: "Vitamin B12", unit: "pg/mL", min: "200", max: "900" },
-      { name: "Folate", unit: "ng/mL", min: "2.7", max: "17.0" },
-      { name: "Iron", unit: "ug/dL", min: "60", max: "170" },
-      { name: "Ferritin", unit: "ng/mL", min: "12", max: "300" },
-    ],
-    "Liver Function": [
-      { name: "ALT", unit: "U/L", min: "7", max: "56" },
-      { name: "AST", unit: "U/L", min: "10", max: "40" },
-      { name: "Bilirubin Total", unit: "mg/dL", min: "0.3", max: "1.2" },
-      { name: "Bilirubin Direct", unit: "mg/dL", min: "0.0", max: "0.3" },
-      { name: "Alkaline Phosphatase", unit: "U/L", min: "44", max: "147" },
-      { name: "GGT", unit: "U/L", min: "9", max: "48" },
-      { name: "LDH", unit: "U/L", min: "122", max: "222" },
-    ],
-    "Kidney Function": [
-      { name: "Creatinine", unit: "mg/dL", min: "0.7", max: "1.3" },
-      { name: "BUN", unit: "mg/dL", min: "7", max: "20" },
-      { name: "eGFR", unit: "mL/min/1.73m²", min: "90", max: "999" },
-      { name: "BUN/Creatinine Ratio", unit: "ratio", min: "10", max: "20" },
-      { name: "Uric Acid", unit: "mg/dL", min: "3.5", max: "7.2" },
-      { name: "Microalbumin", unit: "mg/g", min: "0", max: "30" },
-    ],
-    "Heart Health": [
-      { name: "Troponin I", unit: "ng/mL", min: "0", max: "0.04" },
-      { name: "Troponin T", unit: "ng/mL", min: "0", max: "0.01" },
-      { name: "CK-MB", unit: "ng/mL", min: "0", max: "6.3" },
-      { name: "BNP", unit: "pg/mL", min: "0", max: "100" },
-      { name: "NT-proBNP", unit: "pg/mL", min: "0", max: "125" },
-      { name: "Homocysteine", unit: "umol/L", min: "0", max: "15" },
-    ],
-    "Inflammation Markers": [
-      { name: "CRP", unit: "mg/L", min: "0", max: "3.0" },
-      { name: "ESR", unit: "mm/hr", min: "0", max: "30" },
-      { name: "Procalcitonin", unit: "ng/mL", min: "0", max: "0.25" },
-      { name: "Interleukin-6", unit: "pg/mL", min: "0", max: "7" },
-    ],
+    if (positiveTrends.length === 0) {
+      positiveTrends.push('You\'re doing great with your health monitoring. Consistency is key to maintaining good health.')
+    }
+
+    if (recommendations.length === 0) {
+      recommendations.push('Keep up your healthy habits! Regular checkups and staying active are your best tools for maintaining great health.')
+    }
+
+    return {
+      concerns,
+      positiveTrends,
+      recommendations
+    }
   }
+
+  // Generate local analysis for fallback
+  const localAnalysis = generateAIAnalysis()
+  
+  // Function to trigger AI analysis
+  const handleGenerateAIAnalysis = useCallback(async () => {
+    try {
+      await generateAnalysis(1) // Analysis type ID
+    } catch (error) {
+      console.error('Failed to generate AI analysis:', error)
+    }
+  }, [generateAnalysis])
+
+  // Auto-load AI analysis when page loads and sections are available
+  useEffect(() => {
+    if (sections && sections.length > 0 && !aiAnalysis && !aiLoading && !aiAnalysisAttempted.current) {
+      console.log('Auto-loading AI analysis on page load...')
+      aiAnalysisAttempted.current = true
+      handleGenerateAIAnalysis()
+    }
+  }, [sections, aiAnalysis, aiLoading, handleGenerateAIAnalysis])
+  
+  // Admin templates for section creation dropdown
+  const [adminTemplates, setAdminTemplates] = useState<HealthRecordSection[]>([])
+  
+  // Fetch admin templates
+  useEffect(() => {
+    const fetchAdminTemplates = async () => {
+      try {
+        const templates = await HealthRecordsApiService.getAdminSectionTemplates(1)
+        setAdminTemplates(templates)
+      } catch (error) {
+        console.error('Failed to fetch admin templates:', error)
+      }
+    }
+    
+    fetchAdminTemplates()
+  }, [])
 
   const renderTrendIcon = (status: string) => {
     if (status === "improving") {
       return <TrendingUp className="h-4 w-4 text-green-500" />
     } else if (status === "declining" || status === "needs improvement") {
       return <TrendingDown className="h-4 w-4 text-red-500" />
-    } else {
-      return <Minus className="h-4 w-4 text-yellow-500" />
     }
+    return null
   }
 
-  // Lab documents grouped by date
-  const labDocumentsByDate = [
-    {
-      date: t("health.dates.april152023"),
-      provider: "Lab Corp",
-      documents: [
-        {
-          id: "doc1",
-          name: t("health.documents.completeBloodCount"),
-          type: t("health.documentTypes.labResults"),
-          fileUrl: "/documents/cbc-20230415.pdf",
-        },
-        {
-          id: "doc2",
-          name: t("health.documents.comprehensiveMetabolicPanel"),
-          type: t("health.documentTypes.labResults"),
-          fileUrl: "/documents/cmp-20230415.pdf",
-        },
-      ],
-    },
-    {
-      date: t("health.dates.january152023"),
-      provider: "Lab Corp",
-      documents: [
-        {
-          id: "doc5",
-          name: t("health.documents.completeBloodCount"),
-          type: t("health.documentTypes.labResults"),
-          fileUrl: "/documents/cbc-20230115.pdf",
-        },
-      ],
-    },
-  ]
+  const renderMetricBox = (metric: MetricWithData) => {
+    const isAbnormal = metric.latest_status === "abnormal" || metric.latest_status === "critical"
+    const trendIcon = renderTrendIcon(metric.trend || "stable")
 
-  // Check if section name already exists
-  const checkSectionExists = (name: string) => {
-    const allSections = analysisSections.map((section) => section.name.toLowerCase())
-    return allSections.includes(name.toLowerCase())
-  }
-
-  // Handle new section name change
-  const handleNewSectionNameChange = (value: string) => {
-    setNewSectionName(value)
-    setSectionExistsAlert(checkSectionExists(value))
-  }
-
-  // Handle new section creation
-  const handleCreateNewSection = () => {
-    if (!newSectionName) {
-      alert("Please enter a section name")
-      return
-    }
-
-    if (sectionExistsAlert) {
-      alert("This section already exists. Please choose a different name.")
-      return
-    }
-
-    // Create new section
-    const newSection = {
-      name: newSectionName,
-      metrics: [],
-    }
-
-    setAnalysisSections([...analysisSections, newSection])
-    alert(`New section "${newSectionName}" created successfully!`)
-
-    // Reset form
-    setNewSectionName("")
-    setSectionExistsAlert(false)
-    setNewSectionDialogOpen(false)
-  }
-
-  // Handle add metric for section (previously add value for category)
-  const handleAddMetricForSection = (sectionName: string) => {
-    setSelectedSection(sectionName)
-    setAddMetricDialogOpen(true)
-  }
-
-  // Handle metric selection for add metric
-  const handleMetricForValueChange = (value: string) => {
-    setSelectedMetricForValue(value)
-
-    // Find the selected metric and populate normal range if it exists
-    const section = analysisSections.find((sec) => sec.name === selectedSection)
-    const metric = section?.metrics.find((m) => m.name === value)
-
-    if (metric) {
-      // Extract min and max from reference range for existing metrics
-      const reference = metric.reference
-      const rangeMatch = reference.match(/(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)/)
-      if (rangeMatch) {
-        setNormalRangeMin(rangeMatch[1])
-        setNormalRangeMax(rangeMatch[2])
-      } else if (reference.includes("<")) {
-        const maxMatch = reference.match(/<(\d+(?:\.\d+)?)/)
-        if (maxMatch) {
-          setNormalRangeMin("0")
-          setNormalRangeMax(maxMatch[1])
+    // Convert data points to chart format and sort by date
+    const sortedDataPoints = (metric.data_points || []).sort((a, b) => 
+      new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime()
+    )
+    
+    const chartData = sortedDataPoints.map((dp: HealthRecord) => {
+      let value = dp.value
+      
+      // Handle JSON values (like cholesterol with multiple components)
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value)
+          if (parsed && typeof parsed === 'object') {
+            // If it's an object with a 'value' property, use that
+            value = parsed.value || parsed
+          }
+        } catch (e) {
+          // If parsing fails, use the original value
+          value = parseFloat(value) || 0
         }
-      } else if (reference.includes(">")) {
-        const minMatch = reference.match(/>(\d+(?:\.\d+)?)/)
-        if (minMatch) {
-          setNormalRangeMin(minMatch[1])
-          setNormalRangeMax("999")
+      } else if (typeof value === 'object' && value !== null) {
+        value = value.value || value
+      }
+      
+      return {
+        date: new Date(dp.recorded_at),
+        value: typeof value === 'number' ? value : parseFloat(value) || 0,
+      }
+    })
+
+
+    // Get the actual latest value from the sorted data points (last entry)
+    const latestDataPoint = sortedDataPoints[sortedDataPoints.length - 1]
+    const currentValue = latestDataPoint
+      ? formatMetricValue(latestDataPoint.value, metric.default_unit || metric.unit)
+      : "N/A"
+
+    // Format reference range - try different sources
+    let referenceRange = 'Reference range not specified'
+    
+    // First try normal_range_min/max (if available)
+    if (metric.normal_range_min !== undefined || metric.normal_range_max !== undefined) {
+      referenceRange = formatReferenceRange(metric.normal_range_min, metric.normal_range_max)
+    } 
+    // Then try threshold field (where new metrics store their ranges)
+    else if (metric.threshold) {
+      if (typeof metric.threshold === 'string') {
+        referenceRange = metric.threshold
+      } else if (typeof metric.threshold === 'object' && metric.threshold !== null) {
+        // Handle object threshold with min/max
+        if (metric.threshold.min !== undefined || metric.threshold.max !== undefined) {
+          referenceRange = formatReferenceRange(metric.threshold.min, metric.threshold.max)
         }
       }
-    } else {
-      // Auto-populate for predefined metrics
-      const predefinedMetricsForSection = predefinedMetrics[selectedSection as keyof typeof predefinedMetrics]
-      const predefinedMetric = predefinedMetricsForSection?.find((m) => m.name === value)
-
-      if (predefinedMetric) {
-        setMetricUnit(predefinedMetric.unit)
-        setNormalRangeMin(predefinedMetric.min)
-        setNormalRangeMax(predefinedMetric.max)
-      }
     }
-  }
-
-  // Handle add metric submission
-  const handleAddMetricSubmit = () => {
-    if (!selectedMetricForValue || !metricValue || !metricUnit || !metricDate || !normalRangeMin || !normalRangeMax) {
-      alert("Please fill in all required fields")
-      return
-    }
-
-    // Find the section and add the new metric
-    const sectionIndex = analysisSections.findIndex((sec) => sec.name === selectedSection)
-    if (sectionIndex >= 0) {
-      const updatedSections = [...analysisSections]
-      const newMetric = {
-        name: selectedMetricForValue,
-        current: `${metricValue} ${metricUnit}`,
-        reference: `${normalRangeMin}-${normalRangeMax} ${metricUnit}`,
-        trend: "stable",
-        change: "N/A",
-        status: "normal",
-        data: [
-          {
-            date: new Date(metricDate),
-            value: Number.parseFloat(metricValue),
-          },
-        ],
-      }
-
-      // Check if metric already exists in this section
-      const existingMetricIndex = updatedSections[sectionIndex].metrics.findIndex(
-        (m) => m.name.toLowerCase() === selectedMetricForValue.toLowerCase(),
-      )
-
-      if (existingMetricIndex >= 0) {
-        // Update existing metric with new data point
-        updatedSections[sectionIndex].metrics[existingMetricIndex].current = `${metricValue} ${metricUnit}`
-        updatedSections[sectionIndex].metrics[existingMetricIndex].data.push({
-          date: new Date(metricDate),
-          value: Number.parseFloat(metricValue),
-        })
-        alert(
-          `Value added to existing metric: ${selectedMetricForValue} = ${metricValue} ${metricUnit} on ${metricDate}`,
-        )
-      } else {
-        // Add new metric
-        updatedSections[sectionIndex].metrics.push(newMetric)
-        alert(`New metric created: ${selectedMetricForValue} = ${metricValue} ${metricUnit} on ${metricDate}`)
-      }
-
-      setAnalysisSections(updatedSections)
-    }
-
-    // Reset form
-    setSelectedMetricForValue("")
-    setMetricValue("")
-    setMetricUnit("")
-    setMetricDate(new Date().toISOString().split("T")[0])
-    setNormalRangeMin("")
-    setNormalRangeMax("")
-    setAddMetricDialogOpen(false)
-  }
-
-  // Render metric box for analysis tab
-  const renderMetricBox = (metric: any) => {
-    const isAbnormal = metric.status === "abnormal"
-    const trendIcon = renderTrendIcon(metric.trend)
 
     return (
-      <Dialog key={metric.name}>
-        <DialogTrigger asChild>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-            <div className="flex justify-between items-start mb-1">
-              <h3 className="font-medium text-sm">{metric.name}</h3>
+      <Card 
+        key={metric.id} 
+        className={`p-4 cursor-pointer hover:shadow-md transition-shadow ${isAbnormal ? 'border-red-200 bg-red-50' : ''}`}
+        onClick={() => handleMetricClick(metric)}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h4 className="font-medium text-sm">{metric.display_name}</h4>
+              {trendIcon}
               <Badge
-                variant={isAbnormal ? "secondary" : "outline"}
-                className={`${isAbnormal ? "bg-red-50 text-red-600 border-red-200" : "text-green-600"} text-xs py-0 px-1 h-5`}
+                variant="outline" 
+                className={`text-xs ${getStatusColor(metric.latest_status || 'normal')}`}
               >
-                {isAbnormal ? (
-                  <div className="flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    <span>{t("health.status.abnormal")}</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1">
-                    <CheckCircle className="h-3 w-3" />
-                    <span>{t("health.status.normal")}</span>
-                  </div>
-                )}
+                {metric.latest_status || 'normal'}
               </Badge>
-            </div>
-            <div className="mt-1">
-              <div className="flex justify-between items-center">
-                <p className="text-xl font-bold">{metric.current}</p>
-                <p className="text-xs text-muted-foreground">
-                  {t("health.status.normal")}: {metric.reference}
-                </p>
               </div>
 
-              {/* Add chart below the value */}
-              {metric.data.length > 0 && (
-                <div className="h-[60px] mt-2">
-                  <HealthMetricsChart
-                    data={metric.data.map((item: any) => ({
-                      date: item.date,
-                      value: item.value,
-                    }))}
-                    metricName={metric.name}
-                    options={{
-                      fontSize: 8,
-                      tickCount: 3,
-                      roundValues: true,
-                    }}
-                  />
+            <div className="text-2xl font-bold mb-1">
+              {currentValue}
                 </div>
-              )}
-
-              <div className="flex justify-end items-center mt-1">
-                <div className="flex items-center gap-1">
-                  {trendIcon}
-                  <span
-                    className={`text-xs ${
-                      metric.trend === "improving"
-                        ? "text-green-500"
-                        : metric.trend === "declining"
-                          ? "text-red-500"
-                          : "text-yellow-500"
-                    }`}
-                  >
-                    {metric.change}
-                  </span>
+            
+            <div className="text-xs text-gray-600 mb-2">
+              {referenceRange}
                 </div>
-              </div>
-            </div>
-          </div>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>
-              {metric.name} {t("health.trend")}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <div className="mb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-lg">{metric.current}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {t("health.reference")}: {metric.reference}
-                  </div>
-                </div>
-                <Badge
-                  variant={metric.status === "normal" ? "outline" : "secondary"}
-                  className={metric.status === "normal" ? "text-green-500" : "text-red-500"}
-                >
-                  {metric.status === "normal" ? t("health.status.normal") : t("health.status.abnormal")}
-                </Badge>
-              </div>
-            </div>
-            <div className="h-[300px]">
-              {metric.data.length > 0 ? (
+            
+            {chartData.length > 0 ? (
+              <div className="h-20">
                 <HealthMetricsChart
-                  data={metric.data.map((item: any) => ({
-                    date: item.date,
-                    value: item.value,
-                  }))}
-                  metricName={metric.name}
+                  data={chartData}
+                  metricName={metric.display_name}
+                  options={{ fontSize: 10, tickCount: 3, roundValues: true }}
                 />
-              ) : (
-                <div className="h-full flex items-center justify-center bg-muted/30 rounded-md">
-                  <span className="text-sm text-muted-foreground">{t("health.noTrendData")}</span>
+              </div>
+            ) : (
+              <div className="h-20 flex items-center justify-center text-xs text-gray-500">
+                No chart data available
                 </div>
               )}
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+      </Card>
     )
   }
 
+  const handleNewSection = () => {
+    setNewSectionDialogOpen(true)
+  }
+
+  const handleNewMetric = (section: SectionWithMetrics) => {
+    // Convert SectionWithMetrics to HealthRecordSection for the dialog
+    const healthRecordSection: HealthRecordSection = {
+      id: section.id,
+      name: section.name,
+      display_name: section.display_name,
+      description: section.description,
+      health_record_type_id: 1, // Analysis type
+      is_default: false,
+      created_by: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      updated_by: 1,
+      metrics: section.metrics.map(metric => ({
+        id: metric.id,
+        section_id: section.id,
+        name: metric.name,
+        display_name: metric.display_name,
+        description: metric.description,
+        default_unit: metric.default_unit,
+        unit: metric.unit,
+        threshold: metric.threshold,
+        normal_range_min: metric.normal_range_min,
+        normal_range_max: metric.normal_range_max,
+        data_type: 'number',
+        is_default: false,
+        created_at: new Date().toISOString(),
+        created_by: 1
+      }))
+    }
+    setSelectedSectionForMetric(healthRecordSection as any)
+    setNewMetricDialogOpen(true)
+  }
+
+  const handleNewValue = (section: SectionWithMetrics) => {
+    // Convert SectionWithMetrics to HealthRecordSection for the dialog
+    const healthRecordSection: HealthRecordSection = {
+      id: section.id,
+      name: section.name,
+      display_name: section.display_name,
+      description: section.description,
+      health_record_type_id: 1, // Analysis type
+      is_default: false,
+      created_by: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      updated_by: 1,
+      metrics: section.metrics.map(metric => ({
+        id: metric.id,
+        section_id: section.id,
+        name: metric.name,
+        display_name: metric.display_name,
+        description: metric.description,
+        default_unit: metric.default_unit,
+        unit: metric.unit,
+        threshold: metric.threshold,
+        normal_range_min: metric.normal_range_min,
+        normal_range_max: metric.normal_range_max,
+        data_type: 'number',
+        is_default: false,
+        created_at: new Date().toISOString(),
+        created_by: 1
+      }))
+    }
+    setSelectedSectionForValue(healthRecordSection as any)
+    setNewValueDialogOpen(true)
+  }
+
+  const handleMetricClick = (metric: MetricWithData) => {
+    setSelectedMetric(metric)
+    setMetricDetailDialogOpen(true)
+  }
+
+  const handleSectionCreated = (section: HealthRecordSection) => {
+    // Add the new section to the current sections state instead of full refresh
+    setSections((prev: SectionWithMetrics[]) => {
+      const exists = prev.some((s: SectionWithMetrics) => s.id === section.id)
+      if (exists) {
+        return prev
+      }
+      const newSection: SectionWithMetrics = {
+        id: section.id,
+        name: section.name,
+        display_name: section.display_name,
+        description: section.description,
+        is_default: section.is_default,
+        metrics: []
+      }
+      return [...prev, newSection]
+    })
+    toast.success('Section created successfully!')
+  }
+
+  const handleMetricCreated = (metric: HealthRecordMetric) => {
+    // Add the new metric to the appropriate section
+    setSections((prev: SectionWithMetrics[]) => prev.map((section: SectionWithMetrics) => {
+      if (section.id === metric.section_id) {
+        // Check if metric already exists to prevent duplicates
+        const existingMetric = section.metrics?.find(m => m.id === metric.id)
+        if (existingMetric) {
+          return section
+        }
+        
+        const newMetric: MetricWithData = {
+          id: metric.id,
+          name: metric.name,
+          display_name: metric.display_name,
+          unit: metric.unit,
+          threshold: metric.threshold,
+          data_points: [],
+          latest_value: undefined,
+          latest_status: 'normal',
+          latest_recorded_at: undefined,
+          total_records: 0,
+          trend: 'unknown'
+        }
+        return {
+          ...section,
+          metrics: [...(section.metrics || []), newMetric]
+        }
+      }
+      return section
+    }))
+    toast.success('Metric created successfully!')
+  }
+
+  const handleValueCreated = (record: HealthRecord) => {
+    // Add the new value to the appropriate metric
+    
+    setSections((prev: SectionWithMetrics[]) => {
+      return prev.map((section: SectionWithMetrics) => {
+        // Only update the section that contains the metric
+        if (section.metrics?.some(metric => metric.id === record.metric_id)) {
+          return {
+            ...section,
+            metrics: section.metrics.map((metric: MetricWithData) => {
+              if (metric.id === record.metric_id) {
+                const newDataPoint: HealthRecord = {
+                  id: record.id,
+                  created_by: record.created_by,
+                  section_id: record.section_id,
+                  metric_id: record.metric_id,
+                  value: record.value,
+                  status: record.status,
+                  source: record.source,
+                  recorded_at: record.recorded_at,
+                  device_id: record.device_id,
+                  device_info: record.device_info,
+                  created_at: new Date().toISOString()
+                }
+                return {
+                  ...metric,
+                  data_points: [...(metric.data_points || []), newDataPoint],
+                  latest_value: record.value,
+                  latest_status: (record.status as 'normal' | 'abnormal' | 'critical' | 'unknown') || 'normal',
+                  latest_recorded_at: record.recorded_at,
+                  total_records: (metric.total_records || 0) + 1
+                }
+              }
+              return metric
+            })
+          }
+        }
+        return section
+      })
+    })
+    
+    toast.success('Value added successfully!')
+    
+    // Note: AI analysis will be refreshed automatically when user navigates or manually triggers it
+    // Removing automatic refresh to prevent graph flashing
+  }
+
+  // Handle lab document analysis completion
+  const handleLabAnalysisComplete = async (results: LabAnalysisResult[]) => {
+    try {
+      // Refresh the dashboard to show newly created sections, metrics, and health records
+      await refresh()
+      // Also refresh medical documents to show the newly uploaded document
+      await fetchMedicalDocuments()
+      
+      // Refresh AI analysis with new lab data
+      setTimeout(() => {
+        handleGenerateAIAnalysis()
+      }, 2000) // Longer delay for lab data processing
+      
+    } catch (error) {
+      console.error('Failed to refresh dashboard after lab analysis:', error)
+    }
+  }
+
+  // Fetch medical documents
+  const fetchMedicalDocuments = async () => {
+    try {
+      setDocumentsLoading(true)
+      console.log('Fetching medical documents with document_type: lab_result')
+      const documents = await medicalDocumentsApiService.getMedicalDocuments(0, 2, 'lab_result')
+      console.log('Fetched medical documents:', documents)
+      setMedicalDocuments(documents)
+    } catch (error) {
+      console.error('Failed to fetch medical documents:', error)
+      toast.error('Failed to load medical documents')
+    } finally {
+      setDocumentsLoading(false)
+    }
+  }
+
+  const fetchAllDocuments = async (page: number = 0) => {
+    try {
+      setAllDocumentsLoading(true)
+      const documents = await medicalDocumentsApiService.getMedicalDocuments(page * 10, 10, 'lab_result')
+      setAllDocuments(documents)
+      setCurrentPage(page)
+      // Note: We'll need to update the backend to return total count
+      setTotalDocuments(documents.length) // Temporary - should be total count from backend
+    } catch (error) {
+      console.error('Failed to fetch all documents:', error)
+      toast.error('Failed to load documents')
+    } finally {
+      setAllDocumentsLoading(false)
+    }
+  }
+
+  const handleSeeAllDocuments = () => {
+    setAllDocumentsOpen(true)
+    fetchAllDocuments(0)
+  }
+
+  // Load medical documents on component mount
+  useEffect(() => {
+    fetchMedicalDocuments()
+  }, [])
+
+  // Handle document download
+  const handleDownloadDocument = async (documentId: number, fileName: string) => {
+    try {
+      console.log('Starting download for document:', documentId, fileName)
+      const response = await medicalDocumentsApiService.downloadMedicalDocument(documentId)
+      console.log('Download response:', response)
+      const downloadUrl = response.download_url
+      
+      if (!downloadUrl) {
+        throw new Error('No download URL received')
+      }
+      
+      console.log('Download URL:', downloadUrl)
+      
+      // Try direct download first (simpler approach)
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = fileName
+      link.target = '_blank'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      toast.success('Document download started')
+    } catch (error) {
+      console.error('Failed to download document:', error)
+      toast.error(`Failed to download document: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  // Remove main loading state to prevent white page - let individual components handle loading
+
   return (
     <div className="space-y-6">
+      {/* AI Summary and Lab Document Management in one row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* AI Summary Card */}
         <div className="md:col-span-2">
           <Card>
-            <CardHeader>
-              <CardTitle>{t("health.healthAnalysis")}</CardTitle>
-              <CardDescription>{t("health.aiInsights")}</CardDescription>
-            </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <div className="rounded-lg bg-muted/50 p-4 border border-muted">
                 <div className="flex items-start gap-3">
                   <Brain className="h-5 w-5 text-teal-600 mt-0.5" />
-                  <div className="space-y-3">
+                  <div className="space-y-4">
+                    {/* Areas of Concern */}
                     <div>
-                      <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-red-600">
+                      <h4 className="font-medium text-sm mb-2 flex items-center gap-2 text-red-600">
                         <AlertTriangle className="h-4 w-4" />
-                        {t("health.areasOfConcern")}:
+                        Areas of Concern:
                       </h4>
-                      <p className="text-sm">{t("health.ldlCholesterolConcern")}</p>
+                      <div className="space-y-1">
+                        {aiLoading ? (
+                          <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-red-600"></div>
+                            Analyzing your health data...
                     </div>
+                        ) : aiError ? (
+                          <p className="text-sm text-gray-500 italic">Unable to analyze concerns at this time. Please try again later.</p>
+                        ) : !aiAnalysis ? (
+                          <p className="text-sm text-gray-500 italic">No analysis available yet. AI analysis will appear here once generated.</p>
+                        ) : (aiAnalysis?.analysis?.areas_of_concern || []).length === 0 ? (
+                          <p className="text-sm text-gray-500 italic">No areas of concern identified in your current health data.</p>
+                        ) : (
+                          (aiAnalysis?.analysis?.areas_of_concern || []).map((concern, index) => (
+                            <p key={index} className="text-sm text-gray-700">
+                              {typeof concern === 'string' ? concern : String(concern)}
+                            </p>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Positive Trends */}
                     <div>
-                      <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-green-600">
+                      <h4 className="font-medium text-sm mb-2 flex items-center gap-2 text-green-600">
                         <ThumbsUp className="h-4 w-4" />
-                        {t("health.positiveTrends")}:
+                        Positive Trends:
                       </h4>
-                      <p className="text-sm">{t("health.cholesterolImprovement")}</p>
+                      <div className="space-y-1">
+                        {aiLoading ? (
+                          <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-green-600"></div>
+                            Identifying positive trends...
                     </div>
+                        ) : aiError ? (
+                          <p className="text-sm text-gray-500 italic">Unable to identify trends at this time. Please try again later.</p>
+                        ) : !aiAnalysis ? (
+                          <p className="text-sm text-gray-500 italic">No analysis available yet. AI analysis will appear here once generated.</p>
+                        ) : (aiAnalysis?.analysis?.positive_trends || []).length === 0 ? (
+                          <p className="text-sm text-gray-500 italic">No positive trends identified in your current health data.</p>
+                        ) : (
+                          (aiAnalysis?.analysis?.positive_trends || []).map((trend, index) => (
+                            <p key={index} className="text-sm text-gray-700">
+                              {typeof trend === 'string' ? trend : String(trend)}
+                            </p>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Recommendations */}
                     <div>
-                      <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-blue-600">
+                      <h4 className="font-medium text-sm mb-2 flex items-center gap-2 text-blue-600">
                         <Lightbulb className="h-4 w-4" />
-                        {t("health.recommendations")}:
+                        Recommendations:
                       </h4>
-                      <p className="text-sm">{t("health.statinRecommendation")}</p>
+                      <div className="space-y-1">
+                        {aiLoading ? (
+                          <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"></div>
+                            Generating personalized recommendations...
                     </div>
+                        ) : aiError ? (
+                          <p className="text-sm text-gray-500 italic">Unable to generate recommendations at this time. Please try again later.</p>
+                        ) : !aiAnalysis ? (
+                          <p className="text-sm text-gray-500 italic">No analysis available yet. AI analysis will appear here once generated.</p>
+                        ) : (aiAnalysis?.analysis?.recommendations || []).length === 0 ? (
+                          <p className="text-sm text-gray-500 italic">No recommendations available for your current health data.</p>
+                        ) : (
+                          (aiAnalysis?.analysis?.recommendations || []).map((recommendation, index) => (
+                            <p key={index} className="text-sm text-gray-700">
+                              {typeof recommendation === 'string' ? recommendation : String(recommendation)}
+                            </p>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Analysis Metadata */}
+                    {aiAnalysis?.generated_at && (
+                      <div className="pt-2 border-t border-gray-200">
+                        <p className="text-xs text-gray-500">
+                          AI Analysis generated on {new Date(aiAnalysis.generated_at).toLocaleString()}
+                        </p>
+                        {aiAnalysis.data_summary && (
+                          <p className="text-xs text-gray-500">
+                            Based on {aiAnalysis.data_summary.total_sections} sections, {aiAnalysis.data_summary.total_metrics} metrics, and {aiAnalysis.data_summary.total_data_points} data points
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -620,348 +716,340 @@ export default function AnalysisPage() {
           </Card>
         </div>
 
-        <Card className="h-full">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+        {/* Lab Document Management Card */}
+        <div className="md:col-span-1">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
             <div>
-              <CardTitle>{t("health.labDocuments")}</CardTitle>
-              <CardDescription>{t("health.recentResults")}</CardDescription>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Lab Documents
+                  </CardTitle>
+                  <CardDescription>
+                    Recent test results
+                  </CardDescription>
             </div>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 gap-1 bg-transparent">
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>{t("action.add")}</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>{t("health.uploadLabDocument")}</DialogTitle>
-                  <DialogDescription>{t("health.uploadLabDesc")}</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="docDate">{t("health.date")}</Label>
-                    <Input id="docDate" type="date" defaultValue={new Date().toISOString().split("T")[0]} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="docType">{t("health.type")}</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select document type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Complete Blood Count">{t("health.documents.completeBloodCount")}</SelectItem>
-                        <SelectItem value="Comprehensive Metabolic Panel">
-                          {t("health.documents.comprehensiveMetabolicPanel")}
-                        </SelectItem>
-                        <SelectItem value="Lipid Panel">{t("health.documents.lipidPanel")}</SelectItem>
-                        <SelectItem value="Hemoglobin A1C">{t("health.documents.hemoglobinA1C")}</SelectItem>
-                        <SelectItem value="Other">{t("health.other")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="provider">{t("health.provider")}</Label>
-                    <Input id="provider" type="text" defaultValue="Lab Corp" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="docFile">{t("health.file")}</Label>
-                    <Label
-                      htmlFor="docFile"
-                      className="flex h-32 w-full cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-input bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-accent/50"
-                    >
-                      <FileText className="mb-2 h-6 w-6" />
-                      <span className="font-medium">{t("health.clickToUpload")}</span>
-                      <span className="text-xs">{t("health.pdfMaxSize")}</span>
-                      <Input id="docFile" type="file" accept=".pdf" className="sr-only" />
-                    </Label>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="submit" onClick={() => alert(t("health.documentUploaded"))}>
-                    {t("health.uploadDocument")}
+                <Button 
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setLabUploadOpen(true)}
+                  className="flex items-center gap-1"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+              </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {labDocumentsByDate.slice(0, 2).map((dateGroup, index) => (
-                <div key={index} className="border-b pb-3 last:border-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <h3 className="font-medium text-sm">{dateGroup.date}</h3>
-                    <span className="text-xs text-muted-foreground ml-1">({dateGroup.provider})</span>
+              <div className="space-y-3">
+                {documentsLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   </div>
-                  <div className="pl-4 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground">
-                        {dateGroup.documents.map((doc) => doc.name).join(", ")}
-                      </p>
-                      <Button variant="ghost" size="sm" className="h-7">
-                        <Download className="h-3.5 w-3.5" />
+                ) : medicalDocuments.length > 0 ? (
+                  <div className="space-y-2">
+                    {medicalDocuments.map((doc) => (
+                      <div key={doc.id} className="flex items-start justify-between p-3 border rounded-lg bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
+                        <div className="flex-1 min-w-0 pr-2">
+                          <p className="text-sm font-semibold text-gray-900 leading-tight flex items-center gap-2">
+                            <Calendar className="h-3 w-3 text-gray-500 flex-shrink-0" />
+                            {doc.lab_test_date ? new Date(doc.lab_test_date).toLocaleDateString() : 'No date'}
+                            {doc.provider && (
+                              <span className="text-gray-600 font-normal"> • {doc.provider}</span>
+                            )}
+                          </p>
+                          {doc.lab_test_name && (
+                            <p className="text-xs text-gray-700 mt-1 font-medium">{doc.lab_test_name}</p>
+                          )}
+                          {doc.description && (
+                            <p className="text-xs text-gray-500 mt-1 line-clamp-2">{doc.description}</p>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDownloadDocument(doc.id, doc.file_name)}
+                          className="ml-2 h-8 w-8 p-0 hover:bg-gray-200 flex-shrink-0"
+                        >
+                          <Download className="h-3 w-3" />
                       </Button>
-                    </div>
-                  </div>
                 </div>
               ))}
             </div>
-            <div className="mt-4 text-center">
-              <Button variant="ghost" size="sm" className="w-full text-xs">
-                {t("health.seeAllDocuments")}
+                ) : (
+                  <div className="text-center py-4">
+                    <FileText className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-500">No lab documents yet</p>
+                  </div>
+                )}
+                
+                {medicalDocuments.length > 0 && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={handleSeeAllDocuments}
+                  >
+                    See All Documents
               </Button>
+                )}
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
 
-      {/* Global New Section Button */}
-      <div className="flex justify-end">
-        <Dialog open={newSectionDialogOpen} onOpenChange={setNewSectionDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="gap-2 bg-transparent">
+      {/* Main Analysis Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5" />
+                Analysis Overview
+              </CardTitle>
+              <CardDescription>
+                Monitor your health metrics and track trends over time
+              </CardDescription>
+            </div>
+            {displaySections.length > 0 && (
+              <Button onClick={handleNewSection} className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
               New Section
             </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Create New Section</DialogTitle>
-              <DialogDescription>Add a new section to organize your health metrics</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="new-section-name">Section Name</Label>
-                <Popover open={newSectionNameComboboxOpen} onOpenChange={setNewSectionNameComboboxOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={newSectionNameComboboxOpen}
-                      className="justify-between bg-transparent"
-                    >
-                      {newSectionName || "Select or type custom name..."}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-full p-0">
-                    <Command>
-                      <CommandInput
-                        placeholder="Search sections or type custom name..."
-                        value={newSectionName}
-                        onValueChange={handleNewSectionNameChange}
-                      />
-                      <CommandList>
-                        <CommandEmpty>No section found. Type to create custom.</CommandEmpty>
-                        <CommandGroup>
-                          {predefinedSections
-                            .filter((section) => !checkSectionExists(section))
-                            .map((sectionName) => (
-                              <CommandItem
-                                key={sectionName}
-                                value={sectionName}
-                                onSelect={(currentValue) => {
-                                  setNewSectionName(currentValue)
-                                  setSectionExistsAlert(false)
-                                  setNewSectionNameComboboxOpen(false)
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    newSectionName === sectionName ? "opacity-100" : "opacity-0",
-                                  )}
-                                />
-                                {sectionName}
-                              </CommandItem>
-                            ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                {sectionExistsAlert && (
-                  <Alert className="mt-2">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>This section already exists. Please choose a different name.</AlertDescription>
-                  </Alert>
                 )}
               </div>
+        </CardHeader>
+        <CardContent>
+          {/* Sections */}
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="text-center">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+                <h3 className="text-lg font-medium mb-2">Loading your health data...</h3>
+                <p className="text-gray-600">Please wait while we fetch your health records.</p>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setNewSectionDialogOpen(false)}>
-                {t("action.cancel")}
+            </div>
+          ) : displaySections.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="text-center">
+                <h3 className="text-lg font-medium mb-2">No sections yet</h3>
+                <p className="text-gray-600 mb-4">Create your first section to start tracking your health data</p>
+                <Button onClick={handleNewSection}>
+                  Create First Section
               </Button>
-              <Button onClick={handleCreateNewSection} disabled={sectionExistsAlert}>
-                {t("action.create")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
-
-      <Accordion type="multiple" defaultValue={analysisSections.map((sec) => sec.name)}>
-        {analysisSections.map((section, index) => (
-          <AccordionItem key={index} value={section.name}>
-            <AccordionTrigger className="text-lg">
-              <div className="flex items-center justify-between w-full pr-4">
-                <span>{section.name}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 gap-1 bg-transparent"
+            </div>
+          ) : (
+            <Accordion type="multiple" className="w-full space-y-4">
+              {displaySections.map((section) => (
+                <AccordionItem key={section.id} value={section.id.toString()} className="border rounded-lg">
+                  <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                    <div className="flex items-center justify-between w-full mr-4">
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-semibold text-left">{section.display_name}</h3>
+                        {section.description && (
+                          <span className="text-sm text-gray-500">- {section.description}</span>
+                        )}
+                        <Badge variant="secondary" className="text-xs">
+                          {section.metrics?.length || 0} metrics
+                        </Badge>
+      </div>
+                      <div className="flex items-center gap-2">
+                        <div
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleAddMetricForSection(section.name)
-                  }}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span className="text-xs">New Metric</span>
-                </Button>
+                            handleNewValue(section)
+                          }}
+                          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 gap-1 cursor-pointer"
+                        >
+                          <Plus className="h-3 w-3" />
+                          New Value
+                        </div>
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleNewMetric(section)
+                          }}
+                          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 gap-1 cursor-pointer"
+                        >
+                          <Plus className="h-3 w-3" />
+                          New Metric
+                        </div>
+                      </div>
               </div>
             </AccordionTrigger>
-            <AccordionContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                {section.metrics.map((metric, mIndex) => renderMetricBox(metric))}
+                  <AccordionContent className="px-4 pb-4">
+                    {section.metrics && section.metrics.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {section.metrics.map((metric: MetricWithData) => renderMetricBox(metric))}
               </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        No metrics in this section yet. Add your first metric to start tracking data.
+                      </div>
+                    )}
             </AccordionContent>
           </AccordionItem>
         ))}
       </Accordion>
+          )}
+        </CardContent>
+      </Card>
 
-      {/* Add Metric Dialog (previously Add Value Dialog) */}
-      <Dialog open={addMetricDialogOpen} onOpenChange={setAddMetricDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+      {/* Dialogs */}
+      <NewSectionDialog
+        open={newSectionDialogOpen}
+        onOpenChange={setNewSectionDialogOpen}
+        onSectionCreated={handleSectionCreated}
+        healthRecordTypeId={1} // Analysis type ID
+        availableTemplates={adminTemplates}
+        createSection={createSection}
+      />
+
+      <NewMetricDialog
+        open={newMetricDialogOpen}
+        onOpenChange={setNewMetricDialogOpen}
+        onMetricCreated={handleMetricCreated}
+        sectionId={selectedSectionForMetric?.id || 0}
+        sectionName={selectedSectionForMetric?.display_name || ''}
+        createMetric={createMetric}
+      />
+
+      <NewValueDialogWithSpecial
+        open={newValueDialogOpen}
+        onOpenChange={setNewValueDialogOpen}
+        onValueCreated={handleValueCreated}
+        sectionId={selectedSectionForValue?.id || 0}
+        sectionName={selectedSectionForValue?.display_name || ''}
+        availableMetrics={(selectedSectionForValue?.metrics || []).map(metric => ({
+          id: metric.id,
+          section_id: selectedSectionForValue?.id || 0,
+          name: metric.name,
+          display_name: metric.display_name,
+          description: metric.description,
+          default_unit: metric.default_unit,
+          unit: metric.unit,
+          threshold: metric.threshold,
+          normal_range_min: metric.normal_range_min,
+          normal_range_max: metric.normal_range_max,
+          data_type: 'number',
+          is_default: false,
+          created_at: new Date().toISOString(),
+          created_by: 1
+        }))}
+        createRecord={createRecord}
+      />
+
+      {/* Lab Document Upload Dialog */}
+      <LabDocumentUpload
+        open={labUploadOpen}
+        onOpenChange={setLabUploadOpen}
+        onAnalysisComplete={handleLabAnalysisComplete}
+      />
+
+      {/* All Documents Dialog */}
+      <Dialog open={allDocumentsOpen} onOpenChange={setAllDocumentsOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden">
           <DialogHeader>
-            <DialogTitle>New Metric - {selectedSection}</DialogTitle>
-            <DialogDescription>Add a new metric or update an existing one in this section</DialogDescription>
+            <DialogTitle>All Lab Documents</DialogTitle>
+            <DialogDescription>
+              View and download all your lab documents
+            </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="metric-name">Metric Name</Label>
-              <Popover open={metricComboboxOpen} onOpenChange={setMetricComboboxOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={metricComboboxOpen}
-                    className="justify-between bg-transparent"
-                  >
-                    {selectedMetricForValue || "Select or type custom name..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0">
-                  <Command>
-                    <CommandInput
-                      placeholder="Search or type new metric..."
-                      value={selectedMetricForValue}
-                      onValueChange={setSelectedMetricForValue}
-                    />
-                    <CommandList>
-                      <CommandEmpty>No metric found. Type to create new.</CommandEmpty>
-                      <CommandGroup>
-                        {/* Show existing metrics in this section */}
-                        {analysisSections
-                          .find((sec) => sec.name === selectedSection)
-                          ?.metrics.map((metric) => (
-                            <CommandItem
-                              key={metric.name}
-                              value={metric.name}
-                              onSelect={(currentValue) => {
-                                setSelectedMetricForValue(currentValue)
-                                handleMetricForValueChange(currentValue)
-                                setMetricComboboxOpen(false)
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  selectedMetricForValue === metric.name ? "opacity-100" : "opacity-0",
-                                )}
-                              />
-                              {metric.name}
-                            </CommandItem>
-                          ))}
-                        {/* Show only predefined metrics for this specific section */}
-                        {predefinedMetrics[selectedSection as keyof typeof predefinedMetrics]
-                          ?.filter(
-                            (predefinedMetric) =>
-                              !analysisSections
-                                .find((sec) => sec.name === selectedSection)
-                                ?.metrics.some((existingMetric) => existingMetric.name === predefinedMetric.name),
-                          )
-                          .map((predefinedMetric) => (
-                            <CommandItem
-                              key={predefinedMetric.name}
-                              value={predefinedMetric.name}
-                              onSelect={(currentValue) => {
-                                setSelectedMetricForValue(currentValue)
-                                handleMetricForValueChange(currentValue)
-                                setMetricComboboxOpen(false)
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  selectedMetricForValue === predefinedMetric.name ? "opacity-100" : "opacity-0",
-                                )}
-                              />
-                              {predefinedMetric.name}
-                            </CommandItem>
-                          ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="metric-value">Value</Label>
-                <Input
-                  id="metric-value"
-                  type="number"
-                  step="0.01"
-                  placeholder="Enter value"
-                  value={metricValue}
-                  onChange={(e) => setMetricValue(e.target.value)}
-                />
+          
+          <div className="flex-1 overflow-y-auto">
+            {allDocumentsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="ml-2">Loading documents...</span>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="metric-unit">Unit</Label>
-                <Input
-                  id="metric-unit"
-                  placeholder="e.g., mg/dL"
-                  value={metricUnit}
-                  onChange={(e) => setMetricUnit(e.target.value)}
-                />
+            ) : allDocuments.length > 0 ? (
+              <div className="space-y-3">
+                {allDocuments.map((doc) => (
+                  <div key={doc.id} className="flex items-start justify-between p-3 border rounded-lg bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
+                    <div className="flex-1 min-w-0 pr-2">
+                      <p className="text-sm font-semibold text-gray-900 leading-tight flex items-center gap-2">
+                        <Calendar className="h-3 w-3 text-gray-500 flex-shrink-0" />
+                        {doc.lab_test_date ? new Date(doc.lab_test_date).toLocaleDateString() : 'No date'}
+                        {doc.provider && (
+                          <span className="text-gray-600 font-normal"> • {doc.provider}</span>
+                        )}
+                      </p>
+                      {doc.lab_test_name && (
+                        <p className="text-xs text-gray-700 mt-1 font-medium">{doc.lab_test_name}</p>
+                      )}
+                      {doc.description && (
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{doc.description}</p>
+                      )}
               </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDownloadDocument(doc.id, doc.file_name)}
+                      className="ml-2 h-8 w-8 p-0 hover:bg-gray-200 flex-shrink-0"
+                    >
+                      <Download className="h-3 w-3" />
+                    </Button>
             </div>
-
-            <div className="grid gap-2">
-              <Label>Normal Range</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Input placeholder="Min" value={normalRangeMin} onChange={(e) => setNormalRangeMin(e.target.value)} />
-                <Input placeholder="Max" value={normalRangeMax} onChange={(e) => setNormalRangeMax(e.target.value)} />
+                ))}
               </div>
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-500">No documents found</p>
             </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="metric-date">Date</Label>
-              <Input id="metric-date" type="date" value={metricDate} onChange={(e) => setMetricDate(e.target.value)} />
+            )}
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddMetricDialogOpen(false)}>
-              {t("action.cancel")}
+          
+          {/* Pagination */}
+          {allDocuments.length > 0 && (
+            <div className="flex items-center justify-between pt-4 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchAllDocuments(currentPage - 1)}
+                disabled={currentPage === 0 || allDocumentsLoading}
+              >
+                Previous
             </Button>
-            <Button onClick={handleAddMetricSubmit}>Add Metric</Button>
-          </DialogFooter>
+              <span className="text-sm text-gray-500">
+                Page {currentPage + 1}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchAllDocuments(currentPage + 1)}
+                disabled={allDocuments.length < 10 || allDocumentsLoading}
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
+
+      {/* Metric Detail Dialog */}
+      {selectedMetric && (
+        <MetricDetailDialog
+          open={metricDetailDialogOpen}
+          onOpenChange={setMetricDetailDialogOpen}
+          metric={{
+            id: selectedMetric.id,
+            display_name: selectedMetric.display_name,
+            unit: selectedMetric.unit || selectedMetric.default_unit || '',
+            default_unit: selectedMetric.default_unit,
+            threshold: selectedMetric.threshold ? JSON.stringify(selectedMetric.threshold) : undefined,
+            data_type: selectedMetric.data_type || 'number'
+          }}
+          dataPoints={selectedMetric.data_points || []}
+          onDataUpdated={() => {
+            // Refresh the data when records are updated
+            refresh()
+          }}
+        />
+      )}
     </div>
   )
 }

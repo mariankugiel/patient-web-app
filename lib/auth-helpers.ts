@@ -1,5 +1,4 @@
 import { createClient } from "./supabase-client"
-import { createServerClient } from "./supabase-server"
 
 // Client-side auth helpers
 export async function signUp(email: string, password: string, userData?: any) {
@@ -42,15 +41,7 @@ export async function getCurrentUser() {
   return { user, error }
 }
 
-// Server-side auth helpers
-export async function getServerUser() {
-  const supabase = await createServerClient()
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-  return { user, error }
-}
+// Note: Server-side auth helpers should be in a separate file for server components
 
 export async function getUserProfile(userId: string) {
   const supabase = createClient()

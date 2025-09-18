@@ -28,7 +28,16 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
   }))
 
   // Find min and max values for better tick calculation
-  const values = data.map((item) => item.value)
+  const values = data.map((item) => item.value).filter(val => val != null && !isNaN(val))
+  
+  if (values.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center text-xs text-gray-500">
+        No data to display
+      </div>
+    )
+  }
+  
   const minValue = Math.min(...values)
   const maxValue = Math.max(...values)
 
@@ -88,16 +97,27 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
         <Tooltip
           content={({ active, payload }) => {
             if (active && payload && payload.length) {
+              const data = payload[0].payload
+              const value = payload[0].value
+              
               return (
                 <div className="rounded-lg border bg-background p-2 shadow-sm">
                   <div className="grid grid-cols-2 gap-2">
                     <div className="flex flex-col">
                       <span className="text-[0.70rem] uppercase text-muted-foreground">Date</span>
-                      <span className="font-bold text-xs">{payload[0].payload.date}</span>
+                      <span className="font-bold text-xs">
+                        {data.date instanceof Date 
+                          ? data.date.toLocaleDateString()
+                          : data.date}
+                      </span>
                     </div>
                     <div className="flex flex-col">
                       <span className="text-[0.70rem] uppercase text-muted-foreground">{metricName}</span>
-                      <span className="font-bold text-xs">{payload[0].value}</span>
+                      <span className="font-bold text-xs">
+                        {typeof value === 'object' && value !== null 
+                          ? value.value 
+                          : value}
+                      </span>
                     </div>
                   </div>
                 </div>
