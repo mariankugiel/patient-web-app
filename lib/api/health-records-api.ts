@@ -22,6 +22,7 @@ export interface HealthRecordSection {
   display_name: string
   description?: string
   health_record_type_id: number
+  section_template_id?: number
   is_default: boolean
   created_by: number
   created_at: string
@@ -30,17 +31,35 @@ export interface HealthRecordSection {
   metrics?: HealthRecordMetric[] // Add metrics property
 }
 
+export interface HealthRecordSectionTemplate {
+  id: number
+  name: string
+  display_name: string
+  name_pt?: string
+  display_name_pt?: string
+  name_es?: string
+  display_name_es?: string
+  description?: string
+  health_record_type_id: number
+  is_default: boolean
+}
+
 export interface HealthRecordMetric {
   id: number
   section_id: number
   name: string
   display_name: string
+  name_pt?: string
+  display_name_pt?: string
+  name_es?: string
+  display_name_es?: string
   description?: string
   default_unit?: string
+  default_unit_pt?: string
+  default_unit_es?: string
   unit?: string // Add unit property for compatibility
-  threshold?: any // JSON field for reference ranges
-  normal_range_min?: number // Add normal range properties
-  normal_range_max?: number
+  original_reference?: string // Store original reference string like "Men: <25%, Female: <35%"
+  reference_data?: any // Store parsed reference data for all metrics (includes gender-specific when applicable)
   data_type: string
   is_default: boolean
   created_at: string
@@ -75,8 +94,7 @@ export interface MetricWithData {
   display_name: string
   unit?: string
   default_unit?: string // Add missing property
-  normal_range_min?: number
-  normal_range_max?: number
+  reference_data?: any
   threshold?: { // Add missing property
     min: number
     max: number
@@ -101,6 +119,7 @@ export interface SectionWithMetrics {
   name: string
   display_name: string
   description?: string
+  section_template_id?: number
   is_default?: boolean
   metrics: MetricWithData[]
 }
@@ -161,8 +180,17 @@ export class HealthRecordsApiService {
     display_name: string
     description?: string
     health_record_type_id: number
+    section_template_id?: number
   }): Promise<HealthRecordSection> {
     const response = await apiClient.post('/health-records/sections', section)
+    return response.data
+  }
+
+  static async updateSection(sectionId: number, data: {
+    display_name?: string
+    description?: string
+  }): Promise<HealthRecordSection> {
+    const response = await apiClient.put(`/health-records/sections/${sectionId}`, data)
     return response.data
   }
 
@@ -182,6 +210,17 @@ export class HealthRecordsApiService {
     data_type: string
   }): Promise<HealthRecordMetric> {
     const response = await apiClient.post('/health-records/metrics', metric)
+    return response.data
+  }
+
+  static async updateMetric(metricId: number, data: {
+    name?: string
+    display_name?: string
+    description?: string
+    default_unit?: string
+    reference_data?: any
+  }): Promise<HealthRecordMetric> {
+    const response = await apiClient.put(`/health-records/metrics/${metricId}`, data)
     return response.data
   }
 
@@ -226,6 +265,20 @@ export class HealthRecordsApiService {
     console.log('API: Health record deleted successfully')
   }
 
+  // Delete section (cascade deletes metrics and records)
+  static async deleteSection(sectionId: number): Promise<void> {
+    console.log('API: Deleting section:', sectionId)
+    await apiClient.delete(`/health-records/sections/${sectionId}`)
+    console.log('API: Section deleted successfully')
+  }
+
+  // Delete metric (cascade deletes records)
+  static async deleteMetric(metricId: number): Promise<void> {
+    console.log('API: Deleting metric:', metricId)
+    await apiClient.delete(`/health-records/metrics/${metricId}`)
+    console.log('API: Metric deleted successfully')
+  }
+
   // Analysis Dashboard
   static async getAnalysisDashboard(): Promise<AnalysisDashboardResponse> {
     const response = await apiClient.get('/health-metrics/dashboard')
@@ -233,7 +286,7 @@ export class HealthRecordsApiService {
   }
 
   // Admin Templates
-  static async getAdminSectionTemplates(healthRecordTypeId: number = 1): Promise<HealthRecordSection[]> {
+  static async getAdminSectionTemplates(healthRecordTypeId: number = 1): Promise<HealthRecordSectionTemplate[]> {
     const response = await apiClient.get(`/health-records/admin-templates/sections?health_record_type_id=${healthRecordTypeId}`)
     return response.data
   }

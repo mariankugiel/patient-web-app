@@ -4,13 +4,10 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import { RootState, AppDispatch } from "@/lib/store"
-import { updateUser } from "@/lib/features/auth/authSlice"
 import { updateHealthRecords, setCurrentStep, addCompletedStep } from "@/lib/features/onboarding/onboardingSlice"
-import { AuthApiService } from "@/lib/api/auth-api"
 import { HealthRecordsStep } from "@/components/onboarding/steps/health-records-step"
 import { OnboardingLayout } from "@/components/onboarding/onboarding-layout"
 import { type Language, getTranslation } from "@/lib/translations"
-import { toast } from "react-toastify"
 import { useOnboardingSkip } from '@/hooks/use-onboarding-skip'
 
 interface FormData {

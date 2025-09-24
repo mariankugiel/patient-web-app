@@ -13,6 +13,8 @@ interface HealthMetricsChartProps {
   data: Array<{
     date: Date
     value: number
+    id?: number | string
+    originalValue?: any
   }>
   metricName: string
   options?: ChartOptions
@@ -22,14 +24,16 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
   const { fontSize = 12, tickCount = 5, roundValues = false } = options
 
   // Format the data for the chart
-  const formattedData = data.map((item) => ({
-    date: format(item.date, "MMM d"),
+  const formattedData = data.map((item, index) => ({
+    date: format(item.date, "MM/dd/yy"),
     value: item.value,
+    id: item.id || index, // Use unique ID for each point
+    originalValue: item.originalValue, // Keep original value
   }))
 
   // Find min and max values for better tick calculation
   const values = data.map((item) => item.value).filter(val => val != null && !isNaN(val))
-  
+
   if (values.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-xs text-gray-500">
@@ -37,7 +41,7 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
       </div>
     )
   }
-  
+
   const minValue = Math.min(...values)
   const maxValue = Math.max(...values)
 
@@ -76,13 +80,14 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={formattedData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
         <XAxis
-          dataKey="date"
+          dataKey="id"
           stroke="#888888"
           fontSize={fontSize}
           tickLine={false}
           axisLine={false}
           interval="preserveStartEnd"
           tickCount={3}
+          tickFormatter={(value, index) => formattedData[index]?.date || value}
         />
         <YAxis
           stroke="#888888"
@@ -95,10 +100,30 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
           width={25}
         />
         <Tooltip
-          content={({ active, payload }) => {
+          content={({ active, payload, label }) => {
             if (active && payload && payload.length) {
               const data = payload[0].payload
-              const value = payload[0].value
+              const value = data.value // Get value directly from the data payload
+              
+              // Format the display value properly
+              let displayValue = value
+              
+              // If original value is an object (like blood pressure), format it nicely
+              if (data.originalValue && typeof data.originalValue === 'object') {
+                if (data.originalValue.systolic && data.originalValue.diastolic) {
+                  // Blood pressure format
+                  displayValue = `${data.originalValue.systolic}/${data.originalValue.diastolic}`
+                } else if (data.originalValue.value !== undefined) {
+                  // Object with value property
+                  displayValue = data.originalValue.value
+                } else {
+                  // Fallback to processed value
+                  displayValue = value
+                }
+              } else if (data.originalValue && typeof data.originalValue === 'string') {
+                // If original was a string, use it
+                displayValue = data.originalValue
+              }
               
               return (
                 <div className="rounded-lg border bg-background p-2 shadow-sm">
@@ -106,7 +131,7 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
                     <div className="flex flex-col">
                       <span className="text-[0.70rem] uppercase text-muted-foreground">Date</span>
                       <span className="font-bold text-xs">
-                        {data.date instanceof Date 
+                        {data.date instanceof Date
                           ? data.date.toLocaleDateString()
                           : data.date}
                       </span>
@@ -114,9 +139,7 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
                     <div className="flex flex-col">
                       <span className="text-[0.70rem] uppercase text-muted-foreground">{metricName}</span>
                       <span className="font-bold text-xs">
-                        {typeof value === 'object' && value !== null 
-                          ? value.value 
-                          : value}
+                        {displayValue}
                       </span>
                     </div>
                   </div>

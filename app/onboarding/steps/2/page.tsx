@@ -20,43 +20,8 @@ import { OnboardingLayout } from '@/components/onboarding/onboarding-layout'
 import { type Language, getTranslation } from '@/lib/translations'
 import { toast } from 'react-toastify'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertTriangle, CheckCircle, X } from 'lucide-react'
-import { useOnboardingPersistence } from '@/hooks/use-onboarding-persistence'
+import { AlertTriangle, X } from 'lucide-react'
 import { useOnboardingSkip } from '@/hooks/use-onboarding-skip'
-
-interface FormData {
-  currentHealthProblems: Array<{
-    condition: string
-    yearOfDiagnosis: string
-    diagnosticProvider: string
-    treatment: string
-    comments: string
-  }>
-  medications: Array<{
-    drugName: string
-    purpose: string
-    dosage: string
-    frequency: string
-    schedule: Array<{ time: string; days: string[] }>
-    hasReminder: boolean
-    reminderTime?: string
-    reminderDays?: string[]
-  }>
-  pastMedicalConditions: Array<{
-    condition: string
-    yearOfDiagnosis: string
-    yearResolved: string
-    treatment: string
-    comments: string
-  }>
-  pastSurgeries: Array<{
-    surgeryType: string
-    year: string
-    location: string
-    existingConditions: string
-    comments: string
-  }>
-}
 
 export default function MedicalConditionPage() {
   const router = useRouter()
@@ -64,7 +29,6 @@ export default function MedicalConditionPage() {
   const { user } = useSelector((state: RootState) => state.auth)
   const medicalConditions = useSelector((state: RootState) => state.onboarding.medicalConditions)
   const completedSteps = useSelector((state: RootState) => state.onboarding.completedSteps)
-  const { clearOnboardingData } = useOnboardingPersistence()
   const { skipOnboarding, isSkipping } = useOnboardingSkip()
   
   const [language, setLanguage] = useState<Language>("en-US")

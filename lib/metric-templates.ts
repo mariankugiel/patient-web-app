@@ -27,74 +27,13 @@ export interface MetricTemplate {
 }
 
 export const METRIC_TEMPLATES: Record<string, MetricTemplate> = {
-  'blood_pressure': {
-    name: 'blood_pressure',
-    displayName: 'Blood Pressure',
-    icon: 'Heart',
-    fields: [
-      {
-        key: 'systolic',
-        label: 'Systolic',
-        type: 'number',
-        placeholder: '120',
-        unit: 'mmHg',
-        validation: { min: 50, max: 300, required: true }
-      },
-      {
-        key: 'diastolic',
-        label: 'Diastolic',
-        type: 'number',
-        placeholder: '80',
-        unit: 'mmHg',
-        validation: { min: 30, max: 200, required: true }
-      }
-    ],
-    formatValue: (values) => `${values.systolic || ''}/${values.diastolic || ''}`,
-    parseValue: (value) => {
-      if (typeof value === 'string' && value.includes('/')) {
-        const [systolic, diastolic] = value.split('/')
-        return { systolic: parseFloat(systolic) || 0, diastolic: parseFloat(diastolic) || 0 }
-      }
-      if (typeof value === 'object' && value !== null) {
-        return { systolic: value.systolic || 0, diastolic: value.diastolic || 0 }
-      }
-      return { systolic: 0, diastolic: 0 }
-    },
-    validateValue: (values) => {
-      const errors: string[] = []
-      if (!values.systolic || values.systolic < 50 || values.systolic > 300) {
-        errors.push('Systolic pressure must be between 50-300 mmHg')
-      }
-      if (!values.diastolic || values.diastolic < 30 || values.diastolic > 200) {
-        errors.push('Diastolic pressure must be between 30-200 mmHg')
-      }
-      if (values.systolic && values.diastolic && values.systolic <= values.diastolic) {
-        errors.push('Systolic pressure must be higher than diastolic')
-      }
-      return { valid: errors.length === 0, errors }
-    },
-    getStatus: (values, thresholds) => {
-      const systolic = values.systolic
-      const diastolic = values.diastolic
-      
-      if (!systolic || !diastolic) return 'normal'
-      
-      // Blood pressure categories
-      if (systolic >= 180 || diastolic >= 120) return 'critical'
-      if (systolic >= 140 || diastolic >= 90) return 'abnormal'
-      if (systolic >= 120 || diastolic >= 80) return 'abnormal'
-      
-      return 'normal'
-    }
-  },
-
   'heart_rate': {
     name: 'heart_rate',
     displayName: 'Heart Rate',
     icon: 'Activity',
     fields: [
       {
-        key: 'rate',
+        key: 'value',
         label: 'Heart Rate',
         type: 'number',
         placeholder: '72',
@@ -102,22 +41,22 @@ export const METRIC_TEMPLATES: Record<string, MetricTemplate> = {
         validation: { min: 30, max: 250, required: true }
       }
     ],
-    formatValue: (values) => `${values.rate || ''}`,
+    formatValue: (values) => `${values.value || ''}`,
     parseValue: (value) => {
-      if (typeof value === 'number') return { rate: value }
-      if (typeof value === 'string') return { rate: parseFloat(value) || 0 }
-      if (typeof value === 'object' && value !== null) return { rate: value.rate || 0 }
-      return { rate: 0 }
+      if (typeof value === 'number') return { value: value }
+      if (typeof value === 'string') return { value: parseFloat(value) || 0 }
+      if (typeof value === 'object' && value !== null) return { value: value.value || 0 }
+      return { value: 0 }
     },
     validateValue: (values) => {
       const errors: string[] = []
-      if (!values.rate || values.rate < 30 || values.rate > 250) {
+      if (!values.value || values.value < 30 || values.value > 250) {
         errors.push('Heart rate must be between 30-250 bpm')
       }
       return { valid: errors.length === 0, errors }
     },
     getStatus: (values) => {
-      const rate = values.rate
+      const rate = values.value
       if (!rate) return 'normal'
       if (rate < 40 || rate > 120) return 'abnormal'
       if (rate < 30 || rate > 150) return 'critical'

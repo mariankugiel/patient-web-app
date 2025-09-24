@@ -129,7 +129,7 @@ const translations: Record<Language, Record<string, string>> = {
     "health.lifestyle": "Lifestyle",
     "health.vitals": "Vitals",
     "health.genetics": "Genetics",
-    "health.images": "Images",
+    "health.images": "Exams",
     "health.overallAssessment": "Overall Health Assessment",
     "health.overallAssessmentDesc": "Your current health status based on all metrics",
     "health.healthScore": "Health Score",
@@ -302,8 +302,6 @@ const translations: Record<Language, Record<string, string>> = {
     "health.noTrendData": "No trend data available",
     "health.status.normal": "Normal",
     "health.status.abnormal": "Abnormal",
-    "health.status.controlled": "Controlled",
-    "health.status.partiallyControlled": "Partially controlled",
     "health.ldlCholesterolConcern":
       "LDL cholesterol remains elevated at 125 mg/dL (target <100 mg/dL). White blood cell count is high at 11.2 K/uL, showing mild improvement from previous 12.0 K/uL.",
     "health.cholesterolImprovement":
@@ -942,7 +940,7 @@ const translations: Record<Language, Record<string, string>> = {
     "health.lifestyle": "Estilo de Vida",
     "health.vitals": "Signos Vitales",
     "health.genetics": "Genética",
-    "health.images": "Imágenes",
+    "health.images": "Exámenes",
 
     // Health Images
     "health.images.medicalImages": "Imágenes Médicas",
@@ -1176,7 +1174,7 @@ const translations: Record<Language, Record<string, string>> = {
     "health.lifestyle": "Estilo de Vida",
     "health.vitals": "Sinais Vitais",
     "health.genetics": "Genética",
-    "health.images": "Imagens",
+    "health.images": "Exames",
 
     // Health Images
     "health.images.medicalImages": "Imagens Médicas",

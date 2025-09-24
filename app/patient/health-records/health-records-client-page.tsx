@@ -88,10 +88,6 @@ export default function HealthRecordsClientPage() {
   const weightData = healthMetrics?.weight || []
   const glucoseData = healthMetrics?.glucose || []
   const cholesterolData = healthMetrics?.cholesterol || []
-  const bodyCompositionData = healthMetrics?.bodyComposition || {}
-  const lifestyleData = healthMetrics?.lifestyle || {}
-  const vitalsData = healthMetrics?.vitals || {}
-  const bloodTestsData = healthMetrics?.bloodTests || {}
 
   // Format data for charts
   const formattedBloodPressureData = bloodPressureData.map((item) => ({

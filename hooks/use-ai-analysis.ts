@@ -1,50 +1,57 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { toast } from 'react-toastify'
 import { aiAnalysisApiService, AIAnalysisResult, AIAnalysisStatus } from '@/lib/api/ai-analysis-api'
 
-export function useAIAnalysis() {
-  const [analysis, setAnalysis] = useState<AIAnalysisResult | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+// Global state to store analyses by type ID across all hook instances
+const globalAnalyses = new Map<number, AIAnalysisResult>()
+const globalLoading = new Map<number, boolean>()
+const globalErrors = new Map<number, string | null>()
+
+export function useAIAnalysis(healthRecordTypeId: number = 1) {
+  // Use global state but with type-specific keys
+  const [analysis, setAnalysis] = useState<AIAnalysisResult | null>(globalAnalyses.get(healthRecordTypeId) || null)
+  const [loading, setLoading] = useState<boolean>(globalLoading.get(healthRecordTypeId) || false)
+  const [error, setError] = useState<string | null>(globalErrors.get(healthRecordTypeId) || null)
   const [serviceStatus, setServiceStatus] = useState<AIAnalysisStatus | null>(null)
 
-  const generateAnalysis = useCallback(async (healthRecordTypeId: number = 1) => {
+  const generateAnalysis = useCallback(async (forceCheck: boolean = false) => {
     try {
       setLoading(true)
       setError(null)
+      globalLoading.set(healthRecordTypeId, true)
+      globalErrors.set(healthRecordTypeId, null)
       
-      console.log('Generating AI analysis...')
-      const result = await aiAnalysisApiService.generateAnalysis(healthRecordTypeId)
-      
-      console.log('Hook received result:', result)
-      console.log('Result type:', typeof result)
-      console.log('Result success field:', result?.success)
-      console.log('Result keys:', Object.keys(result || {}))
+      const result = await aiAnalysisApiService.generateAnalysis(healthRecordTypeId, forceCheck)
       
       if (result.success) {
-        console.log('Going to success path')
+        // Store the result in both local and global state
         setAnalysis(result)
-        toast.success('AI analysis completed successfully!')
-        console.log('AI analysis result:', result)
+        globalAnalyses.set(healthRecordTypeId, result)
+        
+        // Show success message only for newly generated analysis
+        if (!result.cached) {
+          toast.success('AI analysis completed successfully!')
+        }
+        
       } else {
-        console.log('Going to fallback path')
-        // AI analysis failed but we still got a response with fallback analysis
-        setAnalysis(result)
-        toast.warning(`AI analysis failed: ${result.message}. Showing fallback analysis.`)
-        console.log('AI analysis failed, using fallback:', result)
+        // AI analysis failed - don't store fallback analysis, set to null
+        setAnalysis(null)
+        globalAnalyses.delete(healthRecordTypeId)
       }
       
       return result
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to generate AI analysis'
       setError(errorMessage)
+      globalErrors.set(healthRecordTypeId, errorMessage)
       toast.error(errorMessage)
       console.error('AI analysis error:', err)
       throw err
     } finally {
       setLoading(false)
+      globalLoading.set(healthRecordTypeId, false)
     }
-  }, [])
+  }, [healthRecordTypeId])
 
   const getServiceStatus = useCallback(async () => {
     try {
@@ -67,10 +74,35 @@ export function useAIAnalysis() {
   const clearAnalysis = useCallback(() => {
     setAnalysis(null)
     setError(null)
-  }, [])
+    globalAnalyses.delete(healthRecordTypeId)
+    globalErrors.delete(healthRecordTypeId)
+  }, [healthRecordTypeId])
 
-  const refreshAnalysis = useCallback(async (healthRecordTypeId: number = 1) => {
-    return await generateAnalysis(healthRecordTypeId)
+  const refreshAnalysis = useCallback(async (forceRegenerate: boolean = false) => {
+    return await generateAnalysis(forceRegenerate)
+  }, [generateAnalysis])
+
+  const checkForNewRecords = useCallback(async () => {
+    try {
+      const result = await aiAnalysisApiService.checkForNewRecords(healthRecordTypeId)
+      return result
+    } catch (error: any) {
+      console.error('Failed to check for new records:', error)
+      return { hasNewRecords: false, reason: 'Unable to check for new records' }
+    }
+  }, [healthRecordTypeId])
+
+  const checkForUpdates = useCallback(async () => {
+    try {
+      console.log('Checking for updates...')
+      // Always force regeneration when user clicks "Check for Updates"
+      // This ensures the analysis is refreshed with any new data
+      console.log('Force regenerating analysis...')
+      return await generateAnalysis(true)
+    } catch (error: any) {
+      console.error('Failed to check for updates:', error)
+      throw error
+    }
   }, [generateAnalysis])
 
   return {
@@ -81,6 +113,8 @@ export function useAIAnalysis() {
     generateAnalysis,
     getServiceStatus,
     clearAnalysis,
-    refreshAnalysis
+    refreshAnalysis,
+    checkForNewRecords,
+    checkForUpdates
   }
 }

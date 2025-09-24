@@ -66,8 +66,7 @@ export interface MetricWithData {
   display_name: string
   unit?: string
   default_unit?: string
-  normal_range_min?: number
-  normal_range_max?: number
+  reference_data?: any
   threshold?: {
     min: number
     max: number

@@ -22,8 +22,7 @@ export interface HealthMetric {
   section_id: number
   name: string
   unit?: string
-  normal_range_min?: number
-  normal_range_max?: number
+  reference_data?: any
   description?: string
   is_active: boolean
   created_by: number
@@ -51,8 +50,7 @@ export interface MetricWithData {
   id: number
   name: string
   unit?: string
-  normal_range_min?: number
-  normal_range_max?: number
+  reference_data?: any
   current_value?: number
   current_status?: 'normal' | 'abnormal' | 'critical' | 'unknown'
   trend?: 'improving' | 'declining' | 'stable' | 'unknown'
@@ -101,8 +99,7 @@ export interface MetricSuggestion {
   type: 'existing' | 'template'
   name: string
   unit?: string
-  normal_range_min?: number
-  normal_range_max?: number
+  reference_data?: any
   count?: number
   section_name?: string
 }
@@ -187,8 +184,7 @@ export class HealthMetricsApiService {
     section_id: number
     name: string
     unit?: string
-    normal_range_min?: number
-    normal_range_max?: number
+    reference_data?: any
     description?: string
   }): Promise<HealthMetric> {
     try {
@@ -223,8 +219,7 @@ export class HealthMetricsApiService {
   static async updateMetric(metricId: number, metric: {
     name?: string
     unit?: string
-    normal_range_min?: number
-    normal_range_max?: number
+    reference_data?: any
     description?: string
     is_active?: boolean
   }): Promise<HealthMetric> {
@@ -388,8 +383,7 @@ export class HealthMetricsApiService {
     section_name: string
     metric_name: string
     unit?: string
-    normal_range_min?: number
-    normal_range_max?: number
+    reference_data?: any
     description?: string
   }): Promise<HealthMetricTemplate> {
     try {

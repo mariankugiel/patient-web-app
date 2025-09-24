@@ -14,20 +14,39 @@ import { format } from "date-fns"
 import { toast } from "react-toastify"
 import { HealthRecordsApiService, HealthRecord } from "@/lib/api/health-records-api"
 import { MetricValueEditor } from "./metric-value-editor"
+import { EditMetricDialog } from "./edit-metric-dialog"
+import { formatReferenceRange } from "@/hooks/use-health-records"
+import { useSelector } from 'react-redux'
+import { RootState } from '@/lib/store'
 
 interface MetricDetailDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   metric: {
     id: number
+    name?: string
     display_name: string
+    description?: string
     unit: string
     default_unit?: string
-    threshold?: string
+    reference_data?: any
     data_type: string
+    is_default?: boolean
+    created_at?: string
+    updated_at?: string
+    created_by?: number
+    updated_by?: number
   }
   dataPoints: HealthRecord[]
   onDataUpdated: () => void
+  onDeleteMetric?: () => void
+  updateMetric?: (metricId: number, metricData: {
+    name?: string
+    display_name?: string
+    description?: string
+    default_unit?: string
+    reference_data?: any
+  }) => Promise<void>
 }
 
 interface EditableRecord extends HealthRecord {
@@ -42,12 +61,50 @@ export function MetricDetailDialog({
   onOpenChange,
   metric,
   dataPoints,
-  onDataUpdated
+  onDataUpdated,
+  onDeleteMetric,
+  updateMetric
 }: MetricDetailDialogProps) {
+  const { user } = useSelector((state: RootState) => state.auth)
   const [records, setRecords] = useState<EditableRecord[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [loading, setLoading] = useState(false)
+  const [editMetricDialogOpen, setEditMetricDialogOpen] = useState(false)
+
+  // Helper function to get gender-specific reference range
+  const getGenderSpecificReferenceRange = () => {
+    if (!metric.reference_data) return 'Reference range not specified'
+    
+    const userGender = user?.user_metadata?.gender?.toLowerCase()
+    const gender = userGender === 'female' ? 'female' : 'male'
+    const genderData = metric.reference_data[gender]
+    
+    return formatReferenceRange(genderData?.min, genderData?.max)
+  }
+
+  // Helper function to calculate status based on value and reference range
+  const calculateStatus = (value: any) => {
+    if (!metric.reference_data) return 'normal'
+    
+    const userGender = user?.user_metadata?.gender?.toLowerCase()
+    const gender = userGender === 'female' ? 'female' : 'male'
+    const genderData = metric.reference_data[gender]
+    
+    if (genderData?.min !== undefined && genderData?.max !== undefined) {
+      // Extract numeric value from the wrapped value
+      const numericValue = typeof value === 'object' && value !== null ? value.value : value
+      const numValue = parseFloat(numericValue)
+      
+      if (!isNaN(numValue)) {
+        if (numValue < genderData.min || numValue > genderData.max) {
+          return 'abnormal'
+        }
+      }
+    }
+    
+    return 'normal'
+  }
 
   useEffect(() => {
     if (open && dataPoints) {
@@ -109,10 +166,18 @@ export function MetricDetailDialog({
         wrappedValue = { value: parsedValue }
       }
 
+      // Calculate status based on the new value and reference range
+      const calculatedStatus = calculateStatus(wrappedValue)
+
+      // Convert date string to datetime format (add time if not present)
+      const recordedAt = record.tempDate.includes('T') 
+        ? record.tempDate 
+        : `${record.tempDate}T00:00:00`
+
       await HealthRecordsApiService.updateHealthRecord(recordId, {
         value: wrappedValue,
-        status: record.tempStatus,
-        recorded_at: record.tempDate
+        status: calculatedStatus,
+        recorded_at: recordedAt
       })
 
       setRecords(prev => prev.map(r => 
@@ -121,8 +186,8 @@ export function MetricDetailDialog({
               ...r, 
               isEditing: false,
               value: wrappedValue,
-              status: record.tempStatus,
-              recorded_at: record.tempDate
+              status: calculatedStatus,
+              recorded_at: recordedAt
             }
           : r
       ))
@@ -166,22 +231,76 @@ export function MetricDetailDialog({
 
   const formatValue = (value: any) => {
     if (typeof value === 'object' && value !== null) {
-      return JSON.stringify(value)
+      // Handle structured values like {"value": 88} or {"systolic": 120, "diastolic": 80}
+      if (value.value !== undefined) {
+        // Simple value object like {"value": 88}
+        return String(value.value)
+      } else if (value.systolic !== undefined && value.diastolic !== undefined) {
+        // Blood pressure format
+        return `${value.systolic}/${value.diastolic}`
+      } else {
+        // Fallback to JSON for other complex objects
+        return JSON.stringify(value)
+      }
     }
     return String(value)
+  }
+
+  const handleEditMetric = () => {
+    if (!updateMetric) {
+      toast.error('Edit functionality is not available')
+      return
+    }
+    setEditMetricDialogOpen(true)
+  }
+
+  const handleMetricUpdated = (updatedMetric: any) => {
+    onDataUpdated()
+    setEditMetricDialogOpen(false)
+  }
+
+  const handleDeleteMetric = () => {
+    if (onDeleteMetric) {
+      onDeleteMetric()
+    } else {
+      console.log('Delete metric:', metric)
+      toast.info('Metric deletion will be implemented')
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            {metric.display_name} - Detailed Records
-            <Badge variant="outline" className="ml-2">
-              {records.length} records
-            </Badge>
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              {metric.display_name} - Detailed Records
+              <Badge variant="outline" className="ml-2">
+                {records.length} records
+              </Badge>
+            </DialogTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleEditMetric()}
+                className="flex items-center gap-2"
+              >
+                <Edit className="h-4 w-4" />
+                Edit Metric
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleDeleteMetric()}
+                className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Metric
+              </Button>
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col">
@@ -197,7 +316,9 @@ export function MetricDetailDialog({
             </div>
             <div>
               <Label className="text-sm font-medium text-muted-foreground">Reference Range</Label>
-              <p className="text-sm">{metric.threshold || 'N/A'}</p>
+              <p className="text-sm">
+                {getGenderSpecificReferenceRange()}
+              </p>
             </div>
           </div>
 
@@ -245,6 +366,7 @@ export function MetricDetailDialog({
                               r.id === record.id ? { ...r, tempValue: value } : r
                             ))}
                             disabled={loading}
+                            showLabel={false}
                           />
                         </div>
                       ) : (
@@ -254,27 +376,9 @@ export function MetricDetailDialog({
                       )}
                     </TableCell>
                     <TableCell>
-                      {record.isEditing ? (
-                        <Select
-                          value={record.tempStatus}
-                          onValueChange={(value) => setRecords(prev => prev.map(r => 
-                            r.id === record.id ? { ...r, tempStatus: value } : r
-                          ))}
-                        >
-                          <SelectTrigger className="h-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="normal">Normal</SelectItem>
-                            <SelectItem value="abnormal">Abnormal</SelectItem>
-                            <SelectItem value="critical">Critical</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Badge className={getStatusColor(record.status)}>
-                          {record.status}
-                        </Badge>
-                      )}
+                      <Badge className={getStatusColor(record.status)}>
+                        {record.status}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
@@ -343,6 +447,15 @@ export function MetricDetailDialog({
           />
         </div>
       </DialogContent>
+
+      {/* Edit Metric Dialog */}
+      <EditMetricDialog
+        open={editMetricDialogOpen}
+        onOpenChange={setEditMetricDialogOpen}
+        onMetricUpdated={handleMetricUpdated}
+        metric={metric}
+        updateMetric={updateMetric || (() => Promise.resolve())}
+      />
     </Dialog>
   )
 }

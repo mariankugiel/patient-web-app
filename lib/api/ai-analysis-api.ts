@@ -5,14 +5,17 @@ export interface AIAnalysisResult {
   success: boolean
   message: string
   analysis: {
-    overall_assessment: string
-    areas_of_concern: string[]
-    positive_trends: string[]
-    recommendations: string[]
-    risk_factors: string[]
-    next_steps: string[]
+    overall_assessment?: string
+    summary?: string
+    areas_of_concern?: string[]
+    positive_trends?: string[]
+    recommendations?: string[]
+    risk_factors?: string[]
+    next_steps?: string[]
   }
   generated_at?: string
+  cached?: boolean
+  reason?: string
   data_summary?: {
     total_sections: number
     total_metrics: number
@@ -31,12 +34,13 @@ class AIAnalysisApiService {
   /**
    * Generate AI-powered health analysis
    */
-  async generateAnalysis(healthRecordTypeId: number = 1): Promise<AIAnalysisResult> {
+  async generateAnalysis(healthRecordTypeId: number = 1, forceCheck: boolean = false): Promise<AIAnalysisResult> {
     try {
       console.log('Making AI analysis request to /ai-analysis/analyze...')
-      console.log('Request payload:', { health_record_type_id: healthRecordTypeId })
+      console.log('Request payload:', { health_record_type_id: healthRecordTypeId, force_check: forceCheck })
       const response = await apiClient.post('/ai-analysis/analyze', {
-        health_record_type_id: healthRecordTypeId
+        health_record_type_id: healthRecordTypeId,
+        force_check: forceCheck
       }, {
         timeout: 60000 // 60 seconds timeout for AI analysis
       })
@@ -82,6 +86,22 @@ class AIAnalysisApiService {
     } catch (error: any) {
       console.error('Failed to get AI analysis status:', error)
       throw new Error(error.response?.data?.detail || 'Failed to get AI analysis status')
+    }
+  }
+
+  /**
+   * Check if there are new records since last analysis
+   */
+  async checkForNewRecords(healthRecordTypeId: number = 1): Promise<{ hasNewRecords: boolean; reason: string }> {
+    try {
+      console.log('Making request to check for new records...', { healthRecordTypeId })
+      const response = await apiClient.get(`/ai-analysis/check-new-records?health_record_type_id=${healthRecordTypeId}`)
+      console.log('Check new records response:', response.data)
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to check for new records:', error)
+      // If the endpoint doesn't exist yet, assume no new records
+      return { hasNewRecords: false, reason: 'Unable to check for new records' }
     }
   }
 }

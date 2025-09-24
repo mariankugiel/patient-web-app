@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { HealthRecordsApiService } from '@/lib/api/health-records-api'
+import { useSelector } from 'react-redux'
+import { RootState } from '@/lib/store'
 
 export interface HealthRecordMetric {
   id: number
@@ -20,10 +22,9 @@ export interface HealthRecordMetric {
   display_name: string
   description?: string
   default_unit?: string
-  threshold?: {
-    min: number
-    max: number
-  }
+  original_reference?: string // Store original reference string
+  reference_data?: any // Store parsed reference data for all metrics (includes gender-specific when applicable)
+  section_template_id?: number
   data_type: string
   is_default: boolean
   created_at: string
@@ -36,18 +37,17 @@ interface NewMetricDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onMetricCreated: (metric: HealthRecordMetric) => void
-  sectionId: number
-  sectionName: string
+  sectionId?: number
+  sectionName?: string
+  sections?: Array<{ id: number; display_name: string; name: string; section_template_id?: number }>
+  healthRecordTypeId?: number
   createMetric: (metricData: {
     section_id: number
     name: string
     display_name: string
     description?: string
     default_unit?: string
-    threshold?: {
-      min: number
-      max: number
-    }
+    reference_data?: any
     data_type: string
   }) => Promise<HealthRecordMetric>
 }
@@ -58,8 +58,11 @@ export function NewMetricDialog({
   onMetricCreated,
   sectionId,
   sectionName,
+  sections,
+  healthRecordTypeId,
   createMetric
 }: NewMetricDialogProps) {
+  const { user } = useSelector((state: RootState) => state.auth)
   const [metricName, setMetricName] = useState('')
   const [metricDisplayName, setMetricDisplayName] = useState('')
   const [metricUnit, setMetricUnit] = useState('')
@@ -72,24 +75,84 @@ export function NewMetricDialog({
   const [adminTemplates, setAdminTemplates] = useState<HealthRecordMetric[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<HealthRecordMetric | null>(null)
   const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false)
+  const [sectionDropdownOpen, setSectionDropdownOpen] = useState(false)
   const [isCustomMetric, setIsCustomMetric] = useState(true)
   
-  // Fetch admin templates when dialog opens
-  useEffect(() => {
-    if (open) {
-      fetchAdminTemplates()
-    }
-  }, [open, sectionId])
+  // Section selection state
+  const [selectedSectionId, setSelectedSectionId] = useState<number>(0)
+  const [selectedSectionName, setSelectedSectionName] = useState<string>('')
   
-  const fetchAdminTemplates = async () => {
+  // Initialize section when dialog opens with pre-selected section
+  useEffect(() => {
+    if (open && sectionId && sectionName) {
+      setSelectedSectionId(sectionId)
+      setSelectedSectionName(sectionName)
+    } else if (open && !sectionId) {
+      // Reset to no section selected when opening without pre-selection
+      setSelectedSectionId(0)
+      setSelectedSectionName('')
+    }
+  }, [open, sectionId, sectionName])
+  
+  const fetchAdminTemplates = useCallback(async () => {
+    if (!selectedSectionId) {
+      setAdminTemplates([])
+      return
+    }
+    
     try {
-      const templates = await HealthRecordsApiService.getAdminMetricTemplates(undefined, 1)
+      // Find the selected section to get its template ID
+      const selectedSection = sections?.find(section => section.id === selectedSectionId)
+      const sectionTemplateId = selectedSection?.section_template_id
+      
+      if (!sectionTemplateId) {
+        console.warn('No section_template_id found for selected section:', selectedSectionId)
+        setAdminTemplates([])
+        return
+      }
+      
+      // Fetch templates filtered by the selected section's template ID
+      const templates = await HealthRecordsApiService.getAdminMetricTemplates(sectionTemplateId, healthRecordTypeId || 1)
       setAdminTemplates(templates)
     } catch (error) {
       console.error('Failed to fetch admin metric templates:', error)
+      setAdminTemplates([])
+    }
+  }, [selectedSectionId, sections, healthRecordTypeId])
+  
+  // Only fetch admin templates when a section is selected
+  useEffect(() => {
+    if (open && selectedSectionId) {
+      fetchAdminTemplates()
+    } else if (open && !selectedSectionId) {
+      // Clear templates when no section is selected
+      setAdminTemplates([])
+    }
+  }, [open, selectedSectionId, fetchAdminTemplates])
+  
+  // Get gender-specific reference range
+  const getGenderSpecificReference = (template: any) => {
+    const userGender = user?.user_metadata?.gender?.toLowerCase()
+    
+    // Default to male if gender is not found
+    const gender = userGender === 'female' ? 'female' : 'male'
+    
+    // Get reference data for the user's gender
+    if (template.reference_data) {
+      const genderData = template.reference_data[gender]
+      return {
+        min: genderData?.min,
+        max: genderData?.max
+      }
+    }
+    
+    // No reference data available
+    return {
+      min: null,
+      max: null
     }
   }
-  
+
   const handleTemplateSelect = (template: HealthRecordMetric) => {
     setSelectedTemplate(template)
     setMetricName(template.name)
@@ -97,13 +160,10 @@ export function NewMetricDialog({
     setMetricDescription(template.description || '')
     setMetricUnit(template.default_unit || '')
     
-    // Parse threshold for normal range
-    if (template.threshold) {
-      if (typeof template.threshold === 'object' && 'min' in template.threshold && 'max' in template.threshold) {
-        setNormalRangeMin(template.threshold.min?.toString() || '')
-        setNormalRangeMax(template.threshold.max?.toString() || '')
-      }
-    }
+    // Get gender-specific reference range
+    const referenceRange = getGenderSpecificReference(template)
+    setNormalRangeMin(referenceRange.min?.toString() || '')
+    setNormalRangeMax(referenceRange.max?.toString() || '')
     
     setIsCustomMetric(false)
     setTemplateDropdownOpen(false)
@@ -120,32 +180,45 @@ export function NewMetricDialog({
     setNormalRangeMax('')
   }
 
+  // Handle metric name change from combobox input
+  const handleMetricNameChange = (value: string) => {
+    setMetricName(value)
+    // Clear selected template when user types
+    if (selectedTemplate) {
+      setSelectedTemplate(null)
+      setIsCustomMetric(true)
+    }
+  }
+
   // Handle create new metric
   const handleCreateMetric = async () => {
+    // Validate section selection if sections are provided
+    if (sections && sections.length > 0 && !selectedSectionId) {
+      toast.error('Please select a section')
+      return
+    }
+
     if (!metricName.trim()) {
       toast.error('Please enter a metric name')
       return
     }
 
-    if (!metricUnit.trim()) {
-      toast.error('Please enter a unit')
-      return
-    }
+    // Unit is optional - no validation needed
 
-    if (!normalRangeMin || !normalRangeMax) {
-      toast.error('Please enter reference range values')
-      return
-    }
+    // Parse reference range values (both are optional)
+    const minValue = normalRangeMin ? parseFloat(normalRangeMin) : null
+    const maxValue = normalRangeMax ? parseFloat(normalRangeMax) : null
 
-    const minValue = parseFloat(normalRangeMin)
-    const maxValue = parseFloat(normalRangeMax)
+    // Reference range is optional - both can be null
 
-    if (isNaN(minValue) || isNaN(maxValue)) {
+    // Validate that provided values are valid numbers
+    if ((minValue !== null && isNaN(minValue)) || (maxValue !== null && isNaN(maxValue))) {
       toast.error('Please enter valid numbers for reference range')
       return
     }
 
-    if (minValue >= maxValue) {
+    // Validate that min is less than max when both are provided
+    if (minValue !== null && maxValue !== null && minValue >= maxValue) {
       toast.error('Minimum value must be less than maximum value')
       return
     }
@@ -156,36 +229,34 @@ export function NewMetricDialog({
       let newMetric
       
       if (selectedTemplate && !isCustomMetric) {
-        // User selected a template
+        // User selected a template - use the template's reference_data
         newMetric = await createMetric({
-          section_id: sectionId,
+          section_id: selectedSectionId || sectionId || 0,
           name: selectedTemplate.name,
           display_name: selectedTemplate.display_name,
           description: selectedTemplate.description || metricDescription,
           default_unit: selectedTemplate.default_unit || metricUnit,
-          threshold: selectedTemplate.threshold || {
-            min: minValue,
-            max: maxValue
-          },
-          data_type: selectedTemplate.data_type || 'number',
-          is_default: true,
-          section_template_id: selectedTemplate.section_template_id
+          reference_data: selectedTemplate.reference_data,
+          data_type: selectedTemplate.data_type || 'number'
         })
       } else {
-        // User created a custom metric
+        // User created a custom metric - create reference_data based on user's gender
+        const userGender = user?.user_metadata?.gender?.toLowerCase()
+        const gender = userGender === 'female' ? 'female' : 'male'
+        
+        const customReferenceData = {
+          male: { min: minValue, max: maxValue },
+          female: { min: minValue, max: maxValue }
+        }
+        
         newMetric = await createMetric({
-          section_id: sectionId,
+          section_id: selectedSectionId || sectionId || 0,
           name: metricName.toLowerCase().replace(/\s+/g, "_"),
           display_name: metricDisplayName || metricName,
           description: metricDescription,
           default_unit: metricUnit,
-          threshold: {
-            min: minValue,
-            max: maxValue
-          },
-          data_type: 'number',
-          is_default: false,
-          section_template_id: sectionId // For custom metrics, use the section ID as template ID
+          reference_data: customReferenceData,
+          data_type: 'number'
         })
       }
       
@@ -224,13 +295,70 @@ export function NewMetricDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New Metric to {sectionName}</DialogTitle>
+          <DialogTitle>Add New Metric</DialogTitle>
         </DialogHeader>
         
         <div className="grid gap-4 py-4">
-          {/* Template Selection */}
+          {/* Section Selection */}
+          {sections && sections.length > 0 && (
+            <div className="grid gap-2">
+              <Label htmlFor="sectionSelect">Select Section</Label>
+              <Popover open={sectionDropdownOpen} onOpenChange={setSectionDropdownOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={sectionDropdownOpen}
+                    className="w-full justify-between"
+                  >
+                    {selectedSectionName || "Select a section..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search sections..." />
+                    <CommandList>
+                      <CommandEmpty>No sections found.</CommandEmpty>
+                      <CommandGroup>
+                        {sections.map((section) => (
+                          <CommandItem
+                            key={section.id}
+                            value={section.display_name}
+                            onSelect={() => {
+                              setSelectedSectionId(section.id)
+                              setSelectedSectionName(section.display_name)
+                              setSectionDropdownOpen(false)
+                              // Clear selected template and metric name when section changes
+                              setSelectedTemplate(null)
+                              setIsCustomMetric(true)
+                              setMetricName('')
+                              setMetricDisplayName('')
+                              setMetricDescription('')
+                              setMetricUnit('')
+                              setNormalRangeMin('')
+                              setNormalRangeMax('')
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedSectionId === section.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {section.display_name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+          
           <div className="grid gap-2">
-            <Label>Choose from Admin Templates (Optional)</Label>
+            <Label htmlFor="metricName">Enter Metric Name</Label>
             <Popover open={templateDropdownOpen} onOpenChange={setTemplateDropdownOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -238,16 +366,28 @@ export function NewMetricDialog({
                   role="combobox"
                   aria-expanded={templateDropdownOpen}
                   className="w-full justify-between"
+                  disabled={!selectedSectionId}
                 >
-                  {selectedTemplate ? selectedTemplate.display_name : "Select a template..."}
+                  {!selectedSectionId 
+                    ? "Select a section first..." 
+                    : selectedTemplate 
+                      ? selectedTemplate.display_name 
+                      : metricName || "Enter metric name..."
+                  }
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-full p-0">
                 <Command>
-                  <CommandInput placeholder="Search templates..." />
+                  <CommandInput 
+                    placeholder="Search metrics..." 
+                    value={metricName}
+                    onValueChange={handleMetricNameChange}
+                  />
                   <CommandList>
-                    <CommandEmpty>No templates found.</CommandEmpty>
+                    <CommandEmpty>
+                      {!selectedSectionId ? "Please select a section first" : "No metrics found for this section"}
+                    </CommandEmpty>
                     <CommandGroup>
                       {adminTemplates.map((template) => (
                         <CommandItem
@@ -274,25 +414,6 @@ export function NewMetricDialog({
                 </Command>
               </PopoverContent>
             </Popover>
-            {selectedTemplate && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCustomMetricToggle}
-                className="w-fit"
-              >
-                Create Custom Metric Instead
-              </Button>
-            )}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="metricName">Metric Name *</Label>
-            <Input
-              id="metricName"
-              value={metricName}
-              onChange={(e) => setMetricName(e.target.value)}
-              placeholder="e.g., glucose, cholesterol"
-            />
           </div>
           
           <div className="grid gap-2">
@@ -306,7 +427,7 @@ export function NewMetricDialog({
           </div>
           
           <div className="grid gap-2">
-            <Label htmlFor="metricUnit">Unit *</Label>
+            <Label htmlFor="metricUnit">Unit (optional)</Label>
             <Input
               id="metricUnit"
               value={metricUnit}
@@ -315,28 +436,36 @@ export function NewMetricDialog({
             />
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="normalRangeMin">Reference Range Min *</Label>
-              <Input
-                id="normalRangeMin"
-                type="number"
-                step="0.1"
-                value={normalRangeMin}
-                onChange={(e) => setNormalRangeMin(e.target.value)}
-                placeholder="e.g., 70"
-              />
+          <div className="grid gap-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="normalRangeMin">Reference Range Min (Optional)</Label>
+                <Input
+                  id="normalRangeMin"
+                  type="number"
+                  step="0.1"
+                  value={normalRangeMin}
+                  onChange={(e) => setNormalRangeMin(e.target.value)}
+                  placeholder="e.g., 70 (means > 70)"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="normalRangeMax">Reference Range Max (Optional)</Label>
+                <Input
+                  id="normalRangeMax"
+                  type="number"
+                  step="0.1"
+                  value={normalRangeMax}
+                  onChange={(e) => setNormalRangeMax(e.target.value)}
+                  placeholder="e.g., 100 (means < 100)"
+                />
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="normalRangeMax">Reference Range Max *</Label>
-              <Input
-                id="normalRangeMax"
-                type="number"
-                step="0.1"
-                value={normalRangeMax}
-                onChange={(e) => setNormalRangeMax(e.target.value)}
-                placeholder="e.g., 100"
-              />
+            <div className="text-sm text-muted-foreground">
+              <p>• Both empty: no reference range (optional)</p>
+              <p>• Min only: means "greater than" (e.g., &gt; 70)</p>
+              <p>• Max only: means "less than" (e.g., &lt; 100)</p>
+              <p>• Both: means "range" (e.g., 70-100)</p>
             </div>
           </div>
           

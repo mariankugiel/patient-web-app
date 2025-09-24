@@ -4,13 +4,10 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import { RootState, AppDispatch } from "@/lib/store"
-import { updateUser } from "@/lib/features/auth/authSlice"
 import { updateHealthPlan, setCurrentStep, addCompletedStep } from "@/lib/features/onboarding/onboardingSlice"
-import { AuthApiService } from "@/lib/api/auth-api"
 import { HealthPlanStep } from "@/components/onboarding/steps/health-plan-step"
 import { OnboardingLayout } from "@/components/onboarding/onboarding-layout"
 import { type Language, getTranslation } from "@/lib/translations"
-import { toast } from "react-toastify"
 import { useOnboardingSkip } from '@/hooks/use-onboarding-skip'
 
 interface HealthGoal {
@@ -28,17 +25,9 @@ interface HealthTask {
   comments: string
 }
 
-interface FormData {
-  healthPlan: {
-    goals: HealthGoal[]
-    tasks: HealthTask[]
-  }
-}
-
 export default function HealthPlanPage() {
   const router = useRouter()
   const dispatch = useDispatch<AppDispatch>()
-  const { user } = useSelector((state: RootState) => state.auth)
   const healthPlan = useSelector((state: RootState) => state.onboarding.healthPlan)
   const completedSteps = useSelector((state: RootState) => state.onboarding.completedSteps)
   

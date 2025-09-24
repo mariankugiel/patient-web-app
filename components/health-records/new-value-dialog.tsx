@@ -12,6 +12,9 @@ import { Check, ChevronsUpDown } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { SpecialMetricDialog } from './special-metric-dialog'
 import { MetricValueEditor } from './metric-value-editor'
+import { formatReferenceRange } from '@/hooks/use-health-records'
+import { useSelector } from 'react-redux'
+import { RootState } from '@/lib/store'
 
 export interface HealthRecordMetric {
   id: number
@@ -20,10 +23,7 @@ export interface HealthRecordMetric {
   display_name: string
   description?: string
   default_unit?: string
-  threshold?: {
-    min: number
-    max: number
-  }
+  reference_data?: any
   data_type: string
   is_default: boolean
   created_at: string
@@ -54,9 +54,10 @@ interface NewValueDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onValueCreated: (record: HealthRecord) => void
-  sectionId: number
-  sectionName: string
-  availableMetrics: HealthRecordMetric[]
+  sectionId?: number
+  sectionName?: string
+  availableMetrics?: HealthRecordMetric[]
+  sections?: Array<{ id: number; display_name: string; name: string; metrics?: HealthRecordMetric[] }>
   createRecord: (recordData: {
     section_id: number
     metric_id: number
@@ -75,15 +76,58 @@ export function NewValueDialog({
   sectionId,
   sectionName,
   availableMetrics,
+  sections,
   createRecord
 }: NewValueDialogProps) {
+  const { user } = useSelector((state: RootState) => state.auth)
+  const [selectedSectionId, setSelectedSectionId] = useState<number>(sectionId || 0)
+  const [selectedSectionName, setSelectedSectionName] = useState<string>(sectionName || '')
   const [selectedMetric, setSelectedMetric] = useState<HealthRecordMetric | null>(null)
   const [metricValue, setMetricValue] = useState('')
   const [recordedDate, setRecordedDate] = useState(new Date().toISOString().split("T")[0])
   const [notes, setNotes] = useState('')
   const [comboboxOpen, setComboboxOpen] = useState(false)
+  const [sectionComboboxOpen, setSectionComboboxOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showSpecialDialog, setShowSpecialDialog] = useState(false)
+
+  // Clear selected metric when section changes
+  useEffect(() => {
+    if (selectedSectionId) {
+      setSelectedMetric(null)
+    }
+  }, [selectedSectionId])
+
+  // Get available metrics for the selected section (only user-created metrics)
+  const getAvailableMetrics = (): HealthRecordMetric[] => {
+    // If we have sections and a selected section, use metrics from that section
+    if (sections && selectedSectionId) {
+      const selectedSection = sections.find(section => section.id === selectedSectionId)
+      console.log('Selected section for metrics:', selectedSection)
+      console.log('Section metrics count:', selectedSection?.metrics?.length || 0)
+      return selectedSection?.metrics || []
+    }
+    
+    // Fallback to availableMetrics prop if no sections or no section selected
+    if (availableMetrics && availableMetrics.length > 0) {
+      console.log('Using availableMetrics prop:', availableMetrics.length, 'metrics')
+      return availableMetrics
+    }
+    
+    console.log('No metrics available')
+    return []
+  }
+
+  // Helper function to get gender-specific reference range
+  const getGenderSpecificReferenceRange = (metric: HealthRecordMetric) => {
+    if (!metric.reference_data) return 'Reference range not specified'
+    
+    const userGender = user?.user_metadata?.gender?.toLowerCase()
+    const gender = userGender === 'female' ? 'female' : 'male'
+    const genderData = metric.reference_data[gender]
+    
+    return formatReferenceRange(genderData?.min, genderData?.max)
+  }
 
   // Reset form when dialog opens/closes
   useEffect(() => {
@@ -117,6 +161,10 @@ export function NewValueDialog({
 
   // Handle create new value
   const handleCreateValue = async () => {
+    if (!selectedSectionId) {
+      toast.error('Please select a section')
+      return
+    }
     
     if (!selectedMetric) {
       toast.error('Please select a metric')
@@ -150,11 +198,17 @@ export function NewValueDialog({
 
     setLoading(true)
     try {
-      // Determine status based on value and threshold
+      // Determine status based on value and reference data
       let status = 'normal'
-      if (selectedMetric.threshold) {
-        if (numValue < selectedMetric.threshold.min || numValue > selectedMetric.threshold.max) {
-          status = 'abnormal'
+      if (selectedMetric.reference_data) {
+        const userGender = user?.user_metadata?.gender?.toLowerCase()
+        const gender = userGender === 'female' ? 'female' : 'male'
+        const genderData = selectedMetric.reference_data[gender]
+        
+        if (genderData?.min !== undefined && genderData?.max !== undefined) {
+          if (numValue < genderData.min || numValue > genderData.max) {
+            status = 'abnormal'
+          }
         }
       }
 
@@ -169,11 +223,11 @@ export function NewValueDialog({
       }
 
       const newRecord = await createRecord({
-        section_id: sectionId,
+        section_id: selectedSectionId,
         metric_id: selectedMetric.id,
         value: wrappedValue,
         status: status,
-        recorded_at: new Date(recordedDate).toISOString(),
+        recorded_at: new Date().toISOString(),
         notes: notes,
         source: 'manual_entry'
       })
@@ -207,10 +261,59 @@ export function NewValueDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New Value to {sectionName}</DialogTitle>
+          <DialogTitle>Add New Value{selectedSectionName ? ` to ${selectedSectionName}` : ''}</DialogTitle>
         </DialogHeader>
         
         <div className="grid gap-4 py-4">
+          {sections && sections.length > 0 && (
+            <div className="grid gap-2">
+              <Label htmlFor="sectionSelect">Select Section *</Label>
+              <Popover open={sectionComboboxOpen} onOpenChange={setSectionComboboxOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={sectionComboboxOpen}
+                    className="w-full justify-between"
+                  >
+                    {selectedSectionName || "Select a section..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search sections..." />
+                    <CommandList>
+                      <CommandEmpty>No sections found.</CommandEmpty>
+                      <CommandGroup>
+                        {sections.map((section) => (
+                          <CommandItem
+                            key={section.id}
+                            value={section.display_name}
+                            onSelect={() => {
+                              setSelectedSectionId(section.id)
+                              setSelectedSectionName(section.display_name)
+                              setSelectedMetric(null) // Clear selected metric when section changes
+                              setSectionComboboxOpen(false)
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedSectionId === section.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {section.display_name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+          
           <div className="grid gap-2">
             <Label htmlFor="metricSelect">Select Metric *</Label>
             <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
@@ -231,7 +334,7 @@ export function NewValueDialog({
                   <CommandList>
                     <CommandEmpty>No metrics found.</CommandEmpty>
                     <CommandGroup>
-                      {availableMetrics.map((metric) => (
+                      {getAvailableMetrics().map((metric) => (
                         <CommandItem
                           key={metric.id}
                           value={metric.display_name}
@@ -266,11 +369,11 @@ export function NewValueDialog({
                 />
               </div>
               
-              {selectedMetric.threshold && (
+              {selectedMetric.reference_data && (
                 <div className="grid gap-2">
                   <Label>Reference Range</Label>
                   <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                    {selectedMetric.threshold.min} - {selectedMetric.threshold.max} {selectedMetric.default_unit}
+                    {getGenderSpecificReferenceRange(selectedMetric)} {selectedMetric.default_unit}
                   </div>
                 </div>
               )}
@@ -319,6 +422,7 @@ export function NewValueDialogWithSpecial({
   sectionId,
   sectionName,
   availableMetrics,
+  sections,
   createRecord
 }: NewValueDialogProps) {
   const [showSpecialDialog, setShowSpecialDialog] = useState(false)
@@ -344,6 +448,7 @@ export function NewValueDialogWithSpecial({
         sectionId={sectionId}
         sectionName={sectionName}
         availableMetrics={availableMetrics}
+        sections={sections}
         createRecord={createRecord}
       />
       

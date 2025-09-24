@@ -39,6 +39,7 @@ export function useHealthRecordSections() {
     description?: string
     health_record_type_id: number
     is_default?: boolean
+    section_template_id?: number
   }) => {
     try {
       const newSection = await HealthRecordsApiService.createSection(section)
@@ -192,9 +193,10 @@ export function useHealthRecords(metricId: number) {
 // ANALYSIS DASHBOARD HOOK
 // ============================================================================
 
-export function useAnalysisDashboard() {
+export function useAnalysisDashboard(healthRecordTypeId: number = 1) {
   const [dashboard, setDashboard] = useState<AnalysisDashboardResponse | null>(null)
   const [sections, setSections] = useState<SectionWithMetrics[]>([])
+  const [adminTemplates, setAdminTemplates] = useState<HealthRecordSection[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -203,8 +205,8 @@ export function useAnalysisDashboard() {
       setLoading(true)
       setError(null)
       
-      // Analysis health record type ID (should be configured/known)
-      const ANALYSIS_TYPE_ID = 1
+      // Use the provided health record type ID
+      const ANALYSIS_TYPE_ID = healthRecordTypeId
       
       // Get combined sections and templates in one call
       const response = await HealthRecordsApiService.getSectionsCombined(ANALYSIS_TYPE_ID)
@@ -212,8 +214,11 @@ export function useAnalysisDashboard() {
       const userSections = response.user_sections || []
       const adminTemplates = response.admin_templates || []
       
-      // Combine all sections (user sections + admin templates) for display
-      const allSections = [...userSections, ...adminTemplates]
+      // Store admin templates separately (for creation only)
+      setAdminTemplates(adminTemplates)
+      
+      // Only show user sections in the UI (not admin templates)
+      const userSectionsOnly = userSections
       
       // Create dashboard response with only user sections
       const dashboardData: AnalysisDashboardResponse = {
@@ -235,12 +240,13 @@ export function useAnalysisDashboard() {
       }
       
       setDashboard(dashboardData)
-      // Convert HealthRecordSection[] to SectionWithMetrics[]
-      const sectionsWithMetrics: SectionWithMetrics[] = allSections.map(section => ({
+      // Convert HealthRecordSection[] to SectionWithMetrics[] (only user sections)
+      const sectionsWithMetrics: SectionWithMetrics[] = userSectionsOnly.map(section => ({
         id: section.id,
         name: section.name,
         display_name: section.display_name,
         description: section.description,
+        section_template_id: section.section_template_id,
         is_default: section.is_default,
         metrics: (section.metrics || []).map(metric => ({
           ...metric,
@@ -253,7 +259,7 @@ export function useAnalysisDashboard() {
       }))
       setSections(sectionsWithMetrics)
       
-      console.log('Hook: All sections loaded:', allSections)
+      console.log('Hook: User sections loaded:', userSectionsOnly)
       console.log('Hook: Dashboard data created:', dashboardData)
     } catch (err: any) {
       setError(err.message)
@@ -273,6 +279,7 @@ export function useAnalysisDashboard() {
     description?: string
     health_record_type_id: number
     is_default?: boolean
+    section_template_id?: number
   }) => {
     try {
       const newSection = await HealthRecordsApiService.createSection(section)
@@ -282,7 +289,6 @@ export function useAnalysisDashboard() {
       
       return newSection
     } catch (err: any) {
-      toast.error(`Failed to create section: ${err.message}`)
       throw err
     }
   }
@@ -304,7 +310,30 @@ export function useAnalysisDashboard() {
       
       return newMetric
     } catch (err: any) {
-      toast.error(`Failed to create metric: ${err.message}`)
+      throw err
+    }
+  }
+
+  const updateMetric = async (metricId: number, data: {
+    name?: string
+    display_name?: string
+    description?: string
+    default_unit?: string
+    reference_data?: any
+  }) => {
+    try {
+      const updatedMetric = await HealthRecordsApiService.updateMetric(metricId, data)
+      
+      // Update the metric in the sections state
+      setSections(prev => prev.map(section => ({
+        ...section,
+        metrics: section.metrics?.map(metric => 
+          metric.id === metricId ? { ...metric, ...updatedMetric } : metric
+        )
+      })))
+      
+      return updatedMetric
+    } catch (err: any) {
       throw err
     }
   }
@@ -327,7 +356,28 @@ export function useAnalysisDashboard() {
       return newRecord
     } catch (err: any) {
       console.error('Hook: Failed to create record:', err)
-      toast.error(`Failed to create record: ${err.message}`)
+      throw err
+    }
+  }
+
+  const updateSection = async (sectionId: number, data: {
+    display_name?: string
+    description?: string
+  }) => {
+    try {
+      const updatedSection = await HealthRecordsApiService.updateSection(sectionId, data)
+      
+      // Update the section in the local state
+      setSections(prevSections => 
+        prevSections.map(section => 
+          section.id === sectionId 
+            ? { ...section, ...updatedSection }
+            : section
+        )
+      )
+      
+      return updatedSection
+    } catch (err: any) {
       throw err
     }
   }
@@ -340,18 +390,21 @@ export function useAnalysisDashboard() {
 
   useEffect(() => {
     loadDashboard()
-  }, [])
+  }, [healthRecordTypeId])
 
   return {
     dashboard,
     sections,
     setSections,
+    adminTemplates,
     loading,
     error,
     loadDashboard,
     refresh,
     createSection,
+    updateSection,
     createMetric,
+    updateMetric,
     createRecord,
     refreshMetric
   }
@@ -382,8 +435,41 @@ export function formatMetricValue(value: any, unit?: string): string {
 
 export function formatReferenceRange(min?: number, max?: number): string {
   if (min === undefined && max === undefined) return 'N/A'
-  if (min === undefined) return `≤ ${max}`
-  if (max === undefined) return `≥ ${min}`
+  
+  // Handle null/undefined cases with user-friendly formatting
+  if (min === undefined || min === null) {
+    // Case: null - 93.99 should show <94
+    // Case: null - 94 should show ≤94 (less than or equal)
+    if (max !== undefined && max !== null) {
+      // Check if max is a whole number to determine if we should use ≤ or <
+      if (max % 1 === 0) {
+        return `≤ ${max}`
+      } else {
+        // For decimals, round up to next whole number
+        return `< ${Math.ceil(max)}`
+      }
+    }
+    return 'N/A'
+  }
+  
+  if (max === undefined || max === null) {
+    // Case: 92.01 - null should show >92
+    // Case: 93 - null should show ≥93 (greater than or equal)
+    // Case: 0.91 - null should show >0.9 (preserve decimal precision)
+    if (min !== undefined && min !== null) {
+      // Check if min is a whole number to determine if we should use ≥ or >
+      if (min % 1 === 0) {
+        return `≥ ${min}`
+      } else {
+        // For decimals, round down but preserve decimal places to 0.01
+        const roundedMin = Math.floor(min * 100) / 100
+        return `> ${roundedMin}`
+      }
+    }
+    return 'N/A'
+  }
+  
+  // Case: 92-93, show originally
   return `${min} - ${max}`
 }
 

@@ -1,13 +1,15 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { TrendingUp, TrendingDown, Plus, Loader2 } from 'lucide-react'
 import { useLanguage } from "@/contexts/language-context"
 import { HealthMetricsChart } from '@/components/patient/health-metrics-chart'
+import { useSelector } from 'react-redux'
+import { RootState } from '@/lib/store'
 import { useHealthRecordsDashboard } from '@/hooks/use-health-records-dashboard'
 import { NewSectionDialog } from './new-section-dialog'
 import { NewMetricDialog } from './new-metric-dialog'
@@ -28,7 +30,8 @@ interface HealthRecordsPageProps {
 
 export function HealthRecordsPage({ healthRecordTypeId, title, description }: HealthRecordsPageProps) {
   const { t } = useLanguage()
-  const { dashboard, sections, loading, createSection, createMetric, createRecord, refresh } = useHealthRecordsDashboard(healthRecordTypeId)
+  const { user } = useSelector((state: RootState) => state.auth)
+  const { sections, loading, createSection, createMetric, createRecord } = useHealthRecordsDashboard(healthRecordTypeId)
 
   // Dialog states
   const [newSectionDialogOpen, setNewSectionDialogOpen] = useState(false)
@@ -81,15 +84,17 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
       : "N/A"
 
     // Format reference range
-    const referenceRange = formatReferenceRange(
-      metric.normal_range_min,
-      metric.normal_range_max
-    )
-
-    // Format change
-    const changeText = metric.change_from_previous
-      ? `${metric.change_from_previous > 0 ? '+' : ''}${metric.change_from_previous.toFixed(1)} ${metric.default_unit || metric.unit || ''}`
-      : "N/A"
+    const getGenderSpecificReferenceRange = (metric: any) => {
+      if (!metric.reference_data) return 'Reference range not specified'
+      
+      const userGender = user?.user_metadata?.gender?.toLowerCase()
+      const gender = userGender === 'female' ? 'female' : 'male'
+      const genderData = metric.reference_data[gender]
+      
+      return formatReferenceRange(genderData?.min, genderData?.max)
+    }
+    
+    const referenceRange = getGenderSpecificReferenceRange(metric)
 
     // Convert data points to chart format
     const chartData = (metric.data_points || []).map((dp: HealthRecord) => ({
@@ -242,7 +247,7 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
               </AccordionTrigger>
               <AccordionContent>
                 {section.metrics && section.metrics.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 pt-4">
                     {section.metrics.map((metric: MetricWithData) => renderMetricBox(metric))}
                   </div>
                 ) : (

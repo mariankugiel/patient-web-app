@@ -13,32 +13,6 @@ import { type Language, getTranslation } from "@/lib/translations"
 import { toast } from "react-toastify"
 import { useOnboardingSkip } from '@/hooks/use-onboarding-skip'
 
-interface FormData {
-  settings: {
-    // Safety & Security
-    twoFactorAuth: boolean
-    passwordChangeRequired: boolean
-    sessionTimeout: string
-    
-    // Notifications
-    emailNotifications: boolean
-    smsNotifications: boolean
-    pushNotifications: boolean
-    appointmentReminders: boolean
-    medicationReminders: boolean
-    
-    // Privacy
-    dataSharing: boolean
-    analyticsTracking: boolean
-    marketingEmails: boolean
-    
-    // Language & Region
-    language: string
-    timezone: string
-    dateFormat: string
-  }
-}
-
 export default function SettingsPage() {
   const router = useRouter()
   const dispatch = useDispatch<AppDispatch>()

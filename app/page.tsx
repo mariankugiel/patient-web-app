@@ -30,13 +30,12 @@ import {
   ArrowRight,
   Sparkles,
 } from "lucide-react"
-import Link from "next/link"
 import { Logo } from "@/components/logo"
 import { toast } from "react-toastify"
 
 export default function LandingPage() {
   const dispatch = useDispatch<AppDispatch>()
-  const { isLoading, error } = useSelector((state: RootState) => state.auth)
+  const { isLoading } = useSelector((state: RootState) => state.auth)
   
   // Use auth redirect hook to handle automatic redirects
   useAuthRedirect()

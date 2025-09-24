@@ -341,8 +341,8 @@ export default function LandingPage() {
           >
             <h2 className="text-4xl font-bold text-gray-900 mb-8">{t.mission}</h2>
             <p className="text-2xl text-gray-700 max-w-4xl mx-auto leading-relaxed">
-              "Give the ownership of health data to people and change the way healthcare is provided, through innovation
-              and increasing the proximity to doctors."
+              Give the ownership of health data to people and change the way healthcare is provided, through innovation
+              and increasing the proximity to doctors.
             </p>
           </motion.div>
 

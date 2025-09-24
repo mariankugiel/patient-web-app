@@ -4,13 +4,10 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import { RootState, AppDispatch } from "@/lib/store"
-import { updateUser } from "@/lib/features/auth/authSlice"
 import { updateAccess, setCurrentStep, addCompletedStep } from "@/lib/features/onboarding/onboardingSlice"
-import { AuthApiService } from "@/lib/api/auth-api"
 import { AccessStep } from "@/components/onboarding/steps/access-step"
 import { OnboardingLayout } from "@/components/onboarding/onboarding-layout"
 import { type Language, getTranslation } from "@/lib/translations"
-import { toast } from "react-toastify"
 import { useOnboardingSkip } from '@/hooks/use-onboarding-skip'
 
 interface HealthProfessional {
@@ -35,13 +32,6 @@ interface AccessPermission {
   view: boolean
   download: boolean
   edit: boolean
-}
-
-interface FormData {
-  access: {
-    healthProfessionals: HealthProfessional[]
-    familyFriends: FamilyFriend[]
-  }
 }
 
 export default function AccessPage() {

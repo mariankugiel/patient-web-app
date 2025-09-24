@@ -545,12 +545,13 @@ export default function PatientDashboardClient() {
                     <div className="mb-2 w-full sm:mb-0 sm:w-1/4">
                       <div className="font-medium">{metric.name}</div>
                       <div className="text-sm text-muted-foreground">
-                        {t("dashboard.target")}: {metric.targetValue} {metric.unit}
+                        {t("dashboard.target")}: <span className="font-medium">{metric.targetValue}</span>{metric.unit && <span className="text-xs ml-1">{metric.unit}</span>}
                       </div>
                     </div>
                     <div className="mb-2 flex items-center space-x-2 sm:mb-0 sm:w-1/4">
-                      <div className="text-lg font-semibold">
-                        {metric.currentValue} {metric.unit}
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-lg font-semibold">{metric.currentValue}</span>
+                        {metric.unit && <span className="text-xs text-muted-foreground font-normal">{metric.unit}</span>}
                       </div>
                       {getTrendIcon(metric.trend)}
                     </div>

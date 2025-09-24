@@ -171,7 +171,7 @@ export const translations = {
     healthRecords: {
       title: "Health Records",
       uploadLab: "Upload Lab Results",
-      uploadImages: "Upload Medical Images",
+      uploadImages: "Upload Medical Exams",
       category: "Category",
       conclusionReport: "Conclusion of the Report",
       statusLabel: "Status",
@@ -253,7 +253,16 @@ export const translations = {
       editPastConditions: "Edit Past Medical Conditions", 
       editPastConditionsDesc: "Manage your past medical conditions that have been resolved",
       editFamilyHistory: "Edit Family Medical History",
-      editFamilyHistoryDesc: "Manage your family medical history"
+      editFamilyHistoryDesc: "Manage your family medical history",
+      analysisOverview: "Health Records Overview",
+      analysisDescription: "View and manage your health records, metrics, and data trends",
+      summary: "Summary",
+      history: "History",
+      analysis: "Analysis",
+      body: "Body",
+      lifestyle: "Lifestyle",
+      vitals: "Vitals",
+      images: "Exams"
     },
     // Actions
     action: {
@@ -436,7 +445,7 @@ export const translations = {
     healthRecords: {
       title: "Registros de Salud",
       uploadLab: "Subir Resultados de Laboratorio",
-      uploadImages: "Subir Imágenes Médicas",
+      uploadImages: "Subir Exámenes Médicos",
       category: "Categoría",
       conclusionReport: "Conclusión del Informe",
       status: "Estado",
@@ -518,7 +527,16 @@ export const translations = {
       editPastConditions: "Editar Condiciones Médicas Pasadas",
       editPastConditionsDesc: "Gestiona tus condiciones médicas pasadas que han sido resueltas",
       editFamilyHistory: "Editar Historial Médico Familiar",
-      editFamilyHistoryDesc: "Gestiona tu historial médico familiar"
+      editFamilyHistoryDesc: "Gestiona tu historial médico familiar",
+      analysisOverview: "Resumen de Registros de Salud",
+      analysisDescription: "Ver y gestionar tus registros de salud, métricas y tendencias de datos",
+      summary: "Resumen",
+      history: "Historial",
+      analysis: "Análisis",
+      body: "Cuerpo",
+      lifestyle: "Estilo de Vida",
+      vitals: "Signos Vitales",
+      images: "Exámenes"
     },
     // Actions
     action: {
@@ -701,7 +719,7 @@ export const translations = {
     healthRecords: {
       title: "Registos de Saúde",
       uploadLab: "Carregar Resultados de Laboratório",
-      uploadImages: "Carregar Imagens Médicas",
+      uploadImages: "Carregar Exames Médicos",
       category: "Categoria",
       conclusionReport: "Conclusão do Relatório",
       status: "Estado",
@@ -783,7 +801,16 @@ export const translations = {
       editPastConditions: "Editar Condições Médicas Passadas",
       editPastConditionsDesc: "Gerir as suas condições médicas passadas que foram resolvidas",
       editFamilyHistory: "Editar Historial Médico Familiar",
-      editFamilyHistoryDesc: "Gerir o seu historial médico familiar"
+      editFamilyHistoryDesc: "Gerir o seu historial médico familiar",
+      analysisOverview: "Resumo dos Registos de Saúde",
+      analysisDescription: "Ver e gerir os seus registos de saúde, métricas e tendências de dados",
+      summary: "Resumo",
+      history: "Historial",
+      analysis: "Análise",
+      body: "Corpo",
+      lifestyle: "Estilo de Vida",
+      vitals: "Sinais Vitais",
+      images: "Exames"
     },
     // Actions
     action: {

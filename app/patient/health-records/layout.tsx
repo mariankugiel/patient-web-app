@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import Image from "next/image"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePathname, useRouter } from "next/navigation"
 import { Activity, Calendar, LineChart, Scale, Dumbbell, Heart, FileImage } from "lucide-react"
@@ -27,7 +28,7 @@ export default function HealthRecordsLayout({
       {/* Header with patient photo and salutation */}
       <header className="mb-6 flex items-center gap-4">
         <div className="h-16 w-16 overflow-hidden rounded-full border-2 border-teal-500">
-          <img src="/middle-aged-man-profile.png" alt="John's profile" className="h-full w-full object-cover" />
+          <Image src="/middle-aged-man-profile.png" alt="John's profile" className="h-full w-full object-cover" width={64} height={64}/>
         </div>
         <div>
           <p className="text-2xl font-bold text-primary dark:text-teal-300">{t("greeting.morning")}, John!</p>
@@ -75,7 +76,7 @@ export default function HealthRecordsLayout({
                 <span>{t("health.vitals")}</span>
               </div>
             </TabsTrigger>
-            <TabsTrigger value="images" className="flex-1 py-2">
+            <TabsTrigger value="exams" className="flex-1 py-2">
               <div className="flex items-center gap-2">
                 <FileImage className="h-4 w-4" />
                 <span>{t("health.images")}</span>

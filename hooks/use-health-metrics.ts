@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'react-toastify'
+import { useSelector } from 'react-redux'
+import { RootState } from '@/lib/store'
 import { 
   HealthMetricsApiService, 
   HealthMetricSection, 
@@ -97,6 +99,7 @@ export function useHealthMetricSections() {
 // ============================================================================
 
 export function useHealthMetrics(sectionId: number) {
+  const { user } = useSelector((state: RootState) => state.auth)
   const [metrics, setMetrics] = useState<HealthMetric[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -119,8 +122,7 @@ export function useHealthMetrics(sectionId: number) {
     section_id: number
     name: string
     unit?: string
-    normal_range_min?: number
-    normal_range_max?: number
+    reference_data?: any
     description?: string
   }) => {
     try {
@@ -137,8 +139,7 @@ export function useHealthMetrics(sectionId: number) {
   const updateMetric = async (metricId: number, metric: {
     name?: string
     unit?: string
-    normal_range_min?: number
-    normal_range_max?: number
+    reference_data?: any
     description?: string
     is_active?: boolean
   }) => {
@@ -274,6 +275,7 @@ export function useHealthMetricDataPoints(metricId: number, days: number = 90) {
 // ============================================================================
 
 export function useAnalysisDashboard() {
+  const { user } = useSelector((state: RootState) => state.auth)
   const [dashboard, setDashboard] = useState<AnalysisDashboardResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -322,8 +324,7 @@ export function useAnalysisDashboard() {
     section_id: number
     name: string
     unit?: string
-    normal_range_min?: number
-    normal_range_max?: number
+    reference_data?: any
     description?: string
   }) => {
     try {
@@ -398,11 +399,17 @@ export function useAnalysisDashboard() {
               const previousDataPoint = sortedDataPoints[1]
               
               let currentStatus = 'unknown'
-              if (metric.normal_range_min !== undefined && metric.normal_range_max !== undefined) {
-                if (latestDataPoint.value < metric.normal_range_min || latestDataPoint.value > metric.normal_range_max) {
-                  currentStatus = 'abnormal'
-                } else {
-                  currentStatus = 'normal'
+              if (metric.reference_data) {
+                const userGender = user?.user_metadata?.gender?.toLowerCase()
+                const gender = userGender === 'female' ? 'female' : 'male'
+                const genderData = metric.reference_data[gender]
+                
+                if (genderData?.min !== undefined && genderData?.max !== undefined) {
+                  if (latestDataPoint.value < genderData.min || latestDataPoint.value > genderData.max) {
+                    currentStatus = 'abnormal'
+                  } else {
+                    currentStatus = 'normal'
+                  }
                 }
               }
               

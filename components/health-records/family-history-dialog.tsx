@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -44,7 +43,7 @@ const relationshipOptions = [
 
 export function FamilyHistoryDialog({ open, onOpenChange, onRefresh }: FamilyHistoryDialogProps) {
   const { t } = useLanguage()
-  const { history, loading, addHistoryEntry, updateHistoryEntry, deleteHistoryEntry, refresh } = useFamilyMedicalHistory()
+  const { history, addHistoryEntry, updateHistoryEntry, deleteHistoryEntry, refresh } = useFamilyMedicalHistory()
   
   const [editingHistory, setEditingHistory] = useState<FamilyHistoryEntry[]>([])
   const [originalHistory, setOriginalHistory] = useState<FamilyHistoryEntry[]>([])

@@ -4,13 +4,10 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import { RootState, AppDispatch } from "@/lib/store"
-import { updateUser } from "@/lib/features/auth/authSlice"
 import { updateAppointments, setCurrentStep, addCompletedStep } from "@/lib/features/onboarding/onboardingSlice"
-import { AuthApiService } from "@/lib/api/auth-api"
 import { AppointmentsStep } from "@/components/onboarding/steps/appointments-step"
 import { OnboardingLayout } from "@/components/onboarding/onboarding-layout"
 import { type Language, getTranslation } from "@/lib/translations"
-import { toast } from "react-toastify"
 import { useOnboardingSkip } from '@/hooks/use-onboarding-skip'
 
 interface Appointment {
@@ -25,16 +22,9 @@ interface Appointment {
   notes: string
 }
 
-interface FormData {
-  appointments: {
-    upcoming: Appointment[]
-  }
-}
-
 export default function AppointmentsPage() {
   const router = useRouter()
   const dispatch = useDispatch<AppDispatch>()
-  const { user } = useSelector((state: RootState) => state.auth)
   const appointments = useSelector((state: RootState) => state.onboarding.appointments)
   const completedSteps = useSelector((state: RootState) => state.onboarding.completedSteps)
   

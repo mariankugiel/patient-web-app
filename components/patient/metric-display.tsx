@@ -118,7 +118,7 @@ export function MetricDisplay({ title, data, unit, referenceRange, icon, classNa
           <div className="space-y-2">
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold">{latestValue?.toFixed(1) || "--"}</span>
-              {unit && <span className="text-sm text-muted-foreground">{unit}</span>}
+              {unit && <span className="text-xs text-muted-foreground font-normal">{unit}</span>}
             </div>
 
             {referenceRange && (

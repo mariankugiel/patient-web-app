@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -11,6 +11,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { cn } from '@/lib/utils'
 import { Check, ChevronsUpDown, AlertCircle } from 'lucide-react'
 import { toast } from 'react-toastify'
+import { HealthRecordsApiService } from '@/lib/api/health-records-api'
 
 export interface HealthRecordSection {
   id: number
@@ -37,6 +38,7 @@ interface NewSectionDialogProps {
     description?: string
     health_record_type_id: number
     is_default?: boolean
+    section_template_id?: number
   }) => Promise<HealthRecordSection>
 }
 
@@ -54,6 +56,33 @@ export function NewSectionDialog({
   const [comboboxOpen, setComboboxOpen] = useState(false)
   const [sectionExistsAlert, setSectionExistsAlert] = useState(false)
   const [loading, setLoading] = useState(false)
+  
+  // Local admin templates state
+  const [localAdminTemplates, setLocalAdminTemplates] = useState<HealthRecordSection[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(false)
+
+  // Fetch admin templates when dialog opens
+  useEffect(() => {
+    if (open) {
+      fetchAdminTemplates()
+    }
+  }, [open, healthRecordTypeId])
+
+  const fetchAdminTemplates = async () => {
+    setTemplatesLoading(true)
+    try {
+      const templates = await HealthRecordsApiService.getAdminSectionTemplates(healthRecordTypeId)
+      setLocalAdminTemplates(templates)
+    } catch (error) {
+      console.error('Failed to fetch admin templates:', error)
+      setLocalAdminTemplates([])
+    } finally {
+      setTemplatesLoading(false)
+    }
+  }
+
+  // Use local templates if available, otherwise fall back to passed templates
+  const effectiveTemplates = localAdminTemplates.length > 0 ? localAdminTemplates : availableTemplates
 
   // Check if section already exists (only for custom sections, not template selections)
   const checkSectionExists = (sectionName: string) => {
@@ -63,7 +92,7 @@ export function NewSectionDialog({
     }
     
     // Check if the section name matches any existing template
-    const existingTemplate = availableTemplates.find(t => 
+    const existingTemplate = effectiveTemplates.find(t => 
       t.display_name.toLowerCase() === sectionName.toLowerCase()
     )
     return !!existingTemplate
@@ -106,7 +135,8 @@ export function NewSectionDialog({
           display_name: selectedTemplate.display_name,
           description: selectedTemplate.description || sectionDescription,
           health_record_type_id: healthRecordTypeId,
-          is_default: true
+          is_default: true,
+          section_template_id: selectedTemplate.id  // Pass the template section ID
         })
       } else {
         // If it's a custom section name, create a new section
@@ -187,7 +217,7 @@ export function NewSectionDialog({
                   <CommandList>
                     <CommandEmpty>No sections found.</CommandEmpty>
                     <CommandGroup>
-                      {availableTemplates.map((template) => (
+                      {effectiveTemplates.map((template) => (
                         <CommandItem
                           key={template.id}
                           value={template.display_name}
