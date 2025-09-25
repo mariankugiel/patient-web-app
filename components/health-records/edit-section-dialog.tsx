@@ -6,13 +6,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'react-toastify'
+import { SectionWithMetrics, HealthRecordSection } from './types'
 
 interface EditSectionDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  section: any
-  onSectionUpdated: (section: any) => void
-  updateSection: (sectionId: number, data: { display_name: string }) => Promise<any>
+  section: SectionWithMetrics | null
+  onSectionUpdated: (section: SectionWithMetrics) => void
+  updateSection: (sectionId: number, data: { display_name?: string; description?: string }) => Promise<HealthRecordSection>
 }
 
 export function EditSectionDialog({
@@ -50,9 +51,15 @@ export function EditSectionDialog({
 
     setLoading(true)
     try {
-      const updatedSection = await updateSection(section.id, {
+      const updatedSectionData = await updateSection(section.id, {
         display_name: displayName.trim()
       })
+      
+      // Create updated section object with new display name
+      const updatedSection: SectionWithMetrics = {
+        ...section,
+        display_name: updatedSectionData.display_name
+      }
       
       onSectionUpdated(updatedSection)
       onOpenChange(false)

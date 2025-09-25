@@ -5,14 +5,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { ProfessionalPagination } from "@/components/ui/professional-pagination"
 import { Edit, Trash2, Save, X, Calendar, Activity } from "lucide-react"
 import { format } from "date-fns"
 import { toast } from "react-toastify"
-import { HealthRecordsApiService, HealthRecord } from "@/lib/api/health-records-api"
+import { HealthRecordsApiService, HealthRecord, HealthRecordMetric } from "@/lib/api/health-records-api"
 import { MetricValueEditor } from "./metric-value-editor"
 import { EditMetricDialog } from "./edit-metric-dialog"
 import { formatReferenceRange } from "@/hooks/use-health-records"
@@ -29,7 +28,7 @@ interface MetricDetailDialogProps {
     description?: string
     unit: string
     default_unit?: string
-    reference_data?: any
+    reference_data?: Record<string, { min?: number; max?: number }>
     data_type: string
     is_default?: boolean
     created_at?: string
@@ -46,7 +45,7 @@ interface MetricDetailDialogProps {
     description?: string
     default_unit?: string
     reference_data?: any
-  }) => Promise<void>
+  }) => Promise<HealthRecordMetric>
 }
 
 interface EditableRecord extends HealthRecord {
@@ -84,7 +83,7 @@ export function MetricDetailDialog({
   }
 
   // Helper function to calculate status based on value and reference range
-  const calculateStatus = (value: any) => {
+  const calculateStatus = (value: number) => {
     if (!metric.reference_data) return 'normal'
     
     const userGender = user?.user_metadata?.gender?.toLowerCase()
@@ -92,9 +91,8 @@ export function MetricDetailDialog({
     const genderData = metric.reference_data[gender]
     
     if (genderData?.min !== undefined && genderData?.max !== undefined) {
-      // Extract numeric value from the wrapped value
-      const numericValue = typeof value === 'object' && value !== null ? value.value : value
-      const numValue = parseFloat(numericValue)
+      // Use the numeric value directly
+      const numValue = Number(value)
       
       if (!isNaN(numValue)) {
         if (numValue < genderData.min || numValue > genderData.max) {
@@ -151,31 +149,27 @@ export function MetricDetailDialog({
 
     setLoading(true)
     try {
-      let parsedValue = record.tempValue
+      const parsedValue = record.tempValue
       
       // The MetricValueEditor already handles the parsing, so we can use the value directly
-      // Wrap the value in the expected dictionary format for the backend
-      let wrappedValue: Record<string, any>
-      if (typeof parsedValue === 'string' && parsedValue.trim() === '') {
-        wrappedValue = { value: null }
-      } else if (typeof parsedValue === 'object' && parsedValue !== null) {
-        // For structured metrics (like blood pressure), use the object directly
-        wrappedValue = parsedValue
-      } else {
-        // For simple metrics, wrap the value in a 'value' key
-        wrappedValue = { value: parsedValue }
+      // Use the numeric value directly
+      const numericValue = typeof parsedValue === 'number' ? parsedValue : Number(parsedValue)
+      
+      if (isNaN(numericValue)) {
+        toast.error('Please enter a valid number')
+        return
       }
 
       // Calculate status based on the new value and reference range
-      const calculatedStatus = calculateStatus(wrappedValue)
+      const calculatedStatus = calculateStatus(numericValue)
 
       // Convert date string to datetime format (add time if not present)
-      const recordedAt = record.tempDate.includes('T') 
+      const recordedAt = record.tempDate?.includes('T') 
         ? record.tempDate 
-        : `${record.tempDate}T00:00:00`
+        : `${record.tempDate || ''}T00:00:00`
 
       await HealthRecordsApiService.updateHealthRecord(recordId, {
-        value: wrappedValue,
+        value: numericValue,
         status: calculatedStatus,
         recorded_at: recordedAt
       })
@@ -185,10 +179,10 @@ export function MetricDetailDialog({
           ? { 
               ...r, 
               isEditing: false,
-              value: wrappedValue,
+              value: numericValue,
               status: calculatedStatus,
               recorded_at: recordedAt
-            }
+            } as EditableRecord
           : r
       ))
 
@@ -229,7 +223,7 @@ export function MetricDetailDialog({
     }
   }
 
-  const formatValue = (value: any) => {
+  const formatValue = (value: Record<string, unknown> | string | number) => {
     if (typeof value === 'object' && value !== null) {
       // Handle structured values like {"value": 88} or {"systolic": 120, "diastolic": 80}
       if (value.value !== undefined) {
@@ -254,7 +248,7 @@ export function MetricDetailDialog({
     setEditMetricDialogOpen(true)
   }
 
-  const handleMetricUpdated = (updatedMetric: any) => {
+  const handleMetricUpdated = () => {
     onDataUpdated()
     setEditMetricDialogOpen(false)
   }
@@ -360,7 +354,7 @@ export function MetricDetailDialog({
                           <MetricValueEditor
                             metricName={metric.display_name}
                             dataType={metric.data_type}
-                            currentValue={record.tempValue}
+                            currentValue={record.tempValue || ''}
                             unit={metric.unit}
                             onValueChange={(value) => setRecords(prev => prev.map(r => 
                               r.id === record.id ? { ...r, tempValue: value } : r
@@ -376,8 +370,8 @@ export function MetricDetailDialog({
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(record.status)}>
-                        {record.status}
+                      <Badge className={getStatusColor(record.status || 'normal')}>
+                        {record.status || 'normal'}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -453,8 +447,15 @@ export function MetricDetailDialog({
         open={editMetricDialogOpen}
         onOpenChange={setEditMetricDialogOpen}
         onMetricUpdated={handleMetricUpdated}
-        metric={metric}
-        updateMetric={updateMetric || (() => Promise.resolve())}
+        metric={{
+          ...metric,
+          section_id: 0, // This will be provided by the parent component
+          name: metric.name || metric.display_name,
+          is_default: metric.is_default || false,
+          created_at: metric.created_at || new Date().toISOString(),
+          created_by: metric.created_by || 0
+        }}
+        updateMetric={updateMetric || (() => Promise.resolve({} as HealthRecordMetric))}
       />
     </Dialog>
   )

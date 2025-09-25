@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
+// import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -31,7 +31,6 @@ interface NewSectionDialogProps {
   onOpenChange: (open: boolean) => void
   onSectionCreated: (section: HealthRecordSection) => void
   healthRecordTypeId: number
-  availableTemplates: HealthRecordSection[]
   createSection: (sectionData: {
     name: string
     display_name: string
@@ -47,7 +46,6 @@ export function NewSectionDialog({
   onOpenChange,
   onSectionCreated,
   healthRecordTypeId,
-  availableTemplates,
   createSection
 }: NewSectionDialogProps) {
   const [sectionName, setSectionName] = useState('')
@@ -59,7 +57,7 @@ export function NewSectionDialog({
   
   // Local admin templates state
   const [localAdminTemplates, setLocalAdminTemplates] = useState<HealthRecordSection[]>([])
-  const [templatesLoading, setTemplatesLoading] = useState(false)
+  // const [templatesLoading, setTemplatesLoading] = useState(false)
 
   // Fetch admin templates when dialog opens
   useEffect(() => {
@@ -69,20 +67,26 @@ export function NewSectionDialog({
   }, [open, healthRecordTypeId])
 
   const fetchAdminTemplates = async () => {
-    setTemplatesLoading(true)
+    // setTemplatesLoading(true)
     try {
       const templates = await HealthRecordsApiService.getAdminSectionTemplates(healthRecordTypeId)
-      setLocalAdminTemplates(templates)
+      // Convert templates to HealthRecordSection format
+      const convertedTemplates: HealthRecordSection[] = templates.map(template => ({
+        ...template,
+        created_by: 0,
+        created_at: new Date().toISOString()
+      }))
+      setLocalAdminTemplates(convertedTemplates)
     } catch (error) {
       console.error('Failed to fetch admin templates:', error)
       setLocalAdminTemplates([])
     } finally {
-      setTemplatesLoading(false)
+      // setTemplatesLoading(false)
     }
   }
 
-  // Use local templates if available, otherwise fall back to passed templates
-  const effectiveTemplates = localAdminTemplates.length > 0 ? localAdminTemplates : availableTemplates
+  // Use fetched templates directly
+  const effectiveTemplates = localAdminTemplates
 
   // Check if section already exists (only for custom sections, not template selections)
   const checkSectionExists = (sectionName: string) => {
@@ -159,18 +163,23 @@ export function NewSectionDialog({
       setSectionExistsAlert(false)
       onOpenChange(false)
       onSectionCreated(newSection)
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to create section:', error)
       console.error('Error details:', error)
       
       // Handle specific error cases
-      if (error.response?.status === 409) {
-        toast.error('A section with this name already exists. Please choose a different name.')
-        setSectionExistsAlert(true)
-      } else if (error.response?.status === 404) {
-        toast.error('Template not found. Please try again.')
+      if (error && typeof error === 'object' && 'response' in error) {
+        const errorResponse = error as { response?: { status?: number; data?: { detail?: string } } }
+        if (errorResponse.response?.status === 409) {
+          toast.error('A section with this name already exists. Please choose a different name.')
+          setSectionExistsAlert(true)
+        } else if (errorResponse.response?.status === 404) {
+          toast.error('Template not found. Please try again.')
+        } else {
+          toast.error(`Failed to create section: ${errorResponse.response?.data?.detail || 'Unknown error'}`)
+        }
       } else {
-        toast.error(`Failed to create section: ${error.response?.data?.detail || error.message || 'Unknown error'}`)
+        toast.error('Failed to create section')
       }
     } finally {
       setLoading(false)

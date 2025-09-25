@@ -9,9 +9,30 @@ import { cn } from '@/lib/utils'
 
 interface AIAnalysisSectionProps {
   title: string
-  analysis: any
+  analysis: {
+    success: boolean
+    message: string
+    analysis: {
+      overall_assessment?: string
+      summary?: string
+      areas_of_concern?: string[]
+      positive_trends?: string[]
+      recommendations?: string[]
+      risk_factors?: string[]
+      next_steps?: string[]
+    }
+    generated_at?: string
+    cached?: boolean
+    reason?: string
+    data_summary?: {
+      total_metrics: number
+      total_sections: number
+      total_data_points?: number
+      latest_update?: string
+    }
+  } | null
   loading: boolean
-  error: any
+  error: string | null
   onCheckForUpdates?: () => void
   className?: string
 }
@@ -86,7 +107,7 @@ export function AIAnalysisSection({
                 ) : (analysis?.analysis?.areas_of_concern || []).length === 0 ? (
                   <p className="text-sm text-gray-500 italic">No areas of concern identified in your current health data.</p>
                 ) : (
-                  (analysis?.analysis?.areas_of_concern || []).map((concern: any, index: number) => (
+                  (analysis?.analysis?.areas_of_concern || []).map((concern: string, index: number) => (
                     <p key={index} className="text-sm text-gray-700">
                       {typeof concern === 'string' ? concern : String(concern)}
                     </p>
@@ -114,7 +135,7 @@ export function AIAnalysisSection({
                 ) : (analysis?.analysis?.positive_trends || []).length === 0 ? (
                   <p className="text-sm text-gray-500 italic">No positive trends identified in your current health data.</p>
                 ) : (
-                  (analysis?.analysis?.positive_trends || []).map((trend: any, index: number) => (
+                  (analysis?.analysis?.positive_trends || []).map((trend: string, index: number) => (
                     <p key={index} className="text-sm text-gray-700">
                       {typeof trend === 'string' ? trend : String(trend)}
                     </p>
@@ -142,7 +163,7 @@ export function AIAnalysisSection({
                 ) : (analysis?.analysis?.recommendations || []).length === 0 ? (
                   <p className="text-sm text-gray-500 italic">No recommendations available for your current health data.</p>
                 ) : (
-                  (analysis?.analysis?.recommendations || []).map((recommendation: any, index: number) => (
+                  (analysis?.analysis?.recommendations || []).map((recommendation: string, index: number) => (
                     <p key={index} className="text-sm text-gray-700">
                       {typeof recommendation === 'string' ? recommendation : String(recommendation)}
                     </p>

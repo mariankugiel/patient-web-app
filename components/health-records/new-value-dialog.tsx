@@ -15,6 +15,7 @@ import { MetricValueEditor } from './metric-value-editor'
 import { formatReferenceRange } from '@/hooks/use-health-records'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
+import { HealthRecord } from './types'
 
 export interface HealthRecordMetric {
   id: number
@@ -23,7 +24,7 @@ export interface HealthRecordMetric {
   display_name: string
   description?: string
   default_unit?: string
-  reference_data?: any
+  reference_data?: Record<string, { min?: number; max?: number }>
   data_type: string
   is_default: boolean
   created_at: string
@@ -32,23 +33,6 @@ export interface HealthRecordMetric {
   updated_by?: number
 }
 
-export interface HealthRecord {
-  id: number
-  created_by: number
-  section_id: number
-  metric_id: number
-  value: any
-  status?: string
-  source?: string
-  recorded_at: string
-  device_id?: number
-  device_info?: any
-  accuracy?: string
-  location_data?: any
-  created_at: string
-  updated_at?: string
-  updated_by?: number
-}
 
 interface NewValueDialogProps {
   open: boolean
@@ -61,7 +45,7 @@ interface NewValueDialogProps {
   createRecord: (recordData: {
     section_id: number
     metric_id: number
-    value: any
+    value: number
     status?: string
     recorded_at: string
     notes?: string
@@ -83,7 +67,7 @@ export function NewValueDialog({
   const [selectedSectionId, setSelectedSectionId] = useState<number>(sectionId || 0)
   const [selectedSectionName, setSelectedSectionName] = useState<string>(sectionName || '')
   const [selectedMetric, setSelectedMetric] = useState<HealthRecordMetric | null>(null)
-  const [metricValue, setMetricValue] = useState('')
+  const [metricValue, setMetricValue] = useState<string>('')
   const [recordedDate, setRecordedDate] = useState(new Date().toISOString().split("T")[0])
   const [notes, setNotes] = useState('')
   const [comboboxOpen, setComboboxOpen] = useState(false)
@@ -171,29 +155,17 @@ export function NewValueDialog({
       return
     }
 
-    // Check if metricValue is valid (string, number, or object)
-    if (!metricValue || (typeof metricValue === 'string' && !metricValue.trim()) || (typeof metricValue === 'object' && Object.keys(metricValue).length === 0)) {
+    // Check if metricValue is valid
+    if (!metricValue || !metricValue.trim()) {
       toast.error('Please enter a value')
       return
     }
 
-    // For structured metrics (like blood pressure), metricValue will be an object
-    // For simple metrics, it should be a number
-    let numValue: number
-    if (typeof metricValue === 'object' && metricValue !== null) {
-      // For structured metrics, we'll use the first numeric value for status calculation
-      const values = Object.values(metricValue).filter(v => typeof v === 'number' && !isNaN(v))
-      if (values.length === 0) {
-        toast.error('Please enter valid numeric values')
-        return
-      }
-      numValue = values[0] as number // Use first numeric value for status calculation
-    } else {
-      numValue = parseFloat(metricValue)
-      if (isNaN(numValue)) {
-        toast.error('Please enter a valid number')
-        return
-      }
+    // Parse the numeric value
+    const numValue = parseFloat(metricValue)
+    if (isNaN(numValue)) {
+      toast.error('Please enter a valid number')
+      return
     }
 
     setLoading(true)
@@ -212,22 +184,13 @@ export function NewValueDialog({
         }
       }
 
-      // Wrap the value in the expected dictionary format
-      let wrappedValue: Record<string, any>
-      if (typeof metricValue === 'object' && metricValue !== null) {
-        // For structured metrics (like blood pressure), use the object directly
-        wrappedValue = metricValue
-      } else {
-        // For simple metrics, wrap the value in a 'value' key
-        wrappedValue = { value: metricValue }
-      }
-
+      // Send the numeric value directly
       const newRecord = await createRecord({
         section_id: selectedSectionId,
         metric_id: selectedMetric.id,
-        value: wrappedValue,
+        value: numValue,
         status: status,
-        recorded_at: new Date().toISOString(),
+        recorded_at: new Date(recordedDate).toISOString(),
         notes: notes,
         source: 'manual_entry'
       })
@@ -428,10 +391,10 @@ export function NewValueDialogWithSpecial({
   const [showSpecialDialog, setShowSpecialDialog] = useState(false)
   const [selectedSpecialMetric, setSelectedSpecialMetric] = useState<HealthRecordMetric | null>(null)
 
-  const handleSpecialMetricSelect = (metric: HealthRecordMetric) => {
-    setSelectedSpecialMetric(metric)
-    setShowSpecialDialog(true)
-  }
+  // const handleSpecialMetricSelect = (metric: HealthRecordMetric) => {
+  //   setSelectedSpecialMetric(metric)
+  //   setShowSpecialDialog(true)
+  // }
 
   const handleSpecialValueCreated = (record: HealthRecord) => {
     setShowSpecialDialog(false)
@@ -457,8 +420,8 @@ export function NewValueDialogWithSpecial({
           open={showSpecialDialog}
           onOpenChange={setShowSpecialDialog}
           onValueCreated={handleSpecialValueCreated}
-          sectionId={sectionId}
-          sectionName={sectionName}
+          sectionId={sectionId || 0}
+          sectionName={sectionName || ''}
           metricName={selectedSpecialMetric.display_name}
           metricId={selectedSpecialMetric.id}
           createRecord={createRecord}

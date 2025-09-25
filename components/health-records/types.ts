@@ -15,6 +15,7 @@ export interface HealthRecordSection {
   display_name: string
   description?: string
   health_record_type_id: number
+  section_template_id?: number
   is_default: boolean
   created_by: number
   created_at: string
@@ -28,12 +29,17 @@ export interface HealthRecordMetric {
   section_id: number
   name: string
   display_name: string
+  name_pt?: string
+  display_name_pt?: string
+  name_es?: string
+  display_name_es?: string
   description?: string
   default_unit?: string
-  threshold?: {
-    min: number
-    max: number
-  }
+  default_unit_pt?: string
+  default_unit_es?: string
+  unit?: string // Add unit property for compatibility
+  original_reference?: string // Store original reference string like "Men: <25%, Female: <35%"
+  reference_data?: Record<string, { min?: number; max?: number }> // Store parsed reference data for all metrics (includes gender-specific when applicable)
   data_type: string
   is_default: boolean
   created_at: string
@@ -47,14 +53,14 @@ export interface HealthRecord {
   created_by: number
   section_id: number
   metric_id: number
-  value: any // JSON field for flexible data
+  value: number // Direct numeric value storage
   status?: string
   source?: string
   recorded_at: string
   device_id?: number
-  device_info?: any
+  device_info?: Record<string, unknown>
   accuracy?: string
-  location_data?: any
+  location_data?: Record<string, unknown>
   created_at: string
   updated_at?: string
   updated_by?: number
@@ -66,14 +72,18 @@ export interface MetricWithData {
   display_name: string
   unit?: string
   default_unit?: string
-  reference_data?: any
+  reference_data?: Record<string, { min?: number; max?: number }>
   threshold?: {
     min: number
     max: number
   }
   description?: string
+  data_type?: string
+  is_default?: boolean
+  created_at?: string
+  created_by?: number
   // Backend returns these field names
-  latest_value?: any
+  latest_value?: number
   latest_status?: 'normal' | 'abnormal' | 'critical' | 'unknown'
   latest_recorded_at?: string
   total_records?: number
@@ -90,12 +100,14 @@ export interface SectionWithMetrics {
   name: string
   display_name: string
   description?: string
+  section_template_id?: number
+  is_default?: boolean
   metrics: MetricWithData[]
 }
 
 export interface AnalysisDashboardResponse {
   sections: SectionWithMetrics[]
-  latest_analysis?: any
+  latest_analysis?: Record<string, unknown>
   summary_stats?: {
     total_sections: number
     total_metrics: number

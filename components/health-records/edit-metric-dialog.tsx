@@ -7,26 +7,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'react-toastify'
-import { HealthRecordsApiService } from '@/lib/api/health-records-api'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
-
-export interface HealthRecordMetric {
-  id: number
-  section_id: number
-  name: string
-  display_name: string
-  description?: string
-  default_unit?: string
-  original_reference?: string
-  reference_data?: any
-  data_type: string
-  is_default: boolean
-  created_at: string
-  updated_at?: string
-  created_by: number
-  updated_by?: number
-}
+import { HealthRecordMetric } from './types'
 
 interface EditMetricDialogProps {
   open: boolean
@@ -39,7 +22,7 @@ interface EditMetricDialogProps {
     description?: string
     default_unit?: string
     reference_data?: any
-  }) => Promise<void>
+  }) => Promise<HealthRecordMetric>
 }
 
 export function EditMetricDialog({
@@ -99,12 +82,12 @@ export function EditMetricDialog({
     setLoading(true)
     try {
       // Parse reference range values (both are optional)
-      let referenceData = null
+      let referenceData: Record<string, { min?: number; max?: number }> | undefined = undefined
       if (formData.minValue || formData.maxValue) {
         const minValue = formData.minValue ? parseFloat(formData.minValue) : null
         const maxValue = formData.maxValue ? parseFloat(formData.maxValue) : null
         
-        if (isNaN(minValue) && isNaN(maxValue)) {
+        if ((minValue !== null && isNaN(minValue)) || (maxValue !== null && isNaN(maxValue))) {
           toast.error('Please enter valid numbers for reference range')
           return
         }
@@ -112,12 +95,12 @@ export function EditMetricDialog({
         // Create reference data structure for both genders
         referenceData = {
           male: {
-            min: minValue,
-            max: maxValue
+            min: minValue ?? undefined,
+            max: maxValue ?? undefined
           },
           female: {
-            min: minValue,
-            max: maxValue
+            min: minValue ?? undefined,
+            max: maxValue ?? undefined
           }
         }
       }
@@ -133,8 +116,8 @@ export function EditMetricDialog({
       toast.success('Metric updated successfully!')
       onOpenChange(false)
       onMetricUpdated(metric)
-    } catch (error: any) {
-      toast.error(`Failed to update metric: ${error.message}`)
+    } catch (error: unknown) {
+      toast.error(`Failed to update metric: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
@@ -228,9 +211,9 @@ export function EditMetricDialog({
             </div>
             <p className="text-xs text-muted-foreground">
               • Leave empty for no reference range
-              • Min only: shows "&gt; X" format
-              • Max only: shows "&lt; X" format  
-              • Both: shows "X - Y" format
+              • Min only: shows &quot;&gt; X&quot; format
+              • Max only: shows &quot;&lt; X&quot; format  
+              • Both: shows &quot;X - Y&quot; format
             </p>
           </div>
 

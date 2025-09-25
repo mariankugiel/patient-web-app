@@ -25,18 +25,18 @@ import { formatMetricValue, formatReferenceRange } from '@/hooks/use-health-reco
 import { toast } from 'react-toastify'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
+import { SectionWithMetrics, HealthRecordMetric, HealthRecord, MetricWithData, HealthRecordSection } from './types'
 
 interface AnalysisOverviewSectionProps {
   title: string
   description: string
-  sections: any[]
+  sections: SectionWithMetrics[]
   loading: boolean
-  adminTemplates: any[]
-  createSection: (sectionData: any) => Promise<any>
-  updateSection: (sectionId: number, data: any) => Promise<any>
-  createMetric: (metricData: any) => Promise<any>
-  updateMetric?: (metricId: number, metricData: any) => Promise<any>
-  createRecord: (recordData: any) => Promise<any>
+  createSection: (sectionData: { name: string; display_name: string; description?: string; health_record_type_id: number; is_default?: boolean; section_template_id?: number }) => Promise<HealthRecordSection>
+  updateSection: (sectionId: number, data: { display_name?: string; description?: string }) => Promise<HealthRecordSection>
+  createMetric: (metricData: { name: string; display_name: string; description?: string; default_unit?: string; data_type: string; section_id: number }) => Promise<HealthRecordMetric>
+  updateMetric?: (metricId: number, metricData: { name?: string; display_name?: string; description?: string; default_unit?: string; reference_data?: any }) => Promise<HealthRecordMetric>
+  createRecord: (recordData: { section_id: number; metric_id: number; value: number; status?: string; recorded_at: string; notes?: string; source?: string }) => Promise<HealthRecord>
   refresh: () => void
   onDataUpdated?: () => void
   healthRecordTypeId: number
@@ -47,7 +47,6 @@ export function AnalysisOverviewSection({
   description,
   sections,
   loading,
-  adminTemplates,
   createSection,
   updateSection,
   createMetric,
@@ -63,14 +62,14 @@ export function AnalysisOverviewSection({
   const [newSectionDialogOpen, setNewSectionDialogOpen] = useState(false)
   const [newMetricDialogOpen, setNewMetricDialogOpen] = useState(false)
   const [newValueDialogOpen, setNewValueDialogOpen] = useState(false)
-  const [selectedSectionForMetric, setSelectedSectionForMetric] = useState<any>(null)
-  const [selectedSectionForValue, setSelectedSectionForValue] = useState<any>(null)
+  const [selectedSectionForMetric, setSelectedSectionForMetric] = useState<SectionWithMetrics | null>(null)
+  const [selectedSectionForValue, setSelectedSectionForValue] = useState<SectionWithMetrics | null>(null)
   const [metricDetailDialogOpen, setMetricDetailDialogOpen] = useState(false)
-  const [selectedMetric, setSelectedMetric] = useState<any>(null)
+  const [selectedMetric, setSelectedMetric] = useState<MetricWithData | null>(null)
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{type: 'section' | 'metric', id: number, name: string} | null>(null)
   const [editSectionDialogOpen, setEditSectionDialogOpen] = useState(false)
-  const [selectedSectionForEdit, setSelectedSectionForEdit] = useState<any>(null)
+  const [selectedSectionForEdit, setSelectedSectionForEdit] = useState<SectionWithMetrics | null>(null)
   const [openAccordionItems, setOpenAccordionItems] = useState<string[]>([])
 
   // Filter sections to show only those with data or metrics
@@ -81,7 +80,7 @@ export function AnalysisOverviewSection({
   })
 
   // Handler functions
-  const handleSectionCreated = useCallback((section: any) => {
+  const handleSectionCreated = useCallback((section: HealthRecordSection) => {
     toast.success('Section created successfully!')
     setNewSectionDialogOpen(false)
     // Keep the new section open in accordion
@@ -89,13 +88,13 @@ export function AnalysisOverviewSection({
     refresh()
   }, [refresh])
 
-  const handleSectionUpdated = useCallback((section: any) => {
+  const handleSectionUpdated = useCallback((section: SectionWithMetrics) => {
     toast.success('Section updated successfully!')
     setEditSectionDialogOpen(false)
     refresh()
   }, [refresh])
 
-  const handleMetricCreated = useCallback((metric: any) => {
+  const handleMetricCreated = useCallback((metric: HealthRecordMetric) => {
     toast.success('Metric created successfully!')
     setNewMetricDialogOpen(false)
     // Keep the section open where the metric was added
@@ -105,7 +104,7 @@ export function AnalysisOverviewSection({
     refresh()
   }, [refresh, selectedSectionForMetric])
 
-  const handleValueCreated = useCallback((record: any) => {
+  const handleValueCreated = useCallback((record: HealthRecord) => {
     setNewValueDialogOpen(false)
     // Keep the section open where the value was added
     if (selectedSectionForValue) {
@@ -120,27 +119,23 @@ export function AnalysisOverviewSection({
     }
   }, [refresh, onDataUpdated, selectedSectionForValue])
 
-  const handleMetricClick = useCallback((metric: any) => {
+  const handleMetricClick = useCallback((metric: MetricWithData) => {
     setSelectedMetric(metric)
     setMetricDetailDialogOpen(true)
   }, [])
 
-  const handleEditSection = useCallback((section: any) => {
+  const handleEditSection = useCallback((section: SectionWithMetrics) => {
     setSelectedSectionForEdit(section)
     setEditSectionDialogOpen(true)
   }, [])
 
-  const handleDeleteSection = useCallback((section: any) => {
+  const handleDeleteSection = useCallback((section: SectionWithMetrics) => {
     setDeleteTarget({ type: 'section', id: section.id, name: section.display_name })
     setDeleteConfirmationOpen(true)
   }, [])
 
-  const handleEditMetric = useCallback((metric: any) => {
-    // TODO: Implement metric editing
-    toast.info('Metric editing will be implemented')
-  }, [])
 
-  const handleDeleteMetric = useCallback((metric: any) => {
+  const handleDeleteMetric = useCallback((metric: MetricWithData) => {
     setDeleteTarget({ type: 'metric', id: metric.id, name: metric.display_name })
     setDeleteConfirmationOpen(true)
   }, [])
@@ -169,16 +164,11 @@ export function AnalysisOverviewSection({
   }, [deleteTarget, refresh])
 
   // Determine status based on reference range
-  const getStatusFromValue = (value: any, referenceRange: string): "normal" | "abnormal" | "critical" => {
+  const getStatusFromValue = (value: number, referenceRange: string): "normal" | "abnormal" | "critical" => {
     if (!referenceRange || referenceRange === 'Reference range not specified' || referenceRange === 'N/A') return "normal"
     
-    // Extract numeric value
-    let numericValue: number
-    if (typeof value === 'object' && value !== null) {
-      numericValue = value.value || 0
-    } else {
-      numericValue = Number(value) || 0
-    }
+    // Use the numeric value directly
+    const numericValue = Number(value) || 0
     
     // Handle different reference range formats
     if (referenceRange.includes(' - ')) {
@@ -219,7 +209,7 @@ export function AnalysisOverviewSection({
   }
 
   // Helper function to get gender-specific reference range
-  const getGenderSpecificReferenceRange = (metric: any) => {
+  const getGenderSpecificReferenceRange = (metric: MetricWithData) => {
     if (!metric.reference_data) return 'Reference range not specified'
     
     const userGender = user?.user_metadata?.gender?.toLowerCase()
@@ -230,20 +220,19 @@ export function AnalysisOverviewSection({
   }
 
   // Render metric box
-  const renderMetricBox = (metric: any) => {
+  const renderMetricBox = (metric: MetricWithData) => {
+    // Get the latest data point
     const latestDataPoint = metric.data_points && metric.data_points.length > 0 ? metric.data_points[metric.data_points.length - 1] : null
     const referenceRange = getGenderSpecificReferenceRange(metric)
     const calculatedStatus = latestDataPoint ? getStatusFromValue(latestDataPoint.value, referenceRange) : 'normal'
     
-    const currentValue = latestDataPoint
-      ? formatMetricValue(latestDataPoint.value)
-      : "N/A"
+    const currentValue = latestDataPoint ? formatMetricValue(latestDataPoint.value) : "N/A"
     const unit = metric.default_unit || metric.unit
 
     // Prepare chart data
-    const chartData = metric.data_points ? metric.data_points.map((item: any, index: number) => ({
+    const chartData = metric.data_points ? metric.data_points.map((item: HealthRecord, index: number) => ({
       date: new Date(item.recorded_at),
-      value: typeof item.value === 'object' ? item.value.value : item.value,
+      value: Number(item.value) || 0,
       id: `${metric.id}-${index}`,
       originalValue: item.value
     })) : []
@@ -417,7 +406,7 @@ export function AnalysisOverviewSection({
                   <AccordionContent className="px-4 pb-2">
                     {section.metrics && section.metrics.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                        {section.metrics.map((metric: any) => renderMetricBox(metric))}
+                        {section.metrics.map((metric) => renderMetricBox(metric))}
                       </div>
                     ) : (
                       <div className="text-center py-4 text-gray-500">
@@ -438,7 +427,6 @@ export function AnalysisOverviewSection({
         onOpenChange={setNewSectionDialogOpen}
         onSectionCreated={handleSectionCreated}
         healthRecordTypeId={healthRecordTypeId}
-        availableTemplates={adminTemplates}
         createSection={createSection}
       />
 
@@ -467,8 +455,26 @@ export function AnalysisOverviewSection({
         onValueCreated={handleValueCreated}
         sectionId={selectedSectionForValue?.id || 0}
         sectionName={selectedSectionForValue?.display_name || ''}
-        sections={sections}
-        availableMetrics={(selectedSectionForValue?.metrics || []).map((metric: any) => ({
+        sections={sections.map(section => ({
+          id: section.id,
+          display_name: section.display_name,
+          name: section.name,
+          metrics: section.metrics.map(metric => ({
+            id: metric.id,
+            section_id: section.id,
+            name: metric.name,
+            display_name: metric.display_name,
+            description: metric.description,
+            default_unit: metric.default_unit,
+            unit: metric.unit,
+            reference_data: metric.reference_data,
+            data_type: metric.data_type || 'number',
+            is_default: metric.is_default || false,
+            created_at: metric.created_at || new Date().toISOString(),
+            created_by: metric.created_by || 0
+          }))
+        }))}
+        availableMetrics={(selectedSectionForValue?.metrics || []).map((metric) => ({
           id: metric.id,
           section_id: selectedSectionForValue?.id || 0,
           name: metric.name,
@@ -489,7 +495,11 @@ export function AnalysisOverviewSection({
         <MetricDetailDialog
           open={metricDetailDialogOpen}
           onOpenChange={setMetricDetailDialogOpen}
-          metric={selectedMetric}
+          metric={{
+            ...selectedMetric,
+            unit: selectedMetric.unit || selectedMetric.default_unit || 'N/A',
+            data_type: selectedMetric.data_type || 'number'
+          }}
           dataPoints={selectedMetric.data_points || []}
           onDataUpdated={() => {
             refresh()

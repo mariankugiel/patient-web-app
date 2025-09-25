@@ -158,7 +158,7 @@ export function useHealthRecords(metricId: number) {
   const createRecord = async (record: {
     section_id: number
     metric_id: number
-    value: any
+    value: number
     status?: string
     recorded_at: string
     notes?: string
@@ -341,7 +341,7 @@ export function useAnalysisDashboard(healthRecordTypeId: number = 1) {
   const createRecord = async (record: {
     section_id: number
     metric_id: number
-    value: any
+    value: number
     status?: string
     recorded_at: string
     notes?: string
@@ -414,17 +414,8 @@ export function useAnalysisDashboard(healthRecordTypeId: number = 1) {
 // UTILITY FUNCTIONS
 // ============================================================================
 
-export function formatMetricValue(value: any, unit?: string): string {
+export function formatMetricValue(value: number, unit?: string): string {
   if (value === null || value === undefined) return 'N/A'
-  
-  // Handle object values (e.g., {value: 20})
-  if (typeof value === 'object' && value !== null) {
-    if (value.value !== undefined) {
-      value = value.value
-    } else {
-      return 'N/A'
-    }
-  }
   
   // Convert to number and validate
   const numericValue = Number(value)

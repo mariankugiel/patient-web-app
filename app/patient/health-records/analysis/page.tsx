@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -16,19 +15,14 @@ import {
   FileText,
   Plus,
   Download,
-  TrendingUp,
-  TrendingDown,
   Loader2,
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
-import { useAnalysisDashboard, formatMetricValue, formatReferenceRange } from "@/hooks/use-health-records"
-import { useSelector } from 'react-redux'
-import { RootState } from '@/lib/store'
+import { useAnalysisDashboard } from "@/hooks/use-health-records"
 import { AnalysisOverviewSection } from "@/components/health-records/analysis-overview-section"
 import { useAIAnalysis } from "@/hooks/use-ai-analysis"
 import { AIAnalysisSection } from "@/components/health-records/ai-analysis-section"
 import {
-  MetricWithData,
   HealthRecordSection,
 } from "@/lib/api/health-records-api"
 import { LabDocumentUpload } from "@/components/lab-document-upload"
@@ -38,18 +32,7 @@ import { medicalDocumentsApiService, MedicalDocument } from "@/lib/api/medical-d
 export default function AnalysisPage() {
   const { t } = useLanguage()
   const { sections, loading, createSection, updateSection, createMetric, updateMetric, createRecord, refresh } = useAnalysisDashboard()
-  const { user } = useSelector((state: RootState) => state.auth)
   
-  // Helper function to get gender-specific reference range
-  const getGenderSpecificReferenceRange = (metric: any) => {
-    if (!metric.reference_data) return null
-    
-    const userGender = user?.user_metadata?.gender?.toLowerCase()
-    const gender = userGender === 'female' ? 'female' : 'male'
-    const genderData = metric.reference_data[gender]
-    
-    return formatReferenceRange(genderData?.min, genderData?.max)
-  }
   const { analysis: aiAnalysis, loading: aiLoading, generateAnalysis, checkForUpdates, error: aiError } = useAIAnalysis()
 
   // Track if we've already attempted to load AI analysis
@@ -67,118 +50,6 @@ export default function AnalysisPage() {
   const [currentPage, setCurrentPage] = useState(0)
   const [totalDocuments, setTotalDocuments] = useState(0)
 
-  // Show sections that have data OR sections without data (newly created)
-  const displaySections = sections.filter(section => {
-    const hasData = section.metrics && section.metrics.some((metric: any) =>
-      metric.data_points && metric.data_points.length > 0
-    )
-
-    // Always show sections with data
-    if (hasData) {
-      return true
-    }
-
-    // For sections without data, show them if they have metrics OR if they are custom sections
-    // This handles newly created sections that don't have data yet
-    const hasMetrics = section.metrics && section.metrics.length > 0
-    const isCustomSection = !section.is_default // Custom sections have is_default = false
-
-
-    return hasMetrics || isCustomSection
-  })
-
-
-  // Determine status based on reference range
-  const getStatusFromValue = (value: any, referenceRange: string): "normal" | "abnormal" | "critical" => {
-    if (!referenceRange || referenceRange === 'Reference range not specified') return "normal"
-
-    // Extract numeric value
-    let numericValue: number
-    if (typeof value === 'object' && value !== null) {
-      numericValue = value.value || value
-    } else {
-      numericValue = parseFloat(value) || 0
-    }
-
-    if (isNaN(numericValue)) return "normal"
-
-    if (referenceRange.includes("-")) {
-      const [min, max] = referenceRange.split("-").map((v) => Number.parseFloat(v.trim()))
-      if (isNaN(min) || isNaN(max)) return "normal"
-      if (numericValue < min || numericValue > max) return "abnormal"
-    } else if (referenceRange.startsWith("<")) {
-      const max = Number.parseFloat(referenceRange.substring(1))
-      if (isNaN(max)) return "normal"
-      if (numericValue >= max) return "abnormal"
-    } else if (referenceRange.startsWith(">")) {
-      const min = Number.parseFloat(referenceRange.substring(1))
-      if (isNaN(min)) return "normal"
-      if (numericValue <= min) return "abnormal"
-    }
-
-    return "normal"
-  }
-
-  // Generate AI Analysis based on current health data
-  const generateAIAnalysis = () => {
-    const concerns: string[] = []
-    const positiveTrends: string[] = []
-    const recommendations: string[] = []
-
-    // Analyze each section and metric
-    displaySections.forEach(section => {
-      section.metrics?.forEach(metric => {
-        // Calculate the correct status based on reference range
-        let referenceRange = 'Reference range not specified'
-        const genderSpecificRange = getGenderSpecificReferenceRange(metric)
-        if (genderSpecificRange) {
-          referenceRange = genderSpecificRange
-        }
-
-        const calculatedStatus = metric.latest_value ? getStatusFromValue(metric.latest_value, referenceRange) : 'normal'
-
-        if (calculatedStatus === 'abnormal' || calculatedStatus === 'critical') {
-          concerns.push(`Your ${metric.display_name} is ${calculatedStatus} at ${formatMetricValue(metric.latest_value)} ${metric.unit}. Let's work on getting this back to a healthy range together.`)
-        }
-
-        if (metric.trend === 'improving') {
-          positiveTrends.push(`Great news! Your ${metric.display_name} is trending in the right direction. Keep up the excellent work you're doing.`)
-        }
-
-        if (calculatedStatus === 'abnormal' || calculatedStatus === 'critical') {
-          if (metric.name.toLowerCase().includes('cholesterol')) {
-            recommendations.push('Try adding more heart-healthy foods like oats and fish to your diet, and aim for 30 minutes of daily exercise.')
-          } else if (metric.name.toLowerCase().includes('blood pressure') || metric.name.toLowerCase().includes('bp')) {
-            recommendations.push('Cut back on salty foods and try walking for 20-30 minutes most days to help lower your blood pressure naturally.')
-          } else if (metric.name.toLowerCase().includes('glucose') || metric.name.toLowerCase().includes('sugar')) {
-            recommendations.push('Focus on whole grains and limit sugary snacks. Regular meals and staying active can help balance your glucose levels.')
-          } else {
-            recommendations.push(`Let's discuss your ${metric.display_name} results with your doctor to create a personalized plan for improvement.`)
-          }
-        }
-      })
-    })
-
-    // Ensure we have at least one item in each category
-    if (concerns.length === 0) {
-      concerns.push('Your health metrics look good overall! Keep monitoring regularly to maintain this positive trend.')
-    }
-
-    if (positiveTrends.length === 0) {
-      positiveTrends.push('You\'re doing great with your health monitoring. Consistency is key to maintaining good health.')
-    }
-
-    if (recommendations.length === 0) {
-      recommendations.push('Keep up your healthy habits! Regular checkups and staying active are your best tools for maintaining great health.')
-    }
-
-    return {
-      concerns,
-      positiveTrends,
-      recommendations
-    }
-  }
-
   // Function to trigger AI analysis
   const handleGenerateAIAnalysis = useCallback(async (forceCheck: boolean = false) => {
     try {
@@ -188,28 +59,14 @@ export default function AnalysisPage() {
     }
   }, [generateAnalysis])
 
-  // Auto-load AI analysis when page loads and sections are available
+  // Auto-load AI analysis when page loads
   useEffect(() => {
-    if (!loading && sections.length > 0 && !aiAnalysisAttempted.current) {
+    if (!loading && !aiAnalysisAttempted.current) {
       aiAnalysisAttempted.current = true
-      // Small delay to ensure all data is loaded
-      setTimeout(() => {
-        handleGenerateAIAnalysis(false) // Follow 5-day rule
-      }, 1000)
+      handleGenerateAIAnalysis(false) // Follow 5-day rule
     }
-  }, [loading, sections.length, handleGenerateAIAnalysis])
+  }, [loading, handleGenerateAIAnalysis])
 
-  // Admin templates for section creation dropdown
-  const [adminTemplates, setAdminTemplates] = useState<HealthRecordSection[]>([])
-
-  const renderTrendIcon = (status: string) => {
-    if (status === "improving") {
-      return <TrendingUp className="h-4 w-4 text-green-500" />
-    } else if (status === "declining" || status === "needs improvement") {
-      return <TrendingDown className="h-4 w-4 text-red-500" />
-    }
-    return null
-  }
 
   // Fetch medical documents
   const fetchMedicalDocuments = async () => {
@@ -385,7 +242,6 @@ export default function AnalysisPage() {
         description={t("health.analysisDescription")}
         sections={sections}
         loading={loading}
-        adminTemplates={adminTemplates}
         createSection={createSection}
         updateSection={updateSection}
         createMetric={createMetric}

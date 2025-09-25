@@ -233,7 +233,7 @@ export class HealthRecordsApiService {
   static async createHealthRecord(record: {
     section_id: number
     metric_id: number
-    value: any
+    value: number
     status?: string
     recorded_at: string
     notes?: string
@@ -248,7 +248,7 @@ export class HealthRecordsApiService {
 
   // Update health record
   static async updateHealthRecord(recordId: number, updates: {
-    value?: any
+    value?: number
     status?: string
     recorded_at?: string
   }): Promise<HealthRecord> {

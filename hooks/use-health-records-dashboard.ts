@@ -12,7 +12,7 @@ import {
 
 export function useHealthRecordsDashboard(healthRecordTypeId: number) {
   const [dashboard, setDashboard] = useState<AnalysisDashboardResponse | null>(null)
-  const [sections, setSections] = useState<HealthRecordSection[]>([])
+  const [sections, setSections] = useState<SectionWithMetrics[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -21,36 +21,17 @@ export function useHealthRecordsDashboard(healthRecordTypeId: number) {
       setLoading(true)
       setError(null)
       
-      // Get combined sections and templates in one call
-      const response = await HealthRecordsApiService.getSectionsCombined(healthRecordTypeId)
+      // Get the actual dashboard data with metrics and health records
+      const dashboardData = await HealthRecordsApiService.getAnalysisDashboard()
       
+      // Also get combined sections and templates for creating new sections
+      const response = await HealthRecordsApiService.getSectionsCombined(healthRecordTypeId)
       const userSections = response.user_sections || []
       const adminTemplates = response.admin_templates || []
-      
-      // Combine all sections (user sections + admin templates) for display
       const allSections = [...userSections, ...adminTemplates]
       
-      // Create dashboard response with only user sections
-      const dashboardData: AnalysisDashboardResponse = {
-        sections: userSections.map(section => ({
-          id: section.id,
-          name: section.name,
-          display_name: section.display_name,
-          description: section.description,
-          metrics: [] // Will be populated when metrics are loaded
-        })),
-        latest_analysis: null,
-        summary_stats: {
-          total_sections: userSections.length,
-          total_metrics: 0,
-          total_data_points: 0,
-          abnormal_metrics: 0,
-          normal_metrics: 0
-        }
-      }
-      
       setDashboard(dashboardData)
-      setSections(allSections) // Set all sections (user + admin templates)
+      setSections(dashboardData.sections || []) // Use the sections with actual data
     } catch (err: any) {
       setError(err.message)
       toast.error(`Failed to load dashboard: ${err.message}`)
@@ -80,7 +61,17 @@ export function useHealthRecordsDashboard(healthRecordTypeId: number) {
         if (exists) {
           return prev
         }
-        return [...prev, newSection]
+        // Convert HealthRecordSection to SectionWithMetrics
+        const sectionWithMetrics: SectionWithMetrics = {
+          id: newSection.id,
+          name: newSection.name,
+          display_name: newSection.display_name,
+          description: newSection.description,
+          section_template_id: newSection.section_template_id,
+          is_default: newSection.is_default,
+          metrics: []
+        }
+        return [...prev, sectionWithMetrics]
       })
       
       // Also update dashboard sections (but only if section doesn't already exist)

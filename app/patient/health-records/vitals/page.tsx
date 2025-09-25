@@ -10,7 +10,7 @@ import { AIAnalysisSection } from '@/components/health-records/ai-analysis-secti
 export default function VitalsPage() {
   const { t } = useLanguage()
   const { analysis: aiAnalysis, loading: aiLoading, generateAnalysis, checkForUpdates } = useAIAnalysis(4) // Vitals type ID
-  const { sections, adminTemplates, loading, createSection, updateSection, createMetric, updateMetric, createRecord, refresh } = useAnalysisDashboard(4) // Vitals type ID
+  const { sections, loading, createSection, updateSection, createMetric, updateMetric, createRecord, refresh } = useAnalysisDashboard(4) // Vitals type ID
   
   // Track if we've already attempted to load AI analysis
   const aiAnalysisAttempted = useRef(false)
@@ -24,16 +24,13 @@ export default function VitalsPage() {
     }
   }
 
-  // Auto-load AI analysis when page loads and sections are available
+  // Auto-load AI analysis when page loads
   useEffect(() => {
-    if (!loading && sections.length > 0 && !aiAnalysisAttempted.current) {
+    if (!loading && !aiAnalysisAttempted.current) {
       aiAnalysisAttempted.current = true
-      // Small delay to ensure all data is loaded
-      setTimeout(() => {
-        handleGenerateAIAnalysis(false) // Follow 5-day rule
-      }, 1000)
+      handleGenerateAIAnalysis(false) // Follow 5-day rule
     }
-  }, [loading, sections.length])
+  }, [loading, handleGenerateAIAnalysis])
 
     return (
     <div className="space-y-6">
@@ -52,7 +49,6 @@ export default function VitalsPage() {
         description={t("health.vitalsMeasurements")}
         sections={sections}
         loading={loading}
-        adminTemplates={adminTemplates}
         createSection={createSection}
         updateSection={updateSection}
         createMetric={createMetric}

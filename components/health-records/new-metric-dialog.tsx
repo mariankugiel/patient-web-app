@@ -23,7 +23,7 @@ export interface HealthRecordMetric {
   description?: string
   default_unit?: string
   original_reference?: string // Store original reference string
-  reference_data?: any // Store parsed reference data for all metrics (includes gender-specific when applicable)
+  reference_data?: Record<string, { min?: number; max?: number }> // Store parsed reference data for all metrics (includes gender-specific when applicable)
   section_template_id?: number
   data_type: string
   is_default: boolean
@@ -47,7 +47,7 @@ interface NewMetricDialogProps {
     display_name: string
     description?: string
     default_unit?: string
-    reference_data?: any
+    reference_data?: Record<string, { min?: number; max?: number }>
     data_type: string
   }) => Promise<HealthRecordMetric>
 }
@@ -131,7 +131,7 @@ export function NewMetricDialog({
   }, [open, selectedSectionId, fetchAdminTemplates])
   
   // Get gender-specific reference range
-  const getGenderSpecificReference = (template: any) => {
+  const getGenderSpecificReference = (template: { reference_data?: Record<string, { min?: number; max?: number }> }) => {
     const userGender = user?.user_metadata?.gender?.toLowerCase()
     
     // Default to male if gender is not found
@@ -169,16 +169,16 @@ export function NewMetricDialog({
     setTemplateDropdownOpen(false)
   }
   
-  const handleCustomMetricToggle = () => {
-    setIsCustomMetric(true)
-    setSelectedTemplate(null)
-    setMetricName('')
-    setMetricDisplayName('')
-    setMetricDescription('')
-    setMetricUnit('')
-    setNormalRangeMin('')
-    setNormalRangeMax('')
-  }
+  // const handleCustomMetricToggle = () => {
+  //   setIsCustomMetric(true)
+  //   setSelectedTemplate(null)
+  //   setMetricName('')
+  //   setMetricDisplayName('')
+  //   setMetricDescription('')
+  //   setMetricUnit('')
+  //   setNormalRangeMin('')
+  //   setNormalRangeMax('')
+  // }
 
   // Handle metric name change from combobox input
   const handleMetricNameChange = (value: string) => {
@@ -241,12 +241,12 @@ export function NewMetricDialog({
         })
       } else {
         // User created a custom metric - create reference_data based on user's gender
-        const userGender = user?.user_metadata?.gender?.toLowerCase()
-        const gender = userGender === 'female' ? 'female' : 'male'
+        // const userGender = user?.user_metadata?.gender?.toLowerCase()
+        // const gender = userGender === 'female' ? 'female' : 'male'
         
         const customReferenceData = {
-          male: { min: minValue, max: maxValue },
-          female: { min: minValue, max: maxValue }
+          male: { min: minValue || undefined, max: maxValue || undefined },
+          female: { min: minValue || undefined, max: maxValue || undefined }
         }
         
         newMetric = await createMetric({
@@ -463,9 +463,9 @@ export function NewMetricDialog({
             </div>
             <div className="text-sm text-muted-foreground">
               <p>• Both empty: no reference range (optional)</p>
-              <p>• Min only: means "greater than" (e.g., &gt; 70)</p>
-              <p>• Max only: means "less than" (e.g., &lt; 100)</p>
-              <p>• Both: means "range" (e.g., 70-100)</p>
+              <p>• Min only: means &quot;greater than&quot; (e.g., &gt; 70)</p>
+              <p>• Max only: means &quot;less than&quot; (e.g., &lt; 100)</p>
+              <p>• Both: means &quot;range&quot; (e.g., 70-100)</p>
             </div>
           </div>
           

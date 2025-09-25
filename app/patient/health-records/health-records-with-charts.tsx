@@ -20,11 +20,6 @@ export default function HealthRecordsWithCharts() {
   const vitaminDData = getChartData("vitamin_d")
   const temperatureData = getChartData("temperature")
 
-  const bloodPressureData = getBloodPressureChartData().map((reading) => ({
-    date: reading.date,
-    value: reading.systolic, // Use systolic for main display
-  }))
-
   const fullBloodPressureData = getBloodPressureChartData()
 
   return (
