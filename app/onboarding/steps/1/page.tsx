@@ -42,7 +42,7 @@ export default function PersonalInformationPage() {
     firstName: "",
     lastName: "",
     dateOfBirth: "",
-    gender: "",
+    gender: "male",
     height: "",
     weight: "",
     waistDiameter: "",
@@ -69,7 +69,7 @@ export default function PersonalInformationPage() {
         firstName: metadata.full_name?.split(' ')[0] || "",
         lastName: metadata.full_name?.split(' ').slice(1).join(' ') || "",
         dateOfBirth: metadata.date_of_birth || "",
-        gender: metadata.gender || "",
+        gender: metadata.gender || "male",
         height: metadata.height || "",
         weight: metadata.weight || "",
         waistDiameter: metadata.waist_diameter || "",
@@ -80,6 +80,12 @@ export default function PersonalInformationPage() {
         emergencyContactName: metadata.emergency_contact_name || "",
         emergencyContactPhone: metadata.emergency_contact_phone || "",
         emergencyContactRelationship: metadata.emergency_contact_relationship || "",
+      }))
+    } else if (user?.email) {
+      // If no metadata but user has email, at least fill the email field
+      setFormData(prev => ({
+        ...prev,
+        email: user.email,
       }))
     }
   }, [user])

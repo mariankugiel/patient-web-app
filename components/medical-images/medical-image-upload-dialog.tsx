@@ -268,9 +268,9 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
             <div 
               className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
                 isDragOver 
-                  ? 'border-blue-400 bg-blue-50' 
+                  ? 'border-primary bg-primary/10' 
                   : formData.original_filename 
-                    ? 'border-green-400 bg-green-50' 
+                    ? 'border-primary bg-primary/10' 
                     : 'border-gray-300 hover:border-gray-400'
               }`}
               onClick={() => fileInputRef.current?.click()}

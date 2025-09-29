@@ -48,7 +48,6 @@ export default function ExamsPage() {
         </h2>
         <Button 
           onClick={() => setUploadDialogOpen(true)}
-          className="bg-green-600 hover:bg-green-700"
         >
           <Plus className="h-4 w-4 mr-2" />
           Upload Exam

@@ -52,8 +52,7 @@ export function useCurrentMedicalConditions() {
         condition: condition.condition_name,
         diagnosedDate: condition.diagnosed_date ? condition.diagnosed_date.split('T')[0] : '', // Keep ISO date format (YYYY-MM-DD)
         treatedWith: condition.treatment_plan || '',
-        status: condition.status === 'Active' ? 'controlled' : 
-                condition.status === 'Chronic' ? 'partiallyControlled' : 'uncontrolled',
+        status: MedicalConditionApiService.mapStatusToFrontend(condition.status),
         notes: condition.description || ''
       }))
       
@@ -106,8 +105,7 @@ export function useCurrentMedicalConditions() {
         condition: result.condition_name,
         diagnosedDate: result.diagnosed_date ? new Date(result.diagnosed_date).toLocaleDateString() : '',
         treatedWith: result.treatment_plan || '',
-        status: result.status === 'Active' ? 'controlled' : 
-                result.status === 'Chronic' ? 'partiallyControlled' : 'uncontrolled',
+        status: MedicalConditionApiService.mapStatusToFrontend(result.status),
         notes: result.description || ''
       }
       
@@ -160,8 +158,7 @@ export function useCurrentMedicalConditions() {
         condition: result.condition_name,
         diagnosedDate: result.diagnosed_date ? new Date(result.diagnosed_date).toLocaleDateString() : '',
         treatedWith: result.treatment_plan || '',
-        status: result.status === 'Active' ? 'controlled' : 
-                result.status === 'Chronic' ? 'partiallyControlled' : 'uncontrolled',
+        status: MedicalConditionApiService.mapStatusToFrontend(result.status),
         notes: result.description || ''
       }
       

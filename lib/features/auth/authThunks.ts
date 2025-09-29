@@ -58,10 +58,30 @@ export const loginUser = createAsyncThunk(
       
       toast.success("Login successful! Welcome back!")
       return user
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Login failed"
+    } catch (error: any) {
+      let message = "Login failed"
+      
+      // Handle different error types
+      if (error.response?.status === 401) {
+        message = error.response?.data?.detail || "Incorrect email or password. Please check your credentials and try again."
+      } else if (error.response?.status === 403) {
+        // Email not confirmed - show as info message
+        message = error.response?.data?.detail || " "
+        toast.info(message)
+        dispatch(loginFailure(message))
+        return rejectWithValue(message)
+      } else if (error.response?.status === 429) {
+        message = error.response?.data?.detail || "Too many login attempts. Please wait a few minutes before trying again."
+      } else if (error.response?.status === 503) {
+        message = error.response?.data?.detail || "Unable to connect to authentication service. Please try again later."
+      } else if (error.response?.data?.detail) {
+        message = error.response.data.detail
+      } else if (error.message) {
+        message = error.message
+      }
+      
       dispatch(loginFailure(message))
-      toast.error(message)
+      toast.info(message)
       return rejectWithValue(message)
     }
   },
@@ -84,18 +104,43 @@ export const signupUser = createAsyncThunk(
 
       const userResponse = await AuthApiService.register(registrationData)
       
-      // Create user object that matches our Redux state
+      // Auto-login after successful registration
+      const loginData: UserLoginData = {
+        username: userData.email,
+        password: userData.password,
+      }
+
+      const tokenResponse = await AuthApiService.login(loginData)
+      
+      // Store token in localStorage so interceptor can use it
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('access_token', tokenResponse.access_token)
+        if (tokenResponse.refresh_token) {
+          localStorage.setItem('refresh_token', tokenResponse.refresh_token)
+        }
+        if (tokenResponse.expires_in) {
+          localStorage.setItem('expires_in', tokenResponse.expires_in.toString())
+        }
+      }
+      
+      // Get user profile (token automatically added by interceptor)
+      const userProfile = await AuthApiService.getProfile()
+      
+      // Use the onboarding status directly from the backend profile
+      const isNewUser = userProfile.is_new_user !== undefined ? userProfile.is_new_user : 
+                       (!userProfile.onboarding_completed && !userProfile.onboarding_skipped)
+      
+      // Create complete user object with profile data and tokens
       const user = {
-        id: userResponse.id.toString(),
-        email: userResponse.email,
+        id: tokenResponse.access_token,
+        email: userProfile.email || userResponse.email,
         user_metadata: {
-          full_name: userData.fullName,
-          phone_number: userData.mobile,
-          date_of_birth: userData.dateOfBirth,
-          address: userData.location,
-          is_new_user: true, // Flag to indicate this is a new user
-          onboarding_completed: false,
+          ...userProfile,
+          is_new_user: isNewUser,
         },
+        access_token: tokenResponse.access_token,
+        refresh_token: tokenResponse.refresh_token,
+        expires_in: tokenResponse.expires_in,
         is_active: userResponse.is_active,
         created_at: userResponse.created_at,
       }
@@ -107,8 +152,27 @@ export const signupUser = createAsyncThunk(
       
       toast.success("Account created successfully! Welcome to Saluso!")
       return { user, isNewUser: true }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Signup failed"
+    } catch (error: any) {
+      let message = "Signup failed"
+      
+      // Handle different error types
+      if (error.response?.status === 400) {
+        message = error.response?.data?.detail || "Please check your information and try again."
+      } else if (error.response?.status === 503) {
+        message = error.response?.data?.detail || "Unable to connect to authentication service. Please try again later."
+      } else if (error.response?.data?.detail) {
+        message = error.response.data.detail
+      } else if (error.message) {
+        message = error.message
+      }
+      
+      // Check if this is an email confirmation message (should be shown as info)
+      if (message.includes("check your email") || message.includes("confirmation link")) {
+        toast.info(message)
+        dispatch(signupFailure(message))
+        return rejectWithValue(message)
+      }
+      
       dispatch(signupFailure(message))
       toast.error(message)
       return rejectWithValue(message)

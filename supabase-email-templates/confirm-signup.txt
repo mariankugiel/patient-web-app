@@ -1,0 +1,31 @@
+Welcome to Saluso!
+
+Please confirm your email address to complete your registration and start managing your health journey.
+
+CONFIRM YOUR EMAIL ADDRESS:
+{{ .ConfirmationURL }}
+
+What happens next?
+Once you confirm your email, you'll have full access to your Saluso account where you can:
+• Track your health metrics and records
+• Connect with healthcare professionals  
+• Receive AI-powered health insights
+• Manage your medications and appointments
+
+🔒 Security Notice
+If you didn't create an account with Saluso, please ignore this email. 
+Your email address will not be used without confirmation.
+
+Having trouble with the link?
+Copy and paste this URL into your browser:
+{{ .ConfirmationURL }}
+
+---
+This email was sent to {{ .Email }}
+
+Visit our website: https://saluso.com
+Support: https://saluso.com/support
+Privacy Policy: https://saluso.com/privacy
+
+© 2024 Saluso. All rights reserved.
+This is an automated message, please do not reply.

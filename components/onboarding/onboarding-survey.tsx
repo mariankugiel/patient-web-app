@@ -366,50 +366,49 @@ export function OnboardingSurvey() {
   }
 
   const handleSkipSurvey = async () => {
-    if (user) {
-      try {
-        const supabase = createClient()
-        
-        // Mark onboarding as skipped in Supabase
-        const { error } = await supabase.auth.updateUser({
-          data: {
-            ...user.user_metadata,
-            onboarding_completed: true, // Mark as completed (skipped)
-            onboarding_skipped: true, // Flag to indicate it was skipped
-            onboarding_skipped_at: new Date().toISOString(),
-            is_new_user: false,
-          }
-        })
-
-        if (error) {
-          console.error('Error updating user metadata:', error)
-        } else {
-          // Update Redux state
-          dispatch(updateUser({
-            user_metadata: {
-              ...user.user_metadata,
-              onboarding_completed: true,
-              onboarding_skipped: true,
-              onboarding_skipped_at: new Date().toISOString(),
-              is_new_user: false,
-            }
-          }))
-        }
-      } catch (error) {
-        console.error('Error marking onboarding as skipped:', error)
-        // Still update Redux state even if API call fails
-        dispatch(updateUser({
-          user_metadata: {
-            ...user.user_metadata,
-            onboarding_completed: true,
-            onboarding_skipped: true,
-            is_new_user: false,
-          }
-        }))
-      }
+    if (!user) {
+      toast.error("User not authenticated. Please log in again.")
+      router.push('/')
+      return
     }
-    
-    router.push("/patient/dashboard")
+
+    try {
+      const supabase = createClient()
+      
+      // Mark onboarding as skipped in Supabase
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          ...user.user_metadata,
+          onboarding_completed: true, // Mark as completed (skipped)
+          onboarding_skipped: true, // Flag to indicate it was skipped
+          onboarding_skipped_at: new Date().toISOString(),
+          is_new_user: false,
+        }
+      })
+
+      if (error) {
+        console.error('Error updating user metadata:', error)
+        toast.error("Failed to skip onboarding. Please try again.")
+        return
+      }
+
+      // Update Redux state
+      dispatch(updateUser({
+        user_metadata: {
+          ...user.user_metadata,
+          onboarding_completed: true,
+          onboarding_skipped: true,
+          onboarding_skipped_at: new Date().toISOString(),
+          is_new_user: false,
+        }
+      }))
+
+      toast.success("Onboarding skipped successfully!")
+      router.push("/patient/dashboard")
+    } catch (error) {
+      console.error('Error marking onboarding as skipped:', error)
+      toast.error("Failed to skip onboarding. Please try again.")
+    }
   }
 
   const handleLanguageChange = (newLanguage: Language) => {

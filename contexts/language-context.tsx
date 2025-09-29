@@ -257,6 +257,8 @@ const translations: Record<Language, Record<string, string>> = {
     "health.habits": "Habits",
     "health.vitalsAnalysis": "Vitals Analysis",
     "health.vitalsInsights": "AI-generated insights from your vital signs",
+    "health.vitalsMetrics": "Vitals Metrics",
+    "health.vitalsMeasurements": "Your vital sign measurements and trends",
     "health.bloodPressureConcern": "Blood pressure remains slightly elevated at 132/85 mmHg despite improvement.",
     "health.heartRateImprovement":
       "Resting heart rate has decreased to 68 bpm, indicating improved cardiovascular fitness. Oxygen saturation is consistently normal at 98%.",
@@ -334,6 +336,8 @@ const translations: Record<Language, Record<string, string>> = {
     "health.healthcare": "Healthcare",
     "health.planning": "Planning",
     "health.tasks": "Tasks & Activities",
+    "health.analysisOverview": "Health Analysis Metrics",
+    "health.analysisDescription": "View and manage your health records, metrics, and data trends",
 
     // Health Images
     "health.images.medicalImages": "Medical Images",

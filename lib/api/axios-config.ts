@@ -62,27 +62,34 @@ apiClient.interceptors.response.use(
     
     // Handle 401 Unauthorized - token expired or invalid
     if (error.response?.status === 401) {
-      // Clear localStorage and redirect to login
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('expires_in')
-        
-        // Only show session expired message if it's not a login attempt
-        // Login attempts will show their own error messages
-        const isLoginAttempt = error.config?.url?.includes('/login')
-        if (!isLoginAttempt && !sessionExpiredNotificationShown) {
-          sessionExpiredNotificationShown = true
-          toast.error("Session expired. Please log in again.")
+      // Don't redirect for auth-related endpoints (login, register, etc.)
+      const isAuthEndpoint = error.config?.url?.includes('/login') || 
+                             error.config?.url?.includes('/register') ||
+                             error.config?.url?.includes('/auth/')
+      
+      if (!isAuthEndpoint) {
+        // Clear localStorage and redirect to login only for non-auth endpoints
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('access_token')
+          localStorage.removeItem('refresh_token')
+          localStorage.removeItem('expires_in')
           
-          // Reset the flag after a delay to allow for future session expirations
-          setTimeout(() => {
-            sessionExpiredNotificationShown = false
-          }, 5000) // 5 seconds
+          // Only show session expired message if it's not a login attempt
+          // Login attempts will show their own error messages
+          if (!sessionExpiredNotificationShown) {
+            sessionExpiredNotificationShown = true
+            toast.error("Session expired. Please log in again.")
+            
+            // Reset the flag after a delay to allow for future session expirations
+            setTimeout(() => {
+              sessionExpiredNotificationShown = false
+            }, 5000) // 5 seconds
+          }
+          
+          window.location.href = '/'
         }
-        
-        window.location.href = '/'
       }
+      // For auth endpoints, let the error bubble up to be handled by the component
     }
     
     return Promise.reject(error)

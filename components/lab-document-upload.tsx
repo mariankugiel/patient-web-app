@@ -422,22 +422,40 @@ export function LabDocumentUpload({ open, onOpenChange, onAnalysisComplete }: La
             <div className="grid gap-2">
               <Label htmlFor="file">{t("health.file")}</Label>
               <div
-                className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
                   isDragOver 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-300 hover:border-gray-400'
+                    ? 'border-primary bg-primary/10' 
+                    : file 
+                      ? 'border-primary bg-primary/10' 
+                      : 'border-gray-300 hover:border-gray-400'
                 }`}
+                onClick={() => document.getElementById('file')?.click()}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
               >
-                <div className="flex flex-col items-center gap-2">
-                  <Upload className="h-8 w-8 text-gray-400" />
-                  <div className="text-sm text-gray-600">
-                    <span className="font-medium">Click to upload</span> or drag and drop
+                {file ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <FileText className="h-8 w-8 text-primary" />
+                    <div className="text-sm text-primary">
+                      <span className="font-medium">{file.name}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {(file.size / 1024 / 1024).toFixed(2)} MB
+                    </div>
+                    <div className="text-xs text-primary">
+                      Click to change file
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500">PDF files only, max 10MB</div>
-                </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload className="h-8 w-8 text-gray-400" />
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium">Click to upload</span> or drag and drop
+                    </div>
+                    <div className="text-xs text-gray-500">PDF files only, max 10MB</div>
+                  </div>
+                )}
                 <Input
                   id="file"
                   type="file"
@@ -446,12 +464,6 @@ export function LabDocumentUpload({ open, onOpenChange, onAnalysisComplete }: La
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
               </div>
-              {file && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <FileText className="h-4 w-4" />
-                  {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                </div>
-              )}
             </div>
             
             <div className="grid gap-2">

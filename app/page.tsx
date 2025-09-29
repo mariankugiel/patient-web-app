@@ -4,13 +4,8 @@ import { useState, useEffect } from "react"
 import { motion, useScroll, useTransform } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { useDispatch, useSelector } from "react-redux"
-import { RootState, AppDispatch } from "@/lib/store"
-import { signupUser, loginUser } from "@/lib/features/auth/authThunks"
 import { useAuthRedirect } from "@/hooks/use-auth-redirect"
+import { AuthModal } from "@/components/auth/auth-modal"
 import {
   Heart,
   Shield,
@@ -34,25 +29,12 @@ import { Logo } from "@/components/logo"
 import { toast } from "react-toastify"
 
 export default function LandingPage() {
-  const dispatch = useDispatch<AppDispatch>()
-  const { isLoading } = useSelector((state: RootState) => state.auth)
-  
   // Use auth redirect hook to handle automatic redirects
   useAuthRedirect()
   const [language, setLanguage] = useState<"en" | "pt">("en")
-  const [showLoginModal, setShowLoginModal] = useState(false)
-  const [showSignupModal, setShowSignupModal] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login")
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
-  const [signupForm, setSignupForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  })
-  const [loginForm, setLoginForm] = useState({
-    email: "",
-    password: "",
-  })
 
   const { scrollYProgress } = useScroll()
   const headerBackground = useTransform(
@@ -247,86 +229,19 @@ export default function LandingPage() {
 
   const t = translations[language]
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    // Validate full name
-    if (!signupForm.name || signupForm.name.trim().length < 2) {
-      toast.error("Please enter your full name (at least 2 characters).")
-      return
-    }
-    
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(signupForm.email)) {
-      toast.error("Please enter a valid email address.")
-      return
-    }
-    
-    // Validate password strength
-    if (signupForm.password.length < 6) {
-      toast.error("Password must be at least 6 characters long.")
-      return
-    }
-    
-    // Validate password confirmation
-    if (signupForm.password !== signupForm.confirmPassword) {
-      toast.error("Passwords do not match. Please try again.")
-      return
-    }
-    
-    try {
-      await dispatch(signupUser({
-        email: signupForm.email,
-        password: signupForm.password,
-        fullName: signupForm.name.trim(),
-      })).unwrap()
-      
-      // Close modal on successful signup
-      setShowSignupModal(false)
-      // The useAuthRedirect hook will handle the redirect to onboarding
-    } catch (error) {
-      console.error('Signup failed:', error)
+  const handleOpenAuthModal = (mode: "login" | "signup") => {
+    setAuthMode(mode)
+    setShowAuthModal(true)
+  }
+
+  const handleCloseAuthModal = (open: boolean) => {
+    setShowAuthModal(open)
+    // Reset to login mode when modal is closed
+    if (!open) {
+      setAuthMode("login")
     }
   }
 
-  const handleInputChange = (field: string, value: string) => {
-    setSignupForm(prev => ({ ...prev, [field]: value }))
-  }
-
-  const handleLoginInputChange = (field: string, value: string) => {
-    setLoginForm(prev => ({ ...prev, [field]: value }))
-  }
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(loginForm.email)) {
-      toast.error("Please enter a valid email address.")
-      return
-    }
-    
-    // Validate password
-    if (!loginForm.password || loginForm.password.length < 1) {
-      toast.error("Please enter your password.")
-      return
-    }
-    
-    try {
-      await dispatch(loginUser({
-        email: loginForm.email,
-        password: loginForm.password,
-      })).unwrap()
-      
-      // Close modal on successful login
-      setShowLoginModal(false)
-      // The useAuthRedirect hook will handle the redirect based on onboarding status
-    } catch (error) {
-      console.error('Login failed:', error)
-    }
-  }
 
   return (
     <div className="min-h-screen bg-white overflow-hidden">
@@ -407,7 +322,7 @@ export default function LandingPage() {
             >
               <Button
                 variant="ghost"
-                onClick={() => setShowLoginModal(true)}
+                onClick={() => handleOpenAuthModal("login")}
                 className="text-teal-600 hover:bg-teal-50 font-medium"
               >
                 {t.login}
@@ -423,7 +338,7 @@ export default function LandingPage() {
                 whileTap={{ scale: 0.95 }}
               >
                 <Button
-                  onClick={() => setShowSignupModal(true)}
+                  onClick={() => handleOpenAuthModal("signup")}
                   className="bg-teal-600 hover:bg-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 font-medium"
                 >
                   {t.createAccount}
@@ -490,7 +405,7 @@ export default function LandingPage() {
                   whileTap={{ scale: 0.98 }}
                 >
                   <Button
-                    onClick={() => setShowLoginModal(true)}
+                    onClick={() => handleOpenAuthModal("login")}
                     variant="outline"
                     className="border-2 border-teal-200 text-teal-600 hover:bg-teal-50 h-14 px-8 text-lg font-medium group"
                   >
@@ -503,7 +418,7 @@ export default function LandingPage() {
                   whileTap={{ scale: 0.98 }}
                 >
                   <Button
-                    onClick={() => setShowSignupModal(true)}
+                    onClick={() => handleOpenAuthModal("signup")}
                     className="bg-teal-600 hover:bg-teal-700 text-white h-14 px-8 text-lg font-medium shadow-xl hover:shadow-2xl transition-all duration-300 group"
                   >
                     <Sparkles className="mr-2 w-5 h-5 group-hover:rotate-12 transition-transform" />
@@ -857,125 +772,12 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* Login Modal */}
-      <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
-        <DialogContent className="sm:max-w-md border-0 bg-white/95 backdrop-blur-xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-center text-gray-900">{t.login}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="login-email" className="text-gray-700 font-medium">
-                {t.email}
-              </Label>
-              <Input
-                id="login-email"
-                type="email"
-                placeholder={t.enterEmail}
-                value={loginForm.email}
-                onChange={(e) => handleLoginInputChange("email", e.target.value)}
-                className="h-12 border-gray-200 focus:border-teal-500 focus:ring-teal-500"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="login-password" className="text-gray-700 font-medium">
-                {t.password}
-              </Label>
-              <Input
-                id="login-password"
-                type="password"
-                placeholder={t.enterPassword}
-                value={loginForm.password}
-                onChange={(e) => handleLoginInputChange("password", e.target.value)}
-                className="h-12 border-gray-200 focus:border-teal-500 focus:ring-teal-500"
-                required
-              />
-            </div>
-            <Button 
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-12 bg-teal-600 hover:bg-teal-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50"
-            >
-              {isLoading ? "Logging in..." : t.login}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Signup Modal */}
-      <Dialog open={showSignupModal} onOpenChange={setShowSignupModal}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto border-0 bg-white/95 backdrop-blur-xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-center text-gray-900">{t.createAccount}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSignup} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="signup-name" className="text-gray-700 font-medium">
-                Full Name *
-              </Label>
-              <Input
-                id="signup-name"
-                value={signupForm.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                placeholder="Enter your full name"
-                className="h-12 border-gray-200 focus:border-teal-500 focus:ring-teal-500"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="signup-email" className="text-gray-700 font-medium">
-                Email Address *
-              </Label>
-              <Input
-                id="signup-email"
-                type="email"
-                value={signupForm.email}
-                onChange={(e) => handleInputChange('email', e.target.value)}
-                placeholder="Enter your email address"
-                className="h-12 border-gray-200 focus:border-teal-500 focus:ring-teal-500"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="signup-password" className="text-gray-700 font-medium">
-                Password *
-              </Label>
-              <Input
-                id="signup-password"
-                type="password"
-                value={signupForm.password}
-                onChange={(e) => handleInputChange('password', e.target.value)}
-                placeholder="Enter your password (min 6 characters)"
-                className="h-12 border-gray-200 focus:border-teal-500 focus:ring-teal-500"
-                required
-                minLength={6}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="signup-confirm-password" className="text-gray-700 font-medium">
-                Confirm Password *
-              </Label>
-              <Input
-                id="signup-confirm-password"
-                type="password"
-                value={signupForm.confirmPassword}
-                onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                placeholder="Confirm your password"
-                className="h-12 border-gray-200 focus:border-teal-500 focus:ring-teal-500"
-                required
-              />
-            </div>
-            <Button 
-              type="submit" 
-              disabled={isLoading}
-              className="w-full h-12 bg-teal-600 hover:bg-teal-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300"
-            >
-              {isLoading ? "Creating Account..." : "Create Account"}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Professional Auth Modal */}
+      <AuthModal 
+        open={showAuthModal} 
+        onOpenChange={handleCloseAuthModal}
+        defaultMode={authMode}
+      />
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import apiClient from './axios-config'
+import { convertToISODateTime } from '../utils/date-utils'
 
 // ============================================================================
 // TYPES FOR MEDICAL CONDITION DATA
@@ -90,6 +91,35 @@ export interface BackendFamilyHistory {
 
 export class MedicalConditionApiService {
   // ============================================================================
+  // UTILITY FUNCTIONS
+  // ============================================================================
+
+  /**
+   * Maps backend status values to frontend status values
+   * Note: Since both frontend and backend now use the same status terms,
+   * this function mainly handles legacy data or provides a fallback
+   */
+  static mapStatusToFrontend(status: string): string {
+    // Handle legacy status values if they exist
+    switch (status) {
+      case 'Active': return 'controlled'
+      case 'Chronic': return 'partiallyControlled'
+      case 'Resolved': return 'resolved'
+      case 'Remission': return 'remission'
+      case 'Deceased': return 'deceased'
+      // New status values (no mapping needed)
+      case 'controlled':
+      case 'partiallyControlled':
+      case 'uncontrolled':
+      case 'resolved':
+      case 'remission':
+      case 'deceased':
+        return status
+      default: return 'uncontrolled'
+    }
+  }
+
+  // ============================================================================
   // CURRENT HEALTH PROBLEMS
   // ============================================================================
 
@@ -98,7 +128,7 @@ export class MedicalConditionApiService {
       const backendData: any = {
         condition_name: problem.condition,
         description: problem.comments,
-        status: 'Active',
+        status: problem.status || 'uncontrolled',
         source: 'Self Diagnosis',
         treatment_plan: problem.treatment,
         current_medications: [],
@@ -107,8 +137,10 @@ export class MedicalConditionApiService {
 
       // Include diagnosed_date if we have a valid date
       if (problem.diagnosedDate && problem.diagnosedDate.trim()) {
-        // If we have a full date, use it directly
-        backendData.diagnosed_date = `${problem.diagnosedDate}T00:00:00`
+        const isoDateTime = convertToISODateTime(problem.diagnosedDate)
+        if (isoDateTime) {
+          backendData.diagnosed_date = isoDateTime
+        }
       } else if (problem.yearOfDiagnosis && problem.yearOfDiagnosis.trim()) {
         // Fallback to year-only format
         backendData.diagnosed_date = `${problem.yearOfDiagnosis}-01-01T00:00:00`
@@ -129,7 +161,12 @@ export class MedicalConditionApiService {
     try {
       const response = await apiClient.get('/health-records/conditions')
       return response.data.filter((condition: BackendMedicalCondition) => 
-        condition.status === 'Active' || condition.status === 'Chronic'
+        condition.status === 'controlled' || 
+        condition.status === 'partiallyControlled' || 
+        condition.status === 'uncontrolled' ||
+        // Legacy support for old status values
+        condition.status === 'Active' || 
+        condition.status === 'Chronic'
       )
     } catch (error: any) {
       const message = error.response?.data?.detail || error.message || 'Failed to get health problems'
@@ -139,28 +176,20 @@ export class MedicalConditionApiService {
 
   static async updateCurrentHealthProblem(id: number, problem: CurrentHealthProblem): Promise<BackendMedicalCondition> {
     try {
-      // Map frontend status to backend status
-      const mapStatus = (status: string) => {
-        switch (status) {
-          case 'controlled': return 'Active'
-          case 'partiallyControlled': return 'Chronic'
-          case 'uncontrolled': return 'Active'
-          default: return 'Active'
-        }
-      }
-
       const backendData: any = {
         condition_name: problem.condition,
         description: problem.comments,
         treatment_plan: problem.treatment,
         outcome: problem.diagnosticProvider ? `Diagnosed by: ${problem.diagnosticProvider}` : undefined,
-        status: problem.status ? mapStatus(problem.status) : undefined
+        status: problem.status
       }
 
       // Include diagnosed_date if we have a valid date
       if (problem.diagnosedDate && problem.diagnosedDate.trim()) {
-        // If we have a full date, use it directly
-        backendData.diagnosed_date = `${problem.diagnosedDate}T00:00:00`
+        const isoDateTime = convertToISODateTime(problem.diagnosedDate)
+        if (isoDateTime) {
+          backendData.diagnosed_date = isoDateTime
+        }
       } else if (problem.yearOfDiagnosis && problem.yearOfDiagnosis.trim()) {
         // Fallback to year-only format
         backendData.diagnosed_date = `${problem.yearOfDiagnosis}-01-01T00:00:00`
@@ -195,23 +224,34 @@ export class MedicalConditionApiService {
       const backendData: any = {
         condition_name: condition.condition,
         description: condition.comments,
-        status: 'Resolved',
+        status: 'resolved',
         source: 'Self Diagnosis',
         treatment_plan: condition.treatment
       }
 
       // Include dates if we have valid dates
       if (condition.diagnosedDate && condition.diagnosedDate.trim()) {
-        // If we have a full date, use it directly
-        backendData.diagnosed_date = `${condition.diagnosedDate}T00:00:00`
+        // Convert date to ISO format before adding time
+        try {
+          const date = new Date(condition.diagnosedDate)
+          if (!isNaN(date.getTime())) {
+            // Convert to YYYY-MM-DD format
+            const isoDate = date.toISOString().split('T')[0]
+            backendData.diagnosed_date = `${isoDate}T00:00:00`
+          }
+        } catch (e) {
+          console.warn('Invalid date format for diagnosedDate:', condition.diagnosedDate)
+        }
       } else if (condition.yearOfDiagnosis && condition.yearOfDiagnosis.trim()) {
         // Fallback to year-only format
         backendData.diagnosed_date = `${condition.yearOfDiagnosis}-01-01T00:00:00`
       }
       
       if (condition.resolvedDate && condition.resolvedDate.trim()) {
-        // If we have a full date, use it directly
-        backendData.resolved_date = `${condition.resolvedDate}T00:00:00`
+        const isoDateTime = convertToISODateTime(condition.resolvedDate)
+        if (isoDateTime) {
+          backendData.resolved_date = isoDateTime
+        }
       } else if (condition.yearResolved && condition.yearResolved.trim()) {
         // Fallback to year-only format
         backendData.resolved_date = `${condition.yearResolved}-01-01T00:00:00`
@@ -232,6 +272,8 @@ export class MedicalConditionApiService {
     try {
       const response = await apiClient.get('/health-records/conditions')
       return response.data.filter((condition: BackendMedicalCondition) => 
+        condition.status === 'resolved' ||
+        // Legacy support for old status values
         condition.status === 'Resolved'
       )
     } catch (error: any) {
@@ -246,21 +288,32 @@ export class MedicalConditionApiService {
         condition_name: condition.condition,
         description: condition.comments,
         treatment_plan: condition.treatment,
-        status: 'Resolved'
+        status: 'resolved'
       }
 
       // Include dates if we have valid dates
       if (condition.diagnosedDate && condition.diagnosedDate.trim()) {
-        // If we have a full date, use it directly
-        backendData.diagnosed_date = `${condition.diagnosedDate}T00:00:00`
+        // Convert date to ISO format before adding time
+        try {
+          const date = new Date(condition.diagnosedDate)
+          if (!isNaN(date.getTime())) {
+            // Convert to YYYY-MM-DD format
+            const isoDate = date.toISOString().split('T')[0]
+            backendData.diagnosed_date = `${isoDate}T00:00:00`
+          }
+        } catch (e) {
+          console.warn('Invalid date format for diagnosedDate:', condition.diagnosedDate)
+        }
       } else if (condition.yearOfDiagnosis && condition.yearOfDiagnosis.trim()) {
         // Fallback to year-only format
         backendData.diagnosed_date = `${condition.yearOfDiagnosis}-01-01T00:00:00`
       }
       
       if (condition.resolvedDate && condition.resolvedDate.trim()) {
-        // If we have a full date, use it directly
-        backendData.resolved_date = `${condition.resolvedDate}T00:00:00`
+        const isoDateTime = convertToISODateTime(condition.resolvedDate)
+        if (isoDateTime) {
+          backendData.resolved_date = isoDateTime
+        }
       } else if (condition.yearResolved && condition.yearResolved.trim()) {
         // Fallback to year-only format
         backendData.resolved_date = `${condition.yearResolved}-01-01T00:00:00`
