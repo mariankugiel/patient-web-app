@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -33,6 +33,7 @@ interface LabDocumentUploadProps {
 
 export function LabDocumentUpload({ open, onOpenChange, onAnalysisComplete }: LabDocumentUploadProps) {
   const { t } = useLanguage()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [description, setDescription] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -166,18 +167,30 @@ export function LabDocumentUpload({ open, onOpenChange, onAnalysisComplete }: La
 
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('File change triggered, files:', event.target.files)
     const selectedFile = event.target.files?.[0]
     if (selectedFile) {
       if (selectedFile.type !== 'application/pdf') {
         toast.error('Please select a PDF file')
+        // Reset the input
+        event.target.value = ''
         return
       }
       if (selectedFile.size > 10 * 1024 * 1024) {
         toast.error('File size must be less than 10MB')
+        // Reset the input
+        event.target.value = ''
         return
       }
       setFile(selectedFile)
     }
+  }
+
+  const resetFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+    setFile(null)
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -429,7 +442,6 @@ export function LabDocumentUpload({ open, onOpenChange, onAnalysisComplete }: La
                       ? 'border-primary bg-primary/10' 
                       : 'border-gray-300 hover:border-gray-400'
                 }`}
-                onClick={() => document.getElementById('file')?.click()}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -457,11 +469,12 @@ export function LabDocumentUpload({ open, onOpenChange, onAnalysisComplete }: La
                   </div>
                 )}
                 <Input
+                  ref={fileInputRef}
                   id="file"
                   type="file"
                   accept=".pdf"
                   onChange={handleFileChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 />
               </div>
             </div>
