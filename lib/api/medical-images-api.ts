@@ -125,6 +125,8 @@ class MedicalImagesApiService {
     body_part?: string
     findings?: string
     notes?: string
+    interpretation?: string
+    conclusions?: string
   }): Promise<MedicalImageData> {
     const response = await apiClient.put(
       `/health-records/images/${imageId}`,

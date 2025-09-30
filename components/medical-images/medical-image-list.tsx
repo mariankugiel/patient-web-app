@@ -11,9 +11,10 @@ import { toast } from 'react-toastify'
 
 interface MedicalImageListProps {
   onImageUploaded?: () => void
+  refreshTrigger?: number
 }
 
-export function MedicalImageList({ onImageUploaded }: MedicalImageListProps) {
+export function MedicalImageList({ onImageUploaded, refreshTrigger }: MedicalImageListProps) {
   const [images, setImages] = useState<MedicalImageData[]>([])
   const [loading, setLoading] = useState(true)
   const [viewing, setViewing] = useState<number | null>(null)
@@ -23,6 +24,13 @@ export function MedicalImageList({ onImageUploaded }: MedicalImageListProps) {
   useEffect(() => {
     fetchImages()
   }, [])
+
+  // Refresh when refreshTrigger changes
+  useEffect(() => {
+    if (refreshTrigger !== undefined) {
+      fetchImages()
+    }
+  }, [refreshTrigger])
 
   const fetchImages = async () => {
     try {

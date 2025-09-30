@@ -10,6 +10,7 @@ import { AIAnalysisSection } from "@/components/health-records/ai-analysis-secti
 
 export default function ExamsPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   // AI Analysis for medical images (type ID 5)
   const { 
@@ -27,6 +28,7 @@ export default function ExamsPage() {
 
   const handleImageSaved = () => {
     generateAnalysis(false)
+    setRefreshTrigger(prev => prev + 1) // Trigger refresh of image list
   }
 
   return (
@@ -55,7 +57,7 @@ export default function ExamsPage() {
       </div>
 
       {/* Medical Exams List */}
-      <MedicalImageList onImageUploaded={handleImageSaved} />
+      <MedicalImageList onImageUploaded={handleImageSaved} refreshTrigger={refreshTrigger} />
 
       {/* Upload Dialog */}
       <MedicalImageUploadDialog

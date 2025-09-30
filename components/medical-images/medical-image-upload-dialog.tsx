@@ -152,7 +152,7 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
   }
 
   const handleSave = async () => {
-    if (!formData.image_type || !formData.body_part || !formData.image_date) {
+    if (!formData.image_type || !formData.image_date) {
       toast.error('Please fill in all required fields')
       return
     }
@@ -173,6 +173,9 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
         ...formData,
         image_date: formattedDate
       }
+      
+      console.log('Sending save data:', saveData)
+      console.log('Interpretation value:', formData.interpretation)
       
       const response = await medicalImagesApiService.saveMedicalImage(saveData)
       
@@ -337,7 +340,7 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
               </div>
 
               <div>
-                <Label htmlFor="body_part">Body Part *</Label>
+                <Label htmlFor="body_part">Body Part</Label>
                 <Input
                   id="body_part"
                   value={formData.body_part}
@@ -424,7 +427,7 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
             </Button>
             <Button 
               onClick={handleSave} 
-              disabled={!formData.image_type || !formData.body_part || !formData.image_date || saving}
+              disabled={!formData.image_type || !formData.image_date || saving}
               className="min-w-[100px] bg-blue-600 hover:bg-blue-700"
             >
               {saving ? (

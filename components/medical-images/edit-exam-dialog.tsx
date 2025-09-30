@@ -33,7 +33,9 @@ export function EditExamDialog({
     image_type: '',
     body_part: '',
     findings: '',
-    notes: ''
+    notes: '',
+    interpretation: '',
+    conclusions: ''
   })
 
   // Initialize form data when exam changes
@@ -43,7 +45,9 @@ export function EditExamDialog({
         image_type: exam.image_type?.trim() || '',
         body_part: exam.body_part?.trim() || '',
         findings: exam.findings?.trim() || '',
-        notes: exam.notes?.trim() || ''
+        notes: exam.notes?.trim() || '',
+        interpretation: exam.interpretation?.trim() || '',
+        conclusions: exam.conclusions?.trim() || ''
       })
     }
   }, [exam])
@@ -58,7 +62,9 @@ export function EditExamDialog({
         image_type: formData.image_type,
         body_part: formData.body_part,
         findings: formData.findings,
-        notes: formData.notes
+        notes: formData.notes,
+        interpretation: formData.interpretation,
+        conclusions: formData.conclusions
       })
 
       toast.success('Exam updated successfully!')
@@ -126,13 +132,12 @@ export function EditExamDialog({
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="body_part">Body Part *</Label>
+              <Label htmlFor="body_part">Body Part</Label>
               <Input
                 id="body_part"
                 value={formData.body_part}
                 onChange={(e) => handleInputChange('body_part', e.target.value)}
                 placeholder="e.g., Chest, Abdomen, Brain"
-                required
               />
             </div>
 
@@ -151,6 +156,28 @@ export function EditExamDialog({
                   <SelectItem value="Relevant Findings">Relevant Findings</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="interpretation">Interpretation</Label>
+              <Textarea
+                id="interpretation"
+                value={formData.interpretation}
+                onChange={(e) => handleInputChange('interpretation', e.target.value)}
+                placeholder="Medical interpretation of the image..."
+                rows={3}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="conclusions">Conclusions</Label>
+              <Textarea
+                id="conclusions"
+                value={formData.conclusions}
+                onChange={(e) => handleInputChange('conclusions', e.target.value)}
+                placeholder="Conclusions from the medical examination..."
+                rows={3}
+              />
             </div>
 
             <div className="grid gap-2">

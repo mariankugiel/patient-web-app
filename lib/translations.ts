@@ -23,6 +23,7 @@ export const translations = {
       continue: "Continue",
       complete: "Complete Setup",
       saveProgress: "Save Progress",
+      saving: "Saving...",
     },
     // Steps
     steps: {
@@ -295,6 +296,7 @@ export const translations = {
       continue: "Continuar",
       complete: "Completar Configuración",
       saveProgress: "Guardar Progreso",
+      saving: "Guardando...",
     },
     // Steps
     steps: {
@@ -569,6 +571,7 @@ export const translations = {
       continue: "Continuar",
       complete: "Completar Configuração",
       saveProgress: "Guardar Progresso",
+      saving: "Guardando...",
     },
     // Steps
     steps: {
