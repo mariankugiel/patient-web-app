@@ -498,29 +498,11 @@ export function LabDocumentDialog({
           })
           
           const uploadResult = response.data
-          result = uploadResult
-          
-          // Always create the document entry in the database
-          // Ensure date is in YYYY-MM-DD format for backend
           const dateForBackend = formData.lab_test_date || new Date().toISOString().split('T')[0]
+          let result: MedicalDocument | null = null
           
-          const documentData = {
-            health_record_type_id: 1, // Required field for lab documents
-            file_name: selectedFile.name,
-            description: formData.description,
-            s3_url: uploadResult.s3_url,
-            lab_test_date: dateForBackend, // Use form data which is already in YYYY-MM-DD format
-            provider: formData.provider,
-            document_type: formData.lab_test_type,
-            lab_doc_type: formData.lab_test_type,
-            general_doc_type: "lab_result"
-          }
-          
-          // Create document entry
-          const documentResponse = await apiClient.post('/health-records/health-record-doc-lab', documentData)
-          result = documentResponse.data
-          
-          // If we have analysis results and they weren't rejected, create health records
+          // If we have analysis results and they weren't rejected, create health records via bulk endpoint
+          // The bulk endpoint will create both the document and health records
           if (editableResults.length > 0 && !rejectedResults) {
             const bulkData = {
               records: editableResults.map(result => ({
@@ -544,8 +526,19 @@ export function LabDocumentDialog({
             
             if (bulkResponse.data.success) {
               const bulkResult = bulkResponse.data
-              const newRecordsCount = bulkResult.created_records?.length || bulkResult.summary?.new_records || 0
+              const newRecordsCount = bulkResult.created_records_count || bulkResult.created_records?.length || bulkResult.summary?.new_records || 0
               const updatedRecordsCount = bulkResult.updated_records?.length || bulkResult.summary?.updated_records || 0
+              
+              result = { 
+                id: bulkResult.medical_document_id, 
+                file_name: selectedFile.name,
+                s3_url: uploadResult.s3_url,
+                lab_test_date: dateForBackend,
+                provider: formData.provider,
+                description: formData.description,
+                lab_doc_type: formData.lab_test_type,
+                general_doc_type: 'lab_result'
+              } as MedicalDocument
               
               if (newRecordsCount > 0 && updatedRecordsCount > 0) {
                 toast.success(`Successfully created ${newRecordsCount} new health records and updated ${updatedRecordsCount} existing records!`)
@@ -558,11 +551,28 @@ export function LabDocumentDialog({
               }
             }
           } else {
+            // If no analysis results or they were rejected, create document without health records
+            const documentData = {
+              health_record_type_id: 1,
+              file_name: selectedFile.name,
+              description: formData.description,
+              s3_url: uploadResult.s3_url,
+              lab_test_date: dateForBackend,
+              provider: formData.provider,
+              document_type: formData.lab_test_type,
+              lab_doc_type: formData.lab_test_type,
+              general_doc_type: "lab_result"
+            }
+            
+            const documentResponse = await apiClient.post('/health-records/health-record-doc-lab', documentData)
+            result = documentResponse.data
             toast.success('Document saved successfully without health records!')
           }
 
-          onDocumentCreated?.(result)
-          onAnalysisComplete?.(analysisResults)
+          if (result) {
+            onDocumentCreated?.(result)
+            onAnalysisComplete?.(analysisResults)
+          }
           
         } catch (error) {
           console.error('Upload error:', error)
@@ -599,8 +609,8 @@ export function LabDocumentDialog({
               const updateData: MedicalDocumentUpdate = {
                 lab_doc_type: formData.lab_test_type || undefined,
                 lab_test_date: formData.lab_test_date || undefined,
-                provider: formData.provider || undefined,
-                description: formData.description || undefined
+                provider: formData.provider.trim() || '',
+                description: formData.description.trim() || ''
                 // file_name and s3_url are already updated by the file replacement endpoint
               }
 
@@ -628,8 +638,8 @@ export function LabDocumentDialog({
           const updateData: MedicalDocumentUpdate = {
             lab_doc_type: formData.lab_test_type || undefined,
             lab_test_date: formData.lab_test_date || undefined,
-            provider: formData.provider || undefined,
-            description: formData.description || undefined,
+            provider: formData.provider.trim() || '',
+            description: formData.description.trim() || '',
             file_name: formData.file_name || undefined
           }
 
