@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog"
 import { useLanguage } from "@/contexts/language-context"
 import { useToast } from "@/hooks/use-toast"
+import { LocationSearch } from "@/components/ui/location-search"
 
 const profileFormSchema = z.object({
   name: z.string().min(2, {
@@ -79,6 +80,7 @@ export default function ProfileClientPage() {
   const { t, language, setLanguage } = useLanguage()
   const [selectedLanguage, setSelectedLanguage] = useState(language)
   const { toast } = useToast()
+  const [locationDetails, setLocationDetails] = useState<any>(null)
 
   const [accountSettings, setAccountSettings] = useState({
     twoFactorAuth: true,
@@ -300,7 +302,20 @@ export default function ProfileClientPage() {
                           <FormItem>
                             <FormLabel>{t("profile.address")}</FormLabel>
                             <FormControl>
-                              <Input placeholder="Your address" {...field} />
+                              <LocationSearch
+                                value={field.value}
+                                onChange={(location, details) => {
+                                  console.log("Profile onChange - location:", location, "current field value:", field.value)
+                                  field.onChange(location)
+                                  console.log("Field onChange called, new value should be:", location)
+                                  if (details) {
+                                    setLocationDetails(details)
+                                  }
+                                }}
+                                placeholder="Search for your address..."
+                                label=""
+                                error={form.formState.errors.address?.message}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>

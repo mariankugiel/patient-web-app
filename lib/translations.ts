@@ -13,7 +13,35 @@ export const translations = {
       startButton: "Start Health Profile",
       skipButton: "Skip for Now",
     },
+    // Greetings
+    greeting: {
+      morning: "Good Morning",
+      afternoon: "Good Afternoon", 
+      evening: "Good Evening",
+    },
+    // Messages
+    messages: {
+      communicateWithTeam: "Communicate with your healthcare team",
+    },
+    // Notifications
+    notifications: {
+      title: "Notifications",
+      markAllAsRead: "Mark all as read",
+      noNotifications: "No new notifications",
+    },
     // Navigation
+    nav: {
+      dashboard: "Dashboard",
+      healthRecords: "Health Records",
+      healthPlan: "Health Plan",
+      medications: "Medications",
+      messages: "Messages",
+      appointments: "Appointments",
+      permissions: "Permissions",
+      profileSettings: "Profile & Settings",
+      logout: "Logout",
+      healthGoals: "Health Goals",
+    },
     navigation: {
       step: "Step",
       of: "of",
@@ -232,9 +260,22 @@ export const translations = {
       currentConditions: "Current Medical Conditions",
       pastConditions: "Past Medical Conditions", 
       familyHistory: "Family Medical History",
+      surgeriesHospitalizations: "Surgeries & Hospitalizations",
       activeConditions: "Active conditions requiring ongoing management",
       resolvedConditions: "Previously diagnosed conditions that have been resolved",
       familyConditions: "Medical history of family members",
+      previousSurgeriesDesc: "Previous surgical procedures and hospitalizations",
+      editSurgeriesDesc: "Update your surgical procedures and hospitalizations",
+      addSurgeriesDesc: "Add a new surgical procedure or hospitalization",
+      surgery: "Surgery",
+      hospitalization: "Hospitalization",
+      bodyArea: "Body Area",
+      reason: "Reason",
+      namePlaceholder: "Enter procedure name",
+      reasonPlaceholder: "Enter reason for procedure",
+      treatmentPlaceholder: "Enter treatment received",
+      bodyAreaPlaceholder: "Enter affected body area",
+      notesPlaceholder: "Enter additional notes",
       condition: "Condition",
       diagnosed: "Diagnosed",
       treatment: "Treatment",
@@ -244,6 +285,13 @@ export const translations = {
       relation: "Relation",
       outcome: "Outcome",
       notes: "Notes",
+      name: "Name",
+      currentStatus: "Current Status",
+      recovery: {
+        full: "Full Recovery",
+        partial: "Partial Recovery",
+        none: "No Recovery"
+      },
       status: {
         controlled: "Controlled",
         partiallyControlled: "Partially Controlled", 
@@ -263,7 +311,183 @@ export const translations = {
       body: "Body",
       lifestyle: "Lifestyle",
       vitals: "Vitals",
-      images: "Exams"
+      images: "Exams",
+      // Form fields
+      date: "Date",
+      type: "Type",
+      provider: "Provider",
+      file: "File",
+      description: "Description",
+      other: "Other",
+      value: "Value",
+      referenceRange: "Reference Range",
+      section: "Section",
+      // Document types
+      documents: {
+        completeBloodCount: "Complete Blood Count",
+        comprehensiveMetabolicPanel: "Comprehensive Metabolic Panel",
+        lipidPanel: "Lipid Panel",
+        hemoglobinA1C: "Hemoglobin A1C",
+        selectDocumentType: "Select document type",
+        healthcareProviderName: "Healthcare provider name",
+        addDescriptionPlaceholder: "Add a description for this lab report...",
+        // Analysis dialog translations
+        analyzingDocument: "Analyzing Document...",
+        analysisResults: "Analysis Results",
+        analyzingDocumentPleaseWait: "Please wait while we analyze your lab document...",
+        reviewExtractedValues: "Review the extracted lab values. You can edit or remove individual entries before confirming.",
+        analyzingYourLabDocument: "Analyzing your lab document...",
+        thisMayTakeAFewMoments: "This may take a few moments",
+        noMetricsFound: "No metrics found in the document",
+        pleaseReviewDocumentOrTryAgain: "Please review the document or try uploading again",
+        rejectResults: "Reject Results",
+        confirmResults: "Confirm Results",
+        notSpecified: "Not specified",
+        value: "Value",
+        referenceRange: "Reference Range",
+        section: "Section",
+        confidence: "Confidence",
+        metricName: "Metric Name",
+        unit: "Unit",
+        referenceRangeMin: "Reference Range Min",
+        referenceRangeMax: "Reference Range Max",
+      abnormal: "Abnormal",
+      normal: "Normal"
+    },
+    // Health metrics
+    metrics: {
+      bloodPressure: "Blood Pressure",
+      bloodGlucose: "Blood Glucose",
+      ldlCholesterol: "LDL Cholesterol",
+      heartRate: "Heart Rate",
+      oxygenSaturation: "Oxygen Saturation",
+      whiteBloodCells: "White Blood Cells",
+      weight: "Weight",
+      bodyFat: "Body Fat",
+      sleep: "Sleep",
+      redBloodCells: "Red Blood Cells",
+      hemoglobin: "Hemoglobin",
+      platelets: "Platelets",
+      hematocrit: "Hematocrit",
+      totalCholesterol: "Total Cholesterol",
+      hdlCholesterol: "HDL Cholesterol",
+      triglycerides: "Triglycerides",
+      totalHdlRatio: "Total/HDL Ratio",
+      glucose: "Glucose",
+      hemoglobinA1C: "Hemoglobin A1C",
+      tsh: "TSH",
+      t4Free: "T4 Free",
+      insulin: "Insulin",
+      bun: "BUN",
+      creatinine: "Creatinine",
+      egfr: "eGFR",
+      bunCreatinineRatio: "BUN/Creatinine Ratio",
+      uricAcid: "Uric Acid",
+      sodium: "Sodium",
+      potassium: "Potassium",
+      calcium: "Calcium",
+      chloride: "Chloride",
+      magnesium: "Magnesium",
+      protein: "Protein",
+      ketones: "Ketones",
+      ph: "pH",
+      specificGravity: "Specific Gravity",
+    },
+    // AI Summary
+    aiSummary: {
+      overall: "Overall",
+      bloodTests: "Blood Tests",
+      bodyComposition: "Body Composition",
+      vitals: "Vitals",
+      lifestyle: "Lifestyle",
+    },
+    // Health frequency
+    frequency: {
+      daily: "daily",
+      twiceDaily: "twice daily",
+    },
+    // Health notes examples
+    notesExamples: {
+      bloodPressureImproved: "Blood pressure has improved with medication",
+      ldlElevated: "LDL levels still elevated, monitoring",
+      glucoseNormalized: "Glucose levels normalized with treatment",
+      fullyResolved: "Condition fully resolved",
+      fullyHealed: "Injury fully healed",
+    },
+    // Health treatment examples
+    treatmentExamples: {
+      dietExercise: "diet and exercise",
+      antibioticsRest: "antibiotics and rest",
+      ricePhysicalTherapy: "RICE protocol and physical therapy",
+    },
+    // Health outcomes
+    outcomes: {
+      managedMedicationStents: "Managed with medication and stents",
+      managedMedicationDiet: "Managed with medication and diet",
+      controlledMedication: "Controlled with medication",
+      successfullyTreated: "Successfully treated",
+    },
+    // Health age ranges
+    ageRanges: {
+      fifties: "50s",
+    },
+    // Health values
+    values: {
+      negative: "Negative",
+    },
+    // Health changes
+    changes: {
+      noChange: "No change",
+    },
+    // Health categories
+    categories: {
+      hematology: "Hematology",
+      biochemistry: "Biochemistry",
+      endocrinology: "Endocrinology",
+      kidneyfunction: "Kidney Function",
+      electrolytes: "Electrolytes",
+      urinalysis: "Urinalysis",
+    },
+    // Health conditions
+    conditions: {
+      hypertension: "Hypertension",
+      hyperlipidemia: "Hyperlipidemia",
+      type2Diabetes: "Type 2 Diabetes",
+      acuteBronchitis: "Acute Bronchitis",
+      ankleSprainRight: "Right Ankle Sprain",
+      coronaryArteryDisease: "Coronary Artery Disease",
+      breastCancer: "Breast Cancer",
+      appendectomy: "Appendectomy",
+      pneumonia: "Pneumonia",
+      herniaRepair: "Hernia Repair",
+    },
+    // Health dates
+    dates: {
+      january2020: "January 2020",
+      february2020: "February 2020",
+      november2022: "November 2022",
+      december2022: "December 2022",
+      june2021: "June 2021",
+      august2021: "August 2021",
+      september2021: "September 2021",
+      july2019: "July 2019",
+      march2015: "March 2015",
+    },
+    // Health relations
+    relations: {
+      father: "Father",
+      mother: "Mother",
+      fatherMother: "Father & Mother",
+      maternalAunt: "Maternal Aunt",
+    },
+  },
+    // Common
+    common: {
+      analyzing: "Analyzing",
+      optional: "Optional",
+      edit: "Edit",
+      delete: "Delete",
+      confirmDelete: "Are you sure you want to delete this item?"
     },
     // Actions
     action: {
@@ -271,7 +495,50 @@ export const translations = {
       save: "Save",
       cancel: "Cancel",
       delete: "Delete",
-      add: "Add"
+      add: "Add",
+      create: "Create",
+      update: "Update"
+    },
+    // Dropdown
+    dropdown: {
+      addValue: "Add Value",
+      addDocument: "Add Document",
+      analysis: "Analysis",
+      cardio: "Cardio",
+      images: "Images",
+    },
+    // Dashboard
+    dashboard: {
+      bloodPressure: "Blood Pressure",
+      normalBP: "Normal",
+      bloodGlucose: "Blood Glucose", 
+      normalGlucose: "Normal",
+      totalCholesterol: "Total Cholesterol",
+      normalCholesterol: "Normal",
+      dailySteps: "Daily Steps",
+      targetSteps: "Target: 10,000",
+      sleepDuration: "Sleep Duration",
+      targetSleep: "Target: 8h",
+      stressLevel: "Stress Level",
+      medium: "Medium",
+      high: "High",
+      targetStress: "Target: Low",
+      physicalActivity: "Physical Activity",
+      healthAssessment: "Health Assessment",
+      planAssessment: "Plan Assessment", 
+      planStrengths: "Plan Strengths",
+    },
+    // Medications
+    medications: {
+      greeting: "Good morning, {name}!",
+      manageReminders: "Manage your medications and reminders",
+      addMedication: "Add Medication",
+      addNewMedication: "Add New Medication",
+      enterDetails: "Enter the details of your new medication.",
+      name: "Name",
+      namePlaceholder: "Enter medication name",
+      dosage: "Dosage",
+      dosagePlaceholder: "Enter dosage (e.g., 10mg)",
     },
   },
   "es-ES": {
@@ -286,7 +553,35 @@ export const translations = {
       startButton: "Comenzar Perfil de Salud",
       skipButton: "Omitir por Ahora",
     },
+    // Greetings
+    greeting: {
+      morning: "Buenos Días",
+      afternoon: "Buenas Tardes", 
+      evening: "Buenas Noches",
+    },
+    // Messages
+    messages: {
+      communicateWithTeam: "Comunícate con tu equipo de salud",
+    },
+    // Notifications
+    notifications: {
+      title: "Notificaciones",
+      markAllAsRead: "Marcar todo como leído",
+      noNotifications: "No hay nuevas notificaciones",
+    },
     // Navigation
+    nav: {
+      dashboard: "Panel",
+      healthRecords: "Registros de Salud",
+      healthPlan: "Plan de Salud",
+      medications: "Medicamentos",
+      messages: "Mensajes",
+      appointments: "Citas",
+      permissions: "Permisos",
+      profileSettings: "Perfil y Configuraciones",
+      logout: "Cerrar Sesión",
+      healthGoals: "Objetivos de Salud",
+    },
     navigation: {
       step: "Paso",
       of: "de",
@@ -507,9 +802,22 @@ export const translations = {
       currentConditions: "Condiciones Médicas Actuales",
       pastConditions: "Condiciones Médicas Pasadas",
       familyHistory: "Historial Médico Familiar",
+      surgeriesHospitalizations: "Cirugías y Hospitalizaciones",
       activeConditions: "Condiciones activas que requieren manejo continuo",
       resolvedConditions: "Condiciones previamente diagnosticadas que han sido resueltas",
       familyConditions: "Historial médico de miembros de la familia",
+      previousSurgeriesDesc: "Procedimientos quirúrgicos y hospitalizaciones previas",
+      editSurgeriesDesc: "Actualiza tus procedimientos quirúrgicos y hospitalizaciones",
+      addSurgeriesDesc: "Agregar un nuevo procedimiento quirúrgico u hospitalización",
+      surgery: "Cirugía",
+      hospitalization: "Hospitalización",
+      bodyArea: "Área del Cuerpo",
+      reason: "Razón",
+      namePlaceholder: "Ingresa el nombre del procedimiento",
+      reasonPlaceholder: "Ingresa la razón del procedimiento",
+      treatmentPlaceholder: "Ingresa el tratamiento recibido",
+      bodyAreaPlaceholder: "Ingresa el área del cuerpo afectada",
+      notesPlaceholder: "Ingresa notas adicionales",
       condition: "Condición",
       diagnosed: "Diagnosticado",
       treatment: "Tratamiento",
@@ -519,6 +827,13 @@ export const translations = {
       relation: "Relación",
       outcome: "Resultado",
       notes: "Notas",
+      name: "Nombre",
+      currentStatus: "Estado Actual",
+      recovery: {
+        full: "Recuperación Completa",
+        partial: "Recuperación Parcial",
+        none: "Sin Recuperación"
+      },
       status: {
         controlled: "Controlado",
         partiallyControlled: "Parcialmente Controlado",
@@ -538,7 +853,177 @@ export const translations = {
       body: "Cuerpo",
       lifestyle: "Estilo de Vida",
       vitals: "Signos Vitales",
-      images: "Exámenes"
+      images: "Exámenes",
+      // Form fields
+      date: "Fecha",
+      type: "Tipo",
+      provider: "Proveedor",
+      file: "Archivo",
+      description: "Descripción",
+      other: "Otro",
+      value: "Valor",
+      referenceRange: "Rango de Referencia",
+      section: "Sección",
+      // Document types
+      documents: {
+        completeBloodCount: "Hemograma Completo",
+        comprehensiveMetabolicPanel: "Panel Metabólico Completo",
+        lipidPanel: "Panel de Lípidos",
+        hemoglobinA1C: "Hemoglobina A1C",
+        selectDocumentType: "Seleccionar tipo de documento",
+        healthcareProviderName: "Nombre del proveedor de salud",
+        addDescriptionPlaceholder: "Agregar una descripción para este informe de laboratorio...",
+        // Analysis dialog translations
+        analyzingDocument: "Analizando Documento...",
+        analysisResults: "Resultados del Análisis",
+        analyzingDocumentPleaseWait: "Por favor espera mientras analizamos tu documento de laboratorio...",
+        reviewExtractedValues: "Revisa los valores de laboratorio extraídos. Puedes editar o eliminar entradas individuales antes de confirmar.",
+        analyzingYourLabDocument: "Analizando tu documento de laboratorio...",
+        thisMayTakeAFewMoments: "Esto puede tomar unos momentos",
+        noMetricsFound: "No se encontraron métricas en el documento",
+        pleaseReviewDocumentOrTryAgain: "Por favor revisa el documento o intenta subirlo nuevamente",
+        rejectResults: "Rechazar Resultados",
+        confirmResults: "Confirmar Resultados",
+        notSpecified: "No especificado",
+        value: "Valor",
+        referenceRange: "Rango de Referencia",
+        section: "Sección",
+        confidence: "Confianza",
+        metricName: "Nombre de Métrica",
+        unit: "Unidad",
+        referenceRangeMin: "Rango de Referencia Mín",
+        referenceRangeMax: "Rango de Referencia Máx",
+        abnormal: "Anormal",
+        normal: "Normal"
+      },
+      // Health metrics
+      metrics: {
+        bloodPressure: "Presión Arterial",
+        bloodGlucose: "Glucosa en Sangre",
+        ldlCholesterol: "Colesterol LDL",
+        heartRate: "Frecuencia Cardíaca",
+        oxygenSaturation: "Saturación de Oxígeno",
+        whiteBloodCells: "Glóbulos Blancos",
+        weight: "Peso",
+        bodyFat: "Grasa Corporal",
+        sleep: "Sueño",
+        redBloodCells: "Glóbulos Rojos",
+        hemoglobin: "Hemoglobina",
+        platelets: "Plaquetas",
+        hematocrit: "Hematocrito",
+        totalCholesterol: "Colesterol Total",
+        hdlCholesterol: "Colesterol HDL",
+        triglycerides: "Triglicéridos",
+        totalHdlRatio: "Relación Total/HDL",
+        glucose: "Glucosa",
+        hemoglobinA1C: "Hemoglobina A1C",
+        tsh: "TSH",
+        t4Free: "T4 Libre",
+        insulin: "Insulina",
+        bun: "BUN",
+        creatinine: "Creatinina",
+        egfr: "eGFR",
+        bunCreatinineRatio: "Relación BUN/Creatinina",
+        uricAcid: "Ácido Úrico",
+        sodium: "Sodio",
+        potassium: "Potasio",
+        calcium: "Calcio",
+        chloride: "Cloruro",
+        magnesium: "Magnesio",
+        protein: "Proteína",
+        ketones: "Cetonas",
+        ph: "pH",
+        specificGravity: "Gravedad Específica",
+      },
+      // AI Summary
+      aiSummary: {
+        overall: "General",
+        bloodTests: "Análisis de Sangre",
+        bodyComposition: "Composición Corporal",
+        vitals: "Signos Vitales",
+        lifestyle: "Estilo de Vida",
+      },
+      // Health frequency
+      frequency: {
+        daily: "diario",
+        twiceDaily: "dos veces al día",
+      },
+      // Health notes examples
+      notesExamples: {
+        bloodPressureImproved: "La presión arterial ha mejorado con medicación",
+        ldlElevated: "Los niveles de LDL aún elevados, monitoreando",
+        glucoseNormalized: "Los niveles de glucosa se normalizaron con tratamiento",
+        fullyResolved: "Condición completamente resuelta",
+        fullyHealed: "Lesión completamente curada",
+      },
+      // Health treatment examples
+      treatmentExamples: {
+        dietExercise: "dieta y ejercicio",
+        antibioticsRest: "antibióticos y descanso",
+        ricePhysicalTherapy: "protocolo RICE y fisioterapia",
+      },
+      // Health outcomes
+      outcomes: {
+        managedMedicationStents: "Manejado con medicación y stents",
+        managedMedicationDiet: "Manejado con medicación y dieta",
+        controlledMedication: "Controlado con medicación",
+        successfullyTreated: "Tratado exitosamente",
+      },
+      // Health age ranges
+      ageRanges: {
+        fifties: "50s",
+      },
+      // Health values
+      values: {
+        negative: "Negativo",
+      },
+      // Health changes
+      changes: {
+        noChange: "Sin cambios",
+      },
+      // Health categories
+      categories: {
+        hematology: "Hematología",
+        biochemistry: "Bioquímica",
+        endocrinology: "Endocrinología",
+        kidneyfunction: "Función Renal",
+        electrolytes: "Electrolitos",
+        urinalysis: "Análisis de Orina",
+      },
+      // Health conditions
+      conditions: {
+        hypertension: "Hipertensión",
+        hyperlipidemia: "Hiperlipidemia",
+        type2Diabetes: "Diabetes Tipo 2",
+        acuteBronchitis: "Bronquitis Aguda",
+        ankleSprainRight: "Esguince de Tobillo Derecho",
+        coronaryArteryDisease: "Enfermedad de las Arterias Coronarias",
+        breastCancer: "Cáncer de Mama",
+      },
+      // Health dates
+      dates: {
+        january2020: "Enero 2020",
+        february2020: "Febrero 2020",
+        november2022: "Noviembre 2022",
+        december2022: "Diciembre 2022",
+        june2021: "Junio 2021",
+        august2021: "Agosto 2021",
+      },
+      // Health relations
+      relations: {
+        father: "Padre",
+        mother: "Madre",
+        fatherMother: "Padre y Madre",
+        maternalAunt: "Tía Materna",
+      },
+    },
+    // Common
+    common: {
+      analyzing: "Analizando",
+      optional: "Opcional",
+      edit: "Editar",
+      delete: "Eliminar",
+      confirmDelete: "¿Estás seguro de que quieres eliminar este elemento?"
     },
     // Actions
     action: {
@@ -546,7 +1031,50 @@ export const translations = {
       save: "Guardar",
       cancel: "Cancelar",
       delete: "Eliminar",
-      add: "Agregar"
+      add: "Agregar",
+      create: "Crear",
+      update: "Actualizar"
+    },
+    // Dropdown
+    dropdown: {
+      addValue: "Agregar Valor",
+      addDocument: "Agregar Documento",
+      analysis: "Análisis",
+      cardio: "Cardio",
+      images: "Imágenes",
+    },
+    // Dashboard
+    dashboard: {
+      bloodPressure: "Presión Arterial",
+      normalBP: "Normal",
+      bloodGlucose: "Glucosa en Sangre", 
+      normalGlucose: "Normal",
+      totalCholesterol: "Colesterol Total",
+      normalCholesterol: "Normal",
+      dailySteps: "Pasos Diarios",
+      targetSteps: "Objetivo: 10,000",
+      sleepDuration: "Duración del Sueño",
+      targetSleep: "Objetivo: 8h",
+      stressLevel: "Nivel de Estrés",
+      medium: "Medio",
+      high: "Alto",
+      targetStress: "Objetivo: Bajo",
+      physicalActivity: "Actividad Física",
+      healthAssessment: "Evaluación de Salud",
+      planAssessment: "Evaluación del Plan", 
+      planStrengths: "Fortalezas del Plan",
+    },
+    // Medications
+    medications: {
+      greeting: "¡Buenos días, {name}!",
+      manageReminders: "Gestiona tus medicamentos y recordatorios",
+      addMedication: "Agregar Medicamento",
+      addNewMedication: "Agregar Nuevo Medicamento",
+      enterDetails: "Ingresa los detalles de tu nuevo medicamento.",
+      name: "Nombre",
+      namePlaceholder: "Ingresa el nombre del medicamento",
+      dosage: "Dosis",
+      dosagePlaceholder: "Ingresa la dosis (ej., 10mg)",
     },
   },
   "pt-PT": {
@@ -561,7 +1089,35 @@ export const translations = {
       startButton: "Iniciar Perfil de Saúde",
       skipButton: "Ignorar por Agora",
     },
+    // Greetings
+    greeting: {
+      morning: "Bom Dia",
+      afternoon: "Boa Tarde", 
+      evening: "Boa Noite",
+    },
+    // Messages
+    messages: {
+      communicateWithTeam: "Comunica-te com a tua equipa de saúde",
+    },
+    // Notifications
+    notifications: {
+      title: "Notificações",
+      markAllAsRead: "Marcar tudo como lido",
+      noNotifications: "Sem novas notificações",
+    },
     // Navigation
+    nav: {
+      dashboard: "Painel",
+      healthRecords: "Registos de Saúde",
+      healthPlan: "Plano de Saúde",
+      medications: "Medicamentos",
+      messages: "Mensagens",
+      appointments: "Consultas",
+      permissions: "Permissões",
+      profileSettings: "Perfil e Configurações",
+      logout: "Sair",
+      healthGoals: "Objetivos de Saúde",
+    },
     navigation: {
       step: "Passo",
       of: "de",
@@ -782,9 +1338,22 @@ export const translations = {
       currentConditions: "Condições Médicas Atuais",
       pastConditions: "Condições Médicas Passadas",
       familyHistory: "Historial Médico Familiar",
+      surgeriesHospitalizations: "Cirurgias e Hospitalizações",
       activeConditions: "Condições ativas que requerem gestão contínua",
       resolvedConditions: "Condições previamente diagnosticadas que foram resolvidas",
       familyConditions: "Historial médico de membros da família",
+      previousSurgeriesDesc: "Procedimentos cirúrgicos e hospitalizações anteriores",
+      editSurgeriesDesc: "Atualize seus procedimentos cirúrgicos e hospitalizações",
+      addSurgeriesDesc: "Adicionar um novo procedimento cirúrgico ou hospitalização",
+      surgery: "Cirurgia",
+      hospitalization: "Hospitalização",
+      bodyArea: "Área do Corpo",
+      reason: "Razão",
+      namePlaceholder: "Digite o nome do procedimento",
+      reasonPlaceholder: "Digite a razão do procedimento",
+      treatmentPlaceholder: "Digite o tratamento recebido",
+      bodyAreaPlaceholder: "Digite a área do corpo afetada",
+      notesPlaceholder: "Digite notas adicionais",
       condition: "Condição",
       diagnosed: "Diagnosticado",
       treatment: "Tratamento",
@@ -794,6 +1363,13 @@ export const translations = {
       relation: "Relação",
       outcome: "Resultado",
       notes: "Notas",
+      name: "Nome",
+      currentStatus: "Estado Atual",
+      recovery: {
+        full: "Recuperação Completa",
+        partial: "Recuperação Parcial",
+        none: "Sem Recuperação"
+      },
       status: {
         controlled: "Controlado",
         partiallyControlled: "Parcialmente Controlado",
@@ -813,7 +1389,177 @@ export const translations = {
       body: "Corpo",
       lifestyle: "Estilo de Vida",
       vitals: "Sinais Vitais",
-      images: "Exames"
+      images: "Exames",
+      // Form fields
+      date: "Data",
+      type: "Tipo",
+      provider: "Fornecedor",
+      file: "Ficheiro",
+      description: "Descrição",
+      other: "Outro",
+      value: "Valor",
+      referenceRange: "Intervalo de Referência",
+      section: "Secção",
+      // Document types
+      documents: {
+        completeBloodCount: "Hemograma Completo",
+        comprehensiveMetabolicPanel: "Painel Metabólico Completo",
+        lipidPanel: "Painel de Lípidos",
+        hemoglobinA1C: "Hemoglobina A1C",
+        selectDocumentType: "Selecionar tipo de documento",
+        healthcareProviderName: "Nome do fornecedor de saúde",
+        addDescriptionPlaceholder: "Adicionar uma descrição para este relatório de laboratório...",
+        // Analysis dialog translations
+        analyzingDocument: "Analisando Documento...",
+        analysisResults: "Resultados da Análise",
+        analyzingDocumentPleaseWait: "Por favor aguarde enquanto analisamos o seu documento de laboratório...",
+        reviewExtractedValues: "Revisa os valores de laboratório extraídos. Podes editar ou remover entradas individuais antes de confirmar.",
+        analyzingYourLabDocument: "Analisando o seu documento de laboratório...",
+        thisMayTakeAFewMoments: "Isto pode demorar alguns momentos",
+        noMetricsFound: "Nenhuma métrica encontrada no documento",
+        pleaseReviewDocumentOrTryAgain: "Por favor revê o documento ou tenta carregá-lo novamente",
+        rejectResults: "Rejeitar Resultados",
+        confirmResults: "Confirmar Resultados",
+        notSpecified: "Não especificado",
+        value: "Valor",
+        referenceRange: "Intervalo de Referência",
+        section: "Secção",
+        confidence: "Confiança",
+        metricName: "Nome da Métrica",
+        unit: "Unidade",
+        referenceRangeMin: "Intervalo de Referência Mín",
+        referenceRangeMax: "Intervalo de Referência Máx",
+        abnormal: "Anormal",
+        normal: "Normal"
+      },
+      // Health metrics
+      metrics: {
+        bloodPressure: "Pressão Arterial",
+        bloodGlucose: "Glicose no Sangue",
+        ldlCholesterol: "Colesterol LDL",
+        heartRate: "Frequência Cardíaca",
+        oxygenSaturation: "Saturação de Oxigénio",
+        whiteBloodCells: "Glóbulos Brancos",
+        weight: "Peso",
+        bodyFat: "Gordura Corporal",
+        sleep: "Sono",
+        redBloodCells: "Glóbulos Vermelhos",
+        hemoglobin: "Hemoglobina",
+        platelets: "Plaquetas",
+        hematocrit: "Hematócrito",
+        totalCholesterol: "Colesterol Total",
+        hdlCholesterol: "Colesterol HDL",
+        triglycerides: "Triglicéridos",
+        totalHdlRatio: "Relação Total/HDL",
+        glucose: "Glicose",
+        hemoglobinA1C: "Hemoglobina A1C",
+        tsh: "TSH",
+        t4Free: "T4 Livre",
+        insulin: "Insulina",
+        bun: "BUN",
+        creatinine: "Creatinina",
+        egfr: "eGFR",
+        bunCreatinineRatio: "Relação BUN/Creatinina",
+        uricAcid: "Ácido Úrico",
+        sodium: "Sódio",
+        potassium: "Potássio",
+        calcium: "Cálcio",
+        chloride: "Cloreto",
+        magnesium: "Magnésio",
+        protein: "Proteína",
+        ketones: "Cetonas",
+        ph: "pH",
+        specificGravity: "Gravidade Específica",
+      },
+      // AI Summary
+      aiSummary: {
+        overall: "Geral",
+        bloodTests: "Análises de Sangue",
+        bodyComposition: "Composição Corporal",
+        vitals: "Sinais Vitais",
+        lifestyle: "Estilo de Vida",
+      },
+      // Health frequency
+      frequency: {
+        daily: "diário",
+        twiceDaily: "duas vezes ao dia",
+      },
+      // Health notes examples
+      notesExamples: {
+        bloodPressureImproved: "A pressão arterial melhorou com medicação",
+        ldlElevated: "Níveis de LDL ainda elevados, monitorizando",
+        glucoseNormalized: "Níveis de glucose normalizados com tratamento",
+        fullyResolved: "Condição completamente resolvida",
+        fullyHealed: "Lesão completamente curada",
+      },
+      // Health treatment examples
+      treatmentExamples: {
+        dietExercise: "dieta e exercício",
+        antibioticsRest: "antibióticos e repouso",
+        ricePhysicalTherapy: "protocolo RICE e fisioterapia",
+      },
+      // Health outcomes
+      outcomes: {
+        managedMedicationStents: "Gerido com medicação e stents",
+        managedMedicationDiet: "Gerido com medicação e dieta",
+        controlledMedication: "Controlado com medicação",
+        successfullyTreated: "Tratado com sucesso",
+      },
+      // Health age ranges
+      ageRanges: {
+        fifties: "50s",
+      },
+      // Health values
+      values: {
+        negative: "Negativo",
+      },
+      // Health changes
+      changes: {
+        noChange: "Sem alterações",
+      },
+      // Health categories
+      categories: {
+        hematology: "Hematologia",
+        biochemistry: "Bioquímica",
+        endocrinology: "Endocrinologia",
+        kidneyfunction: "Função Renal",
+        electrolytes: "Eletrólitos",
+        urinalysis: "Análise de Urina",
+      },
+      // Health conditions
+      conditions: {
+        hypertension: "Hipertensão",
+        hyperlipidemia: "Hiperlipidemia",
+        type2Diabetes: "Diabetes Tipo 2",
+        acuteBronchitis: "Bronquite Aguda",
+        ankleSprainRight: "Entorse do Tornozelo Direito",
+        coronaryArteryDisease: "Doença das Artérias Coronárias",
+        breastCancer: "Cancro da Mama",
+      },
+      // Health dates
+      dates: {
+        january2020: "Janeiro 2020",
+        february2020: "Fevereiro 2020",
+        november2022: "Novembro 2022",
+        december2022: "Dezembro 2022",
+        june2021: "Junho 2021",
+        august2021: "Agosto 2021",
+      },
+      // Health relations
+      relations: {
+        father: "Pai",
+        mother: "Mãe",
+        fatherMother: "Pai e Mãe",
+        maternalAunt: "Tia Materna",
+      },
+    },
+    // Common
+    common: {
+      analyzing: "Analisando",
+      optional: "Opcional",
+      edit: "Editar",
+      delete: "Eliminar",
+      confirmDelete: "Tem certeza de que deseja excluir este item?"
     },
     // Actions
     action: {
@@ -821,7 +1567,50 @@ export const translations = {
       save: "Guardar",
       cancel: "Cancelar",
       delete: "Eliminar",
-      add: "Adicionar"
+      add: "Adicionar",
+      create: "Criar",
+      update: "Atualizar"
+    },
+    // Dropdown
+    dropdown: {
+      addValue: "Adicionar Valor",
+      addDocument: "Adicionar Documento",
+      analysis: "Análise",
+      cardio: "Cardio",
+      images: "Imagens",
+    },
+    // Dashboard
+    dashboard: {
+      bloodPressure: "Pressão Arterial",
+      normalBP: "Normal",
+      bloodGlucose: "Glicose no Sangue", 
+      normalGlucose: "Normal",
+      totalCholesterol: "Colesterol Total",
+      normalCholesterol: "Normal",
+      dailySteps: "Passos Diários",
+      targetSteps: "Objetivo: 10,000",
+      sleepDuration: "Duração do Sono",
+      targetSleep: "Objetivo: 8h",
+      stressLevel: "Nível de Stress",
+      medium: "Médio",
+      high: "Alto",
+      targetStress: "Objetivo: Baixo",
+      physicalActivity: "Atividade Física",
+      healthAssessment: "Avaliação de Saúde",
+      planAssessment: "Avaliação do Plano", 
+      planStrengths: "Pontos Fortes do Plano",
+    },
+    // Medications
+    medications: {
+      greeting: "Bom dia, {name}!",
+      manageReminders: "Gerir os teus medicamentos e lembretes",
+      addMedication: "Adicionar Medicamento",
+      addNewMedication: "Adicionar Novo Medicamento",
+      enterDetails: "Introduz os detalhes do teu novo medicamento.",
+      name: "Nome",
+      namePlaceholder: "Introduz o nome do medicamento",
+      dosage: "Dosagem",
+      dosagePlaceholder: "Introduz a dosagem (ex., 10mg)",
     },
   },
 }

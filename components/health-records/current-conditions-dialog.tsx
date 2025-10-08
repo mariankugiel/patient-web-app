@@ -142,6 +142,17 @@ export function CurrentConditionsDialog({ open, onOpenChange, onRefresh }: Curre
         </DialogHeader>
         
         <div className="max-h-[400px] overflow-y-auto space-y-4">
+          {/* Add New Button at Top */}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleAddNew}
+            className="w-full"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add New Current Condition
+          </Button>
+          
           {editingConditions.map((condition, index) => (
             <div key={index} className="border rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
@@ -220,16 +231,6 @@ export function CurrentConditionsDialog({ open, onOpenChange, onRefresh }: Curre
               </div>
             </div>
           ))}
-          
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleAddNew}
-            className="w-full"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add New Condition
-          </Button>
         </div>
         
         <DialogFooter>

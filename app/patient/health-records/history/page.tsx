@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button"
 import { PencilIcon, Loader2 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { useCurrentMedicalConditions, usePastMedicalConditions, useFamilyMedicalHistory } from "@/hooks/use-medical-conditions"
+import { useSurgeryHospitalization } from "@/hooks/use-surgery-hospitalization"
 import { CurrentConditionsDialog } from "@/components/health-records/current-conditions-dialog"
 import { PastConditionsDialog } from "@/components/health-records/past-conditions-dialog"
 import { FamilyHistoryDialog } from "@/components/health-records/family-history-dialog"
+import { SurgeriesHospitalizationsSection } from "@/components/health-records/surgeries-hospitalizations-section"
 
 export default function HistoryPage() {
   const { t } = useLanguage()
@@ -237,6 +239,9 @@ export default function HistoryPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Surgeries & Hospitalizations Section */}
+      <SurgeriesHospitalizationsSection />
 
       {/* Dialog Components */}
       <CurrentConditionsDialog 

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Brain, AlertTriangle, ThumbsUp, Lightbulb, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { AIDisclaimer } from './ai-disclaimer'
 
 interface AIAnalysisSectionProps {
   title: string
@@ -180,6 +181,9 @@ export function AIAnalysisSection({
                 </p>
               </div>
             )}
+
+            {/* AI Disclaimer */}
+            <AIDisclaimer />
           </div>
         </div>
       </CardContent>

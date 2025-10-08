@@ -16,6 +16,8 @@ import {
   Plus,
   Download,
   Loader2,
+  Edit,
+  Trash2,
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { useAnalysisDashboard } from "@/hooks/use-health-records"
@@ -25,7 +27,8 @@ import { AIAnalysisSection } from "@/components/health-records/ai-analysis-secti
 import {
   HealthRecordSection,
 } from "@/lib/api/health-records-api"
-import { LabDocumentUpload } from "@/components/lab-document-upload"
+import { LabDocumentDialog } from "@/components/lab-documents/lab-document-dialog"
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { toast } from "react-toastify"
 import { medicalDocumentsApiService, MedicalDocument } from "@/lib/api/medical-documents-api"
 
@@ -49,6 +52,10 @@ export default function AnalysisPage() {
   const [allDocumentsLoading, setAllDocumentsLoading] = useState(false)
   const [currentPage, setCurrentPage] = useState(0)
   const [totalDocuments, setTotalDocuments] = useState(0)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [documentToDelete, setDocumentToDelete] = useState<MedicalDocument | null>(null)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [documentToEdit, setDocumentToEdit] = useState<MedicalDocument | null>(null)
 
   // Function to trigger AI analysis
   const handleGenerateAIAnalysis = useCallback(async (forceCheck: boolean = false) => {
@@ -135,6 +142,44 @@ export default function AnalysisPage() {
     }
   }
 
+  const handleEditDocument = (document: MedicalDocument) => {
+    setDocumentToEdit(document)
+    setEditDialogOpen(true)
+  }
+
+  const handleDeleteDocument = (document: MedicalDocument) => {
+    setDocumentToDelete(document)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteDocument = async () => {
+    if (!documentToDelete) return
+
+    try {
+      await medicalDocumentsApiService.deleteMedicalDocument(documentToDelete.id)
+      toast.success('Document deleted successfully')
+      
+      // Refresh the documents list
+      fetchMedicalDocuments()
+      fetchAllDocuments(currentPage)
+      
+      setDeleteDialogOpen(false)
+      setDocumentToDelete(null)
+    } catch (error) {
+      console.error('Error deleting document:', error)
+      toast.error('Failed to delete document')
+    }
+  }
+
+  const handleDocumentUpdated = (updatedDocument: MedicalDocument) => {
+    // Update the document in the local state
+    setMedicalDocuments(prev => 
+      prev.map(doc => doc.id === updatedDocument.id ? updatedDocument : doc)
+    )
+    setEditDialogOpen(false)
+    setDocumentToEdit(null)
+  }
+
   // Remove main loading state to prevent white page - let individual components handle loading
 
   return (
@@ -191,25 +236,39 @@ export default function AnalysisPage() {
                           <p className="text-sm font-semibold text-gray-900 leading-tight flex items-center gap-2">
                             <Calendar className="h-3 w-3 text-gray-500 flex-shrink-0" />
                             {doc.lab_test_date ? new Date(doc.lab_test_date).toLocaleDateString() : 'No date'}
-                            {doc.provider && (
-                              <span className="text-gray-600 font-normal"> • {doc.provider}</span>
-                            )}
+                            <span className="text-gray-600 font-normal"> • {doc.provider || 'No Provider'}</span>
                           </p>
                           {doc.lab_test_name && (
                             <p className="text-xs text-gray-700 mt-1 font-medium">{doc.lab_test_name}</p>
                           )}
-                          {doc.description && (
-                            <p className="text-xs text-gray-500 mt-1 line-clamp-2">{doc.description}</p>
-                          )}
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-2">{doc.description || 'No Description'}</p>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDownloadDocument(doc.id, doc.file_name)}
-                          className="ml-2 h-8 w-8 p-0 hover:bg-gray-200 flex-shrink-0"
-                        >
-                          <Download className="h-3 w-3" />
+                        <div className="flex items-center gap-1 ml-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleEditDocument(doc)}
+                            className="h-8 w-8 p-0 hover:bg-gray-200 flex-shrink-0"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteDocument(doc)}
+                            className="h-8 w-8 p-0 hover:bg-red-100 text-red-600 hover:text-red-700 flex-shrink-0"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDownloadDocument(doc.id, doc.file_name)}
+                            className="h-8 w-8 p-0 hover:bg-gray-200 flex-shrink-0"
+                          >
+                            <Download className="h-3 w-3" />
                       </Button>
+                        </div>
                     </div>
                     ))}
                   </div>
@@ -276,16 +335,12 @@ export default function AnalysisPage() {
                       <p className="text-sm font-semibold text-gray-900 leading-tight flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-gray-500 flex-shrink-0" />
                         {doc.lab_test_date ? new Date(doc.lab_test_date).toLocaleDateString() : 'No date'}
-                        {doc.provider && (
-                          <span className="text-gray-600 font-normal"> • {doc.provider}</span>
-                        )}
+                        <span className="text-gray-600 font-normal"> • {doc.provider || 'No Provider'}</span>
                       </p>
                       {doc.lab_test_name && (
                         <p className="text-sm text-gray-700 mt-1 font-medium">{doc.lab_test_name}</p>
                       )}
-                      {doc.description && (
-                        <p className="text-sm text-gray-500 mt-1 line-clamp-2">{doc.description}</p>
-                      )}
+                      <p className="text-sm text-gray-500 mt-1 line-clamp-2">{doc.description || 'No Description'}</p>
                     </div>
                     <Button
                       size="sm"
@@ -333,16 +388,45 @@ export default function AnalysisPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Lab Document Upload Dialog */}
-      <LabDocumentUpload
+      {/* Lab Document Dialog (Upload/Edit) */}
+      <LabDocumentDialog
         open={labUploadOpen}
         onOpenChange={setLabUploadOpen}
+        mode="upload"
+        onDocumentCreated={(document) => {
+          console.log('Lab document created:', document)
+          toast.success('Lab document uploaded successfully!')
+          // Refresh the dashboard to show new data
+          refresh()
+          // Refresh the lab documents list
+          fetchMedicalDocuments()
+        }}
         onAnalysisComplete={(results) => {
           console.log('Lab analysis completed:', results)
           toast.success('Lab document uploaded and analyzed successfully!')
           // Refresh the dashboard to show new data
           refresh()
+          // Refresh the lab documents list
+          fetchMedicalDocuments()
         }}
+      />
+
+      <LabDocumentDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        mode="edit"
+        document={documentToEdit}
+        onDocumentUpdated={handleDocumentUpdated}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmationDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={confirmDeleteDocument}
+        title="Delete Lab Document"
+        description="Are you sure you want to delete this lab document? This action cannot be undone."
+        itemName={documentToDelete?.file_name}
       />
     </div>
   )

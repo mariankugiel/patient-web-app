@@ -136,6 +136,17 @@ export function PastConditionsDialog({ open, onOpenChange, onRefresh }: PastCond
         </DialogHeader>
         
         <div className="max-h-[400px] overflow-y-auto space-y-4">
+          {/* Add New Button at Top */}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleAddNew}
+            className="w-full"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add New Past Condition
+          </Button>
+          
           {editingConditions.map((condition, index) => (
             <div key={index} className="border rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
@@ -205,16 +216,6 @@ export function PastConditionsDialog({ open, onOpenChange, onRefresh }: PastCond
               </div>
             </div>
           ))}
-          
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleAddNew}
-            className="w-full"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add New Past Condition
-          </Button>
         </div>
         
         <DialogFooter>

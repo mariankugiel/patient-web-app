@@ -328,7 +328,14 @@ export function useAnalysisDashboard(healthRecordTypeId: number = 1) {
       setSections(prev => prev.map(section => ({
         ...section,
         metrics: section.metrics?.map(metric => 
-          metric.id === metricId ? { ...metric, ...updatedMetric } : metric
+          metric.id === metricId ? { 
+            ...metric, 
+            name: updatedMetric.name || metric.name,
+            display_name: updatedMetric.display_name || metric.display_name,
+            description: updatedMetric.description || metric.description,
+            default_unit: updatedMetric.default_unit || metric.default_unit,
+            reference_data: updatedMetric.reference_data || metric.reference_data
+          } : metric
         )
       })))
       
@@ -454,14 +461,14 @@ export function formatReferenceRange(min?: number, max?: number): string {
       } else {
         // For decimals, round down but preserve decimal places to 0.01
         const roundedMin = Math.floor(min * 100) / 100
-        return `> ${roundedMin}`
+        return `> ${roundedMin.toFixed(2)}`
       }
     }
     return 'N/A'
   }
   
-  // Case: 92-93, show originally
-  return `${min} - ${max}`
+  // Case: 92-93, show originally with proper precision
+  return `${min.toFixed(2)} - ${max.toFixed(2)}`
 }
 
 export function getStatusColor(status: string): string {

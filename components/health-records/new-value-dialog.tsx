@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -16,6 +16,7 @@ import { formatReferenceRange } from '@/hooks/use-health-records'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
 import { HealthRecord } from './types'
+import apiClient from '@/lib/api/axios-config'
 
 export interface HealthRecordMetric {
   id: number
@@ -82,8 +83,8 @@ export function NewValueDialog({
     }
   }, [selectedSectionId])
 
-  // Get available metrics for the selected section (only user-created metrics)
-  const getAvailableMetrics = (): HealthRecordMetric[] => {
+  // Get available metrics for the selected section (only user-created metrics) - memoized
+  const availableMetricsList = useMemo((): HealthRecordMetric[] => {
     // If we have sections and a selected section, use metrics from that section
     if (sections && selectedSectionId) {
       const selectedSection = sections.find(section => section.id === selectedSectionId)
@@ -100,7 +101,7 @@ export function NewValueDialog({
     
     console.log('No metrics available')
     return []
-  }
+  }, [sections, selectedSectionId, availableMetrics])
 
   // Helper function to get gender-specific reference range
   const getGenderSpecificReferenceRange = (metric: HealthRecordMetric) => {
@@ -166,6 +167,28 @@ export function NewValueDialog({
     if (isNaN(numValue)) {
       toast.error('Please enter a valid number')
       return
+    }
+
+    // Check for duplicate values on the same date/hour
+    try {
+      const duplicateCheckResponse = await apiClient.post('/health-records/check-duplicate', {
+        metric_id: selectedMetric.id,
+        recorded_at: new Date(recordedDate).toISOString()
+      })
+
+      if (duplicateCheckResponse.data.duplicate_found) {
+        const existingRecord = duplicateCheckResponse.data.existing_record
+        const shouldUpdate = window.confirm(
+          `A value already exists for this metric on ${new Date(recordedDate).toLocaleDateString()} at ${new Date(recordedDate).getHours()}:00. Do you want to update the existing value (${existingRecord.value}) with the new value (${numValue})?`
+        )
+        
+        if (!shouldUpdate) {
+          return
+        }
+      }
+    } catch (error) {
+      console.warn('Could not check for duplicate values:', error)
+      // Continue with creation even if duplicate check fails
     }
 
     setLoading(true)
@@ -297,7 +320,7 @@ export function NewValueDialog({
                   <CommandList>
                     <CommandEmpty>No metrics found.</CommandEmpty>
                     <CommandGroup>
-                      {getAvailableMetrics().map((metric) => (
+                      {availableMetricsList.map((metric) => (
                         <CommandItem
                           key={metric.id}
                           value={metric.display_name}

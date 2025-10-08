@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -140,6 +140,47 @@ export function AnalysisOverviewSection({
     setDeleteConfirmationOpen(true)
   }, [])
 
+  // Memoize sections mapping to prevent unnecessary re-renders
+  const memoizedSections = useMemo(() => {
+    return sections.map(section => ({
+      id: section.id,
+      display_name: section.display_name,
+      name: section.name,
+      metrics: section.metrics.map(metric => ({
+        id: metric.id,
+        section_id: section.id,
+        name: metric.name,
+        display_name: metric.display_name,
+        description: metric.description,
+        default_unit: metric.default_unit,
+        unit: metric.unit,
+        reference_data: metric.reference_data,
+        data_type: metric.data_type || 'number',
+        is_default: metric.is_default || false,
+        created_at: metric.created_at || new Date().toISOString(),
+        created_by: metric.created_by || 0
+      }))
+    }))
+  }, [sections])
+
+  // Memoize availableMetrics mapping to prevent unnecessary re-renders
+  const memoizedAvailableMetrics = useMemo(() => {
+    return (selectedSectionForValue?.metrics || []).map((metric) => ({
+      id: metric.id,
+      section_id: selectedSectionForValue?.id || 0,
+      name: metric.name,
+      display_name: metric.display_name,
+      description: metric.description,
+      default_unit: metric.default_unit,
+      unit: metric.unit,
+      reference_data: metric.reference_data,
+      data_type: 'number',
+      is_default: false,
+      created_at: new Date().toISOString(),
+      created_by: 1
+    }))
+  }, [selectedSectionForValue])
+
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return
 
@@ -152,6 +193,12 @@ export function AnalysisOverviewSection({
         // Delete metric (this will cascade delete records)
         await HealthRecordsApiService.deleteMetric(deleteTarget.id)
         toast.success('Metric deleted successfully!')
+        
+        // Close the metric detail dialog if it's open for the deleted metric
+        if (selectedMetric && selectedMetric.id === deleteTarget.id) {
+          setMetricDetailDialogOpen(false)
+          setSelectedMetric(null)
+        }
       }
       
       setDeleteConfirmationOpen(false)
@@ -161,7 +208,7 @@ export function AnalysisOverviewSection({
       console.error('Failed to delete:', error)
       toast.error('Failed to delete. Please try again.')
     }
-  }, [deleteTarget, refresh])
+  }, [deleteTarget, refresh, selectedMetric])
 
   // Determine status based on reference range
   const getStatusFromValue = (value: number, referenceRange: string): "normal" | "abnormal" | "critical" => {
@@ -299,7 +346,7 @@ export function AnalysisOverviewSection({
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>
+              <CardTitle className="text-lg">
                 {title}
               </CardTitle>
               <CardDescription>
@@ -455,39 +502,8 @@ export function AnalysisOverviewSection({
         onValueCreated={handleValueCreated}
         sectionId={selectedSectionForValue?.id || 0}
         sectionName={selectedSectionForValue?.display_name || ''}
-        sections={sections.map(section => ({
-          id: section.id,
-          display_name: section.display_name,
-          name: section.name,
-          metrics: section.metrics.map(metric => ({
-            id: metric.id,
-            section_id: section.id,
-            name: metric.name,
-            display_name: metric.display_name,
-            description: metric.description,
-            default_unit: metric.default_unit,
-            unit: metric.unit,
-            reference_data: metric.reference_data,
-            data_type: metric.data_type || 'number',
-            is_default: metric.is_default || false,
-            created_at: metric.created_at || new Date().toISOString(),
-            created_by: metric.created_by || 0
-          }))
-        }))}
-        availableMetrics={(selectedSectionForValue?.metrics || []).map((metric) => ({
-          id: metric.id,
-          section_id: selectedSectionForValue?.id || 0,
-          name: metric.name,
-          display_name: metric.display_name,
-          description: metric.description,
-          default_unit: metric.default_unit,
-          unit: metric.unit,
-          reference_data: metric.reference_data,
-          data_type: 'number',
-          is_default: false,
-          created_at: new Date().toISOString(),
-          created_by: 1
-        }))}
+        sections={memoizedSections}
+        availableMetrics={memoizedAvailableMetrics}
         createRecord={createRecord}
       />
 

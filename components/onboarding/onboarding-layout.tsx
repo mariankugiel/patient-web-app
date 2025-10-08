@@ -26,6 +26,7 @@ interface OnboardingLayoutProps {
   onNext: () => void
   onSkip: () => void
   isSkipping?: boolean
+  isLoading?: boolean
   showBackButton?: boolean
   children: React.ReactNode
   stepTitle: string
@@ -53,6 +54,7 @@ export function OnboardingLayout({
   onNext,
   onSkip,
   isSkipping = false,
+  isLoading = false,
   showBackButton = true,
   children,
   stepTitle,
@@ -169,9 +171,15 @@ export function OnboardingLayout({
             </Button>
             <Button
               onClick={onNext}
+              disabled={isLoading}
               className="bg-primary hover:bg-primary/90 flex items-center gap-2"
             >
-              {currentStep === totalSteps ? (
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  {getTranslation(language, "navigation.saving")}
+                </>
+              ) : currentStep === totalSteps ? (
                 <>
                   <Check className="w-4 h-4" />
                   {getTranslation(language, "navigation.complete")}

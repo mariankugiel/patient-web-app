@@ -16,7 +16,7 @@ import {
   UserCog,
   Menu,
 } from "lucide-react"
-import { NotificationDropdown } from "@/components/notification-dropdown"
+import { NotificationBell } from "@/components/notification-bell"
 import { AddDropdown } from "@/components/add-dropdown"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Logo } from "@/components/logo"
@@ -59,7 +59,7 @@ export default function PatientSidebar() {
         </div>
         <div className="flex items-center">
           <AddDropdown />
-          <NotificationDropdown />
+          <NotificationBell userId={1} />
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="ml-2">
@@ -118,7 +118,7 @@ export default function PatientSidebar() {
           </div>
           <div className="flex items-center justify-start mb-4 space-x-1">
             <AddDropdown />
-            <NotificationDropdown />
+            <NotificationBell userId={1} />
           </div>
           <nav className="space-y-1">
             {navigation.map((item) => {

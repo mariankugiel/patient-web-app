@@ -8,16 +8,14 @@ export interface MedicalDocument {
   id: number
   created_by: number
   health_record_type_id: number
-  document_type: string
-  lab_test_name?: string
-  lab_test_type?: string
+  lab_doc_type: string
   lab_test_date?: string
   provider?: string
   file_name: string
   s3_url?: string
   file_type?: string
   description?: string
-  source?: string
+  general_doc_type: string
   created_at: string
   updated_at?: string
   updated_by?: number
@@ -25,29 +23,25 @@ export interface MedicalDocument {
 
 export interface MedicalDocumentCreate {
   health_record_type_id: number
-  document_type: string
-  lab_test_name?: string
-  lab_test_type?: string
+  lab_doc_type: string
   lab_test_date?: string
   provider?: string
   file_name: string
   s3_url?: string
   file_type?: string
   description?: string
-  source?: string
+  general_doc_type: string
 }
 
 export interface MedicalDocumentUpdate {
-  document_type?: string
-  lab_test_name?: string
-  lab_test_type?: string
+  lab_doc_type?: string
   lab_test_date?: string
   provider?: string
   file_name?: string
   s3_url?: string
   file_type?: string
   description?: string
-  source?: string
+  general_doc_type?: string
 }
 
 // ============================================================================
@@ -55,7 +49,7 @@ export interface MedicalDocumentUpdate {
 // ============================================================================
 
 export class MedicalDocumentsApiService {
-  private baseUrl = '/health-records/medical-documents'
+  private baseUrl = '/health-records/health-record-doc-lab'
 
   /**
    * Get medical documents for the current user

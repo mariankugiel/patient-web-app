@@ -1,7 +1,11 @@
 "use client"
 
-import { useState } from "react"
-import { PlusCircle, Send } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { 
+  PlusCircle, Send, Filter, Search, Bell, MessageSquare, 
+  Mic, Paperclip, Smile, MoreVertical,
+  X, Pin, Archive, Trash2, Star, User, Clock, CheckCheck
+} from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 
 import { Button } from "@/components/ui/button"
@@ -10,6 +14,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
   DialogContent,
@@ -19,9 +25,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator"
 import { useLanguage } from "@/contexts/language-context"
+import { useMessages } from "@/hooks/use-messages"
+import { useRealtimeMessages } from "@/hooks/use-realtime-messages"
+import { ConversationList } from "@/components/messages/conversation-list"
+import { MessageItem } from "@/components/messages/message-item"
+import { EnhancedMessageInput } from "@/components/messages/enhanced-message-input"
+import { UserInfoPanel } from "@/components/messages/user-info-panel"
+import { GlobalHeader } from "@/components/layout/global-header"
+import type { MessageFilters, MessageType } from "@/types/messages"
 
 // Sample conversation data
 const conversations = [
@@ -31,6 +51,13 @@ const conversations = [
       name: "Dr. Johnson",
       avatar: "/compassionate-doctor-consultation.png",
       role: "Primary Care Physician",
+      email: "dr.johnson@healthcare.com",
+      phone: "+1 (555) 123-4567",
+      specialty: "Internal Medicine",
+      experience: "15 years",
+      rating: 4.9,
+      isOnline: true,
+      lastSeen: "2023-05-15T17:30:00Z"
     },
     messages: [
       {
@@ -72,6 +99,8 @@ const conversations = [
     ],
     unreadCount: 0,
     lastMessageTime: "2023-05-15T17:30:00Z",
+    isPinned: true,
+    isArchived: false,
   },
   {
     id: "2",
@@ -79,6 +108,13 @@ const conversations = [
       name: "Dr. Smith",
       avatar: "/compassionate-heart-care.png",
       role: "Cardiologist",
+      email: "dr.smith@cardiology.com",
+      phone: "+1 (555) 234-5678",
+      specialty: "Cardiology",
+      experience: "12 years",
+      rating: 4.8,
+      isOnline: false,
+      lastSeen: "2023-05-10T11:00:00Z"
     },
     messages: [
       {
@@ -106,6 +142,8 @@ const conversations = [
     ],
     unreadCount: 0,
     lastMessageTime: "2023-05-10T11:00:00Z",
+    isPinned: false,
+    isArchived: false,
   },
   {
     id: "3",
@@ -113,6 +151,13 @@ const conversations = [
       name: "Dr. Patel",
       avatar: "/doctor-explaining-endocrine-system.png",
       role: "Endocrinologist",
+      email: "dr.patel@endocrinology.com",
+      phone: "+1 (555) 345-6789",
+      specialty: "Endocrinology",
+      experience: "18 years",
+      rating: 4.9,
+      isOnline: true,
+      lastSeen: "2023-05-05T16:50:00Z"
     },
     messages: [
       {
@@ -133,6 +178,8 @@ const conversations = [
     ],
     unreadCount: 2,
     lastMessageTime: "2023-05-05T16:50:00Z",
+    isPinned: false,
+    isArchived: false,
   },
   {
     id: "4",
@@ -140,6 +187,13 @@ const conversations = [
       name: "Health Plan Support",
       avatar: "/diverse-healthy-lifestyle.png",
       role: "Health Plan Team",
+      email: "support@healthplan.com",
+      phone: "+1 (555) 456-7890",
+      specialty: "Health Plan Management",
+      experience: "8 years",
+      rating: 4.7,
+      isOnline: true,
+      lastSeen: "2023-05-02T16:15:00Z"
     },
     messages: [
       {
@@ -173,6 +227,8 @@ const conversations = [
     ],
     unreadCount: 0,
     lastMessageTime: "2023-05-02T16:15:00Z",
+    isPinned: false,
+    isArchived: false,
   },
   {
     id: "5",
@@ -180,6 +236,13 @@ const conversations = [
       name: "Medication Reminders",
       avatar: "/diverse-medication-display.png",
       role: "Medication System",
+      email: "medications@healthcare.com",
+      phone: "System",
+      specialty: "Medication Management",
+      experience: "Automated",
+      rating: 4.6,
+      isOnline: true,
+      lastSeen: "2023-04-29T13:15:00Z"
     },
     messages: [
       {
@@ -229,52 +292,109 @@ const conversations = [
     ],
     unreadCount: 1,
     lastMessageTime: "2023-04-29T13:15:00Z",
+    isPinned: false,
+    isArchived: false,
   },
 ]
 
 export default function MessagesClientPage() {
   const { t } = useLanguage()
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
-    conversations.length > 0 ? conversations[0].id : null,
-  )
   const [newMessage, setNewMessage] = useState("")
   const [activeTab, setActiveTab] = useState("all")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [showFilters, setShowFilters] = useState(false)
   const [newMessageRecipient, setNewMessageRecipient] = useState("")
   const [newMessageSubject, setNewMessageSubject] = useState("")
   const [newMessageContent, setNewMessageContent] = useState("")
+  const [showUserInfo, setShowUserInfo] = useState(false)
 
-  const selectedConversation = conversations.find((conv) => conv.id === selectedConversationId)
+  // Use the messages hook
+  const {
+    conversations,
+    selectedConversation,
+    messages,
+    unreadCount,
+    unreadCountByType,
+    loading,
+    error,
+    selectConversation,
+    sendMessage,
+    markAsRead,
+    markConversationAsRead,
+    archiveConversation,
+    togglePin,
+    handleMedicationAction,
+    handleAppointmentAction,
+    handleLabResultAction,
+    filterConversations,
+    clearFilters,
+    currentFilters,
+    refreshConversations
+  } = useMessages()
 
-  const filteredConversations =
-    activeTab === "all"
-      ? conversations
-      : activeTab === "unread"
-        ? conversations.filter((conv) => conv.unreadCount > 0)
-        : conversations.filter((conv) => {
-            if (activeTab === "doctors")
-              return (
-                conv.contact.role.includes("Physician") ||
+  // Use real-time messaging hook
+  const {
+    typingUsers,
+    onlineUsers,
+    isTyping,
+    isConnected,
+    sendRealtimeMessage,
+    sendVoiceMessage,
+    sendFileMessage,
+    handleTyping,
+    typingUsersForCurrentConversation,
+    isUserOnline
+  } = useRealtimeMessages()
+
+  // Filter conversations based on active tab
+  const filteredConversations = conversations.filter((conv) => {
+    if (activeTab === "all") return true
+    if (activeTab === "doctors") {
+      return conv.contact.role.includes("Physician") ||
                 conv.contact.role.includes("Cardiologist") ||
-                conv.contact.role.includes("Endocrinologist")
-              )
-            if (activeTab === "system")
-              return (
-                conv.contact.role.includes("System") ||
+             conv.contact.role.includes("Endocrinologist") ||
+             conv.contact.role.includes("Doctor")
+    }
+    if (activeTab === "system") {
+      return conv.contact.role.includes("System") ||
                 conv.contact.role.includes("Team") ||
-                conv.contact.role.includes("Support")
-              )
+             conv.contact.role.includes("Support") ||
+             conv.contact.role.includes("Admin")
+    }
             return true
           })
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedConversationId) return
+  // Handle message action clicks
+  const handleMessageAction = async (messageId: string, action: string) => {
+    const message = messages.find(m => m.id === messageId)
+    if (!message) return
 
-    // In a real app, you would send this to an API
-    console.log("Sending message:", newMessage)
-
-    // Clear the input
-    setNewMessage("")
+    switch (message.type) {
+      case 'medication_reminder':
+        await handleMedicationAction(messageId, action as 'taken' | 'snooze')
+        break
+      case 'appointment_reminder':
+        await handleAppointmentAction(messageId, action as 'confirm' | 'reschedule' | 'cancel')
+        break
+      case 'lab_results':
+        await handleLabResultAction(messageId, action as 'view' | 'schedule_followup')
+        break
+      default:
+        console.log('Action not implemented for message type:', message.type)
+    }
   }
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversation) return
+
+    try {
+      await sendRealtimeMessage(newMessage.trim())
+      setNewMessage("")
+    } catch (error) {
+      console.error("Failed to send message:", error)
+    }
+  }
+
 
   const handleCreateNewMessage = () => {
     // In a real app, you would create a new conversation and send the message
@@ -290,221 +410,266 @@ export default function MessagesClientPage() {
     setNewMessageContent("")
   }
 
+
   return (
-    <div className="flex flex-col space-y-4 p-6">
-      <div className="flex items-center gap-4 mb-2">
-        <Avatar className="h-16 w-16 border-2 border-primary">
-          <AvatarImage src="/middle-aged-man-profile.png" alt="John Doe" />
-          <AvatarFallback>JD</AvatarFallback>
-        </Avatar>
-        <div>
-          <h1 className="text-2xl font-bold text-primary">{t("greeting.morning")}, John!</h1>
-          <p className="text-muted-foreground">{t("messages.communicateWithTeam")}</p>
-        </div>
-      </div>
+    <div className="flex flex-col h-screen bg-gray-50">
+      {/* Global Header */}
+      <GlobalHeader
+        title="Messages"
+        subtitle="Communicate with your healthcare team"
+        showNotification={true}
+        unreadCount={unreadCount}
+        showFilters={true}
+        onFilterClick={() => setShowFilters(!showFilters)}
+      />
 
-      <div className="flex justify-end mb-4">
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button className="bg-teal-600 hover:bg-teal-700 dark:bg-teal-600 dark:hover:bg-teal-700">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              {t("messages.newMessage")}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>{t("messages.newMessage")}</DialogTitle>
-              <DialogDescription>{t("messages.newMessageDesc")}</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="recipient" className="text-right">
-                  {t("messages.to")}
-                </Label>
-                <Input
-                  id="recipient"
-                  value={newMessageRecipient}
-                  onChange={(e) => setNewMessageRecipient(e.target.value)}
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="subject" className="text-right">
-                  {t("messages.subject")}
-                </Label>
-                <Input
-                  id="subject"
-                  value={newMessageSubject}
-                  onChange={(e) => setNewMessageSubject(e.target.value)}
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="message" className="text-right">
-                  {t("messages.message")}
-                </Label>
-                <Textarea
-                  id="message"
-                  value={newMessageContent}
-                  onChange={(e) => setNewMessageContent(e.target.value)}
-                  className="col-span-3"
-                  rows={5}
-                />
-              </div>
+      {/* Main Content */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left Panel - User List */}
+        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+          {/* Search */}
+          <div className="p-4 border-b border-gray-200">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search conversations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
             </div>
-            <DialogFooter>
-              <Button
-                onClick={handleCreateNewMessage}
-                className="bg-teal-600 hover:bg-teal-700 dark:bg-teal-600 dark:hover:bg-teal-700"
-              >
-                {t("messages.sendMessage")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+          </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <Card className="md:col-span-1">
-          <Tabs defaultValue="all" className="w-full" onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="all">{t("messages.all")}</TabsTrigger>
-              <TabsTrigger value="doctors">{t("messages.doctors")}</TabsTrigger>
-              <TabsTrigger value="unread">{t("messages.unread")}</TabsTrigger>
+          {/* Tabs */}
+          <Tabs defaultValue="all" className="w-full flex flex-col" onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-3 mx-4 mt-4">
+              <TabsTrigger value="all" className="flex items-center gap-2">
+                All
+                <Badge variant="secondary" className="text-xs">
+                  {conversations.length}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="doctors" className="flex items-center gap-2">
+                Doctors
+                <Badge variant="secondary" className="text-xs">
+                  {conversations.filter(c => c.contact.role.includes("Doctor") || c.contact.role.includes("Physician")).length}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="system" className="flex items-center gap-2">
+                System
+                <Badge variant="secondary" className="text-xs">
+                  {conversations.filter(c => c.contact.role.includes("System") || c.contact.role.includes("Support")).length}
+                </Badge>
+              </TabsTrigger>
             </TabsList>
-            <ScrollArea className="h-[600px]">
-              <div className="p-4">
-                <div className="space-y-2">
-                  {filteredConversations.map((conversation) => (
-                    <div
-                      key={conversation.id}
-                      className={`cursor-pointer rounded-lg border p-3 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${
-                        selectedConversationId === conversation.id
-                          ? "border-teal-600 bg-teal-50 dark:border-teal-400 dark:bg-teal-950"
-                          : ""
-                      } ${conversation.unreadCount > 0 ? "border-l-4 border-l-teal-600 dark:border-l-teal-400" : ""}`}
-                      onClick={() => setSelectedConversationId(conversation.id)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <Avatar>
-                          <AvatarImage
-                            src={conversation.contact.avatar || "/placeholder.svg"}
-                            alt={conversation.contact.name}
-                          />
-                          <AvatarFallback>{conversation.contact.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 overflow-hidden">
-                          <div className="flex items-center justify-between">
-                            <div className="font-medium">{conversation.contact.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(new Date(conversation.lastMessageTime), { addSuffix: true })}
-                            </div>
-                          </div>
-                          <div className="text-xs text-muted-foreground">{conversation.contact.role}</div>
-                          <div className="mt-1 text-sm line-clamp-1">
-                            {conversation.messages[conversation.messages.length - 1].content}
-                          </div>
-                          {conversation.unreadCount > 0 && (
-                            <div className="mt-1 flex justify-end">
-                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-teal-600 text-xs font-medium text-white">
-                                {conversation.unreadCount}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+
+            {/* Conversation List */}
+            <ScrollArea className="flex-1">
+              <div className="p-2">
+                <ConversationList
+                  conversations={filteredConversations}
+                  selectedConversationId={selectedConversation?.id || null}
+                  onSelectConversation={selectConversation}
+                  onArchiveConversation={archiveConversation}
+                  onTogglePin={togglePin}
+                  onMarkAsRead={markConversationAsRead}
+                />
               </div>
             </ScrollArea>
           </Tabs>
-        </Card>
 
-        <Card className="md:col-span-2">
-          {selectedConversation ? (
-            <div className="flex h-[600px] flex-col">
-              <div className="border-b p-4">
-                <div className="flex items-center gap-3">
-                  <Avatar>
-                    <AvatarImage
-                      src={selectedConversation.contact.avatar || "/placeholder.svg"}
-                      alt={selectedConversation.contact.name}
+          {/* New Message Button */}
+          <div className="p-4 border-t border-gray-200">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  New Message
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>New Message</DialogTitle>
+                  <DialogDescription>Start a new conversation</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="recipient" className="text-right">
+                      To
+                    </Label>
+                    <Input
+                      id="recipient"
+                      value={newMessageRecipient}
+                      onChange={(e) => setNewMessageRecipient(e.target.value)}
+                      className="col-span-3"
                     />
-                    <AvatarFallback>{selectedConversation.contact.name.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="font-medium">{selectedConversation.contact.name}</div>
-                    <div className="text-sm text-muted-foreground">{selectedConversation.contact.role}</div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="subject" className="text-right">
+                      Subject
+                    </Label>
+                    <Input
+                      id="subject"
+                      value={newMessageSubject}
+                      onChange={(e) => setNewMessageSubject(e.target.value)}
+                      className="col-span-3"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="message" className="text-right">
+                      Message
+                    </Label>
+                    <Textarea
+                      id="message"
+                      value={newMessageContent}
+                      onChange={(e) => setNewMessageContent(e.target.value)}
+                      className="col-span-3"
+                      rows={5}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    onClick={handleCreateNewMessage}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Send Message
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        {/* Middle Panel - Conversation View */}
+        <div className="flex-1 flex flex-col">
+          {selectedConversation ? (
+            <>
+              {/* Conversation Header */}
+              <div className="bg-white border-b border-gray-200 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Avatar 
+                      className="cursor-pointer"
+                      onClick={() => setShowUserInfo(!showUserInfo)}
+                    >
+                      <AvatarImage
+                        src={selectedConversation.contact.avatar || "/placeholder.svg"}
+                        alt={selectedConversation.contact.name}
+                      />
+                      <AvatarFallback>{selectedConversation.contact.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="font-medium text-gray-900">{selectedConversation.contact.name}</div>
+                      <div className="text-sm text-gray-500 flex items-center gap-2">
+                        {selectedConversation.contact.isOnline ? (
+                          <span className="flex items-center gap-1">
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            Online
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {selectedConversation.contact.lastSeen ? 
+                              `Last seen ${formatDistanceToNow(new Date(selectedConversation.contact.lastSeen))} ago` :
+                              'Offline'
+                            }
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => togglePin(selectedConversation.id)}>
+                          <Pin className="h-4 w-4 mr-2" />
+                          {selectedConversation.isPinned ? 'Unpin' : 'Pin'} Conversation
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => archiveConversation(selectedConversation.id)}>
+                          <Archive className="h-4 w-4 mr-2" />
+                          Archive
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-red-600">
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </div>
 
+              {/* Messages Area */}
               <ScrollArea className="flex-1 p-4">
                 <div className="space-y-4">
-                  {selectedConversation.messages.map((message) => (
-                    <div
+                  {messages.map((message) => (
+                    <MessageItem
                       key={message.id}
-                      className={`flex ${message.sender === "patient" ? "justify-end" : "justify-start"}`}
-                    >
-                      {message.sender !== "patient" && (
-                        <Avatar className="mr-2 h-8 w-8">
-                          <AvatarImage
-                            src={selectedConversation.contact.avatar || "/placeholder.svg"}
-                            alt={selectedConversation.contact.name}
-                          />
-                          <AvatarFallback>{selectedConversation.contact.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                      )}
-                      <div
-                        className={`max-w-[80%] rounded-lg p-3 ${
-                          message.sender === "patient"
-                            ? "bg-teal-600 text-white"
-                            : message.sender === "system"
-                              ? "bg-gray-200 dark:bg-gray-700"
-                              : "bg-gray-100 dark:bg-gray-800"
-                        }`}
-                      >
-                        <div className="text-sm">{message.content}</div>
-                        <div className="mt-1 text-right text-xs opacity-70">
-                          {formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })}
-                        </div>
-                      </div>
-                      {message.sender === "patient" && (
-                        <Avatar className="ml-2 h-8 w-8">
-                          <AvatarImage src="/middle-aged-man-profile.png" alt="You" />
-                          <AvatarFallback>You</AvatarFallback>
-                        </Avatar>
-                      )}
-                    </div>
+                      message={message}
+                      isOwn={message.sender.type === 'user'}
+                      onActionClick={handleMessageAction}
+                    />
                   ))}
+                  
+                  {messages.length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No messages yet</p>
+                    </div>
+                  )}
                 </div>
               </ScrollArea>
 
-              <div className="border-t p-4">
-                <div className="flex gap-2">
-                  <Textarea
-                    placeholder={t("messages.typePlaceholder")}
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    className="min-h-[60px] flex-1 resize-none"
-                  />
-                  <Button
-                    onClick={handleSendMessage}
-                    className="bg-teal-600 hover:bg-teal-700 dark:bg-teal-600 dark:hover:bg-teal-700"
-                  >
-                    <Send className="h-4 w-4" />
-                    <span className="sr-only">{t("messages.send")}</span>
-                  </Button>
+              {/* Typing Indicator */}
+              {typingUsersForCurrentConversation.length > 0 && (
+                <div className="px-4 py-2 bg-gray-50 border-t border-gray-200">
+                  <div className="text-sm text-gray-500">
+                    {typingUsersForCurrentConversation.map(u => u.userName).join(', ')} {typingUsersForCurrentConversation.length === 1 ? 'is' : 'are'} typing...
+                  </div>
                 </div>
+              )}
+
+              {/* Enhanced Message Input */}
+              <EnhancedMessageInput
+                value={newMessage}
+                onChange={(value) => {
+                  setNewMessage(value)
+                  handleTyping()
+                }}
+                onSend={handleSendMessage}
+                onFileUpload={sendFileMessage}
+                onVoiceRecord={sendVoiceMessage}
+                placeholder="Type a message..."
+                disabled={!isConnected}
+              />
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center bg-gray-50">
+              <div className="text-center">
+                <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Select a conversation</h3>
+                <p className="text-gray-500">Choose a conversation from the list to start messaging</p>
               </div>
             </div>
-          ) : (
-            <div className="flex h-[600px] items-center justify-center p-6">
-              <p className="text-muted-foreground">{t("messages.selectConversation")}</p>
-            </div>
           )}
-        </Card>
+        </div>
+
+        {/* Right Panel - User Info (Optional) */}
+        {showUserInfo && selectedConversation && (
+          <UserInfoPanel
+            contact={selectedConversation.contact}
+            onClose={() => setShowUserInfo(false)}
+            onViewProfile={() => console.log('View profile clicked')}
+            onSendMessage={() => setShowUserInfo(false)}
+          />
+        )}
       </div>
     </div>
   )

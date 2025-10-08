@@ -35,7 +35,9 @@ export function EditExamDialog({
     findings: '',
     notes: '',
     interpretation: '',
-    conclusions: ''
+    conclusions: '',
+    doctor_name: '',
+    doctor_number: ''
   })
 
   // Initialize form data when exam changes
@@ -47,7 +49,9 @@ export function EditExamDialog({
         findings: exam.findings?.trim() || '',
         notes: exam.notes?.trim() || '',
         interpretation: exam.interpretation?.trim() || '',
-        conclusions: exam.conclusions?.trim() || ''
+        conclusions: exam.conclusions?.trim() || '',
+        doctor_name: exam.doctor_name?.trim() || '',
+        doctor_number: exam.doctor_number?.trim() || ''
       })
     }
   }, [exam])
@@ -64,7 +68,9 @@ export function EditExamDialog({
         findings: formData.findings,
         notes: formData.notes,
         interpretation: formData.interpretation,
-        conclusions: formData.conclusions
+        conclusions: formData.conclusions,
+        doctor_name: formData.doctor_name,
+        doctor_number: formData.doctor_number
       })
 
       toast.success('Exam updated successfully!')
@@ -189,6 +195,27 @@ export function EditExamDialog({
                 placeholder="Additional notes about the exam"
                 rows={3}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="doctor_name">Doctor Name</Label>
+                <Input
+                  id="doctor_name"
+                  value={formData.doctor_name}
+                  onChange={(e) => handleInputChange('doctor_name', e.target.value)}
+                  placeholder="e.g., Dr. Smith"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="doctor_number">Doctor Number</Label>
+                <Input
+                  id="doctor_number"
+                  value={formData.doctor_number}
+                  onChange={(e) => handleInputChange('doctor_number', e.target.value)}
+                  placeholder="e.g., MD123456"
+                />
+              </div>
             </div>
 
             <div className="text-sm text-gray-500">

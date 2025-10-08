@@ -116,6 +116,8 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
       content_type: file.type
     }))
 
+    // Duplicate check is now handled by the backend
+
     setUploading(true)
     try {
       console.log('Starting upload to backend...')
@@ -123,6 +125,25 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
       console.log('Upload response:', response)
       
       console.log('Response success check:', response.success, typeof response.success)
+      
+      // Handle duplicate file response
+      if (response.status === 409) {
+        const shouldUpdate = window.confirm(
+          `A similar file already exists.\n\n` +
+          `Do you want to update the existing file with the new one?`
+        )
+        
+        if (!shouldUpdate) {
+          setUploading(false)
+          return
+        }
+        
+        // TODO: Handle file update logic here
+        toast.info('File update functionality coming soon')
+        setUploading(false)
+        return
+      }
+      
       if (response.success === true) {
         setExtractedInfo(response.extracted_info)
         setFormData(prev => ({

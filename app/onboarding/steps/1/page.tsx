@@ -13,6 +13,18 @@ import { type Language, getTranslation } from '@/lib/translations'
 import { toast } from 'react-toastify'
 import { useOnboardingSkip } from '@/hooks/use-onboarding-skip'
 
+interface LocationDetails {
+  display_name: string
+  address: {
+    city?: string
+    state?: string
+    country?: string
+    country_code?: string
+  }
+  lat: string
+  lon: string
+}
+
 interface FormData {
   firstName: string
   lastName: string
@@ -22,9 +34,8 @@ interface FormData {
   weight: string
   waistDiameter: string
   location: string
-  country: string
+  locationDetails?: LocationDetails
   phone: string
-  email: string
   emergencyContactName: string
   emergencyContactPhone: string
   emergencyContactRelationship: string
@@ -38,6 +49,7 @@ export default function PersonalInformationPage() {
   const { skipOnboarding, isSkipping } = useOnboardingSkip()
   const [language, setLanguage] = useState<Language>("en-US")
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState<FormData>({
     firstName: "",
     lastName: "",
@@ -47,9 +59,7 @@ export default function PersonalInformationPage() {
     weight: "",
     waistDiameter: "",
     location: "",
-    country: "",
     phone: "",
-    email: "",
     emergencyContactName: "",
     emergencyContactPhone: "",
     emergencyContactRelationship: "",
@@ -62,31 +72,27 @@ export default function PersonalInformationPage() {
 
   // Load existing data if available
   useEffect(() => {
+    console.log('Loading user data:', user)
     if (user?.user_metadata) {
       const metadata = user.user_metadata
-      setFormData(prev => ({
-        ...prev,
-        firstName: metadata.full_name?.split(' ')[0] || "",
-        lastName: metadata.full_name?.split(' ').slice(1).join(' ') || "",
-        dateOfBirth: metadata.date_of_birth || "",
-        gender: metadata.gender || "male",
-        height: metadata.height || "",
-        weight: metadata.weight || "",
-        waistDiameter: metadata.waist_diameter || "",
-        location: metadata.address || "",
-        country: metadata.country || "",
-        phone: metadata.phone_number || "",
-        email: user.email || "",
-        emergencyContactName: metadata.emergency_contact_name || "",
-        emergencyContactPhone: metadata.emergency_contact_phone || "",
-        emergencyContactRelationship: metadata.emergency_contact_relationship || "",
-      }))
-    } else if (user?.email) {
-      // If no metadata but user has email, at least fill the email field
-      setFormData(prev => ({
-        ...prev,
-        email: user.email,
-      }))
+      console.log('User metadata found:', metadata)
+        setFormData(prev => ({
+          ...prev,
+          firstName: metadata.full_name?.split(' ')[0] || "",
+          lastName: metadata.full_name?.split(' ').slice(1).join(' ') || "",
+          dateOfBirth: metadata.date_of_birth || "",
+          gender: metadata.gender || "male",
+          height: metadata.height || "",
+          weight: metadata.weight || "",
+          waistDiameter: metadata.waist_diameter || "",
+          location: metadata.address || "",
+          phone: metadata.phone_number || "",
+          emergencyContactName: metadata.emergency_contact_name || "",
+          emergencyContactPhone: metadata.emergency_contact_phone || "",
+          emergencyContactRelationship: metadata.emergency_contact_relationship || "",
+        }))
+    } else {
+      console.log('No user data found')
     }
   }, [user])
 
@@ -107,14 +113,18 @@ export default function PersonalInformationPage() {
       try {
         const profileData = {
           full_name: `${formData.firstName} ${formData.lastName}`.trim(),
-          email: formData.email,
           date_of_birth: formData.dateOfBirth,
           gender: formData.gender,
           height: formData.height,
           weight: formData.weight,
           waist_diameter: formData.waistDiameter,
           address: formData.location,
-          country: formData.country,
+          country: formData.locationDetails?.address?.country || "",
+          country_code: formData.locationDetails?.address?.country_code || "",
+          city: formData.locationDetails?.address?.city || "",
+          state: formData.locationDetails?.address?.state || "",
+          latitude: formData.locationDetails?.lat || "",
+          longitude: formData.locationDetails?.lon || "",
           phone_number: formData.phone,
           emergency_contact_name: formData.emergencyContactName,
           emergency_contact_phone: formData.emergencyContactPhone,
@@ -125,7 +135,6 @@ export default function PersonalInformationPage() {
 
         // Update Redux state
         dispatch(updateUser({
-          email: formData.email,
           user_metadata: {
             ...user.user_metadata,
             ...profileData,
@@ -148,11 +157,6 @@ export default function PersonalInformationPage() {
     }
     if (!formData.lastName.trim()) {
       errors.lastName = "Last name is required"
-    }
-    if (!formData.email.trim()) {
-      errors.email = "Email is required"
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = "Please enter a valid email address"
     }
     if (!formData.dateOfBirth.trim()) {
       errors.dateOfBirth = "Date of birth is required"
@@ -177,6 +181,8 @@ export default function PersonalInformationPage() {
   }
 
   const handleNext = async () => {
+    if (isSubmitting) return // Prevent multiple submissions
+    
     const errors = validateForm()
     
     if (Object.keys(errors).length > 0) {
@@ -184,10 +190,19 @@ export default function PersonalInformationPage() {
       return
     }
     
+    setIsSubmitting(true)
     setFieldErrors({})
-    await saveProgress()
-    dispatch(addCompletedStep(1))
-    router.push('/onboarding/steps/2')
+    
+    try {
+      await saveProgress()
+      dispatch(addCompletedStep(1))
+      router.push('/onboarding/steps/2')
+    } catch (error) {
+      console.error('Error in handleNext:', error)
+      toast.error("Failed to save progress. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleBack = () => {
@@ -219,6 +234,7 @@ export default function PersonalInformationPage() {
       onNext={handleNext}
       onSkip={handleSkip}
       isSkipping={isSkipping}
+      isLoading={isSubmitting}
       showBackButton={false}
       stepTitle={getTranslation(language, "steps.personalInfo")}
     >

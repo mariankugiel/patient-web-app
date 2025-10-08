@@ -32,7 +32,7 @@ export default function VitalsPage() {
     }
   }, [loading, handleGenerateAIAnalysis])
 
-    return (
+  return (
     <div className="space-y-6">
       {/* AI Analysis Section */}
       <AIAnalysisSection

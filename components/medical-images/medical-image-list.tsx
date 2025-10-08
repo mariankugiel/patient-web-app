@@ -202,9 +202,19 @@ export function MedicalImageList({ onImageUploaded, refreshTrigger }: MedicalIma
                         </div>
                       </div>
                       
-                      <p className="text-sm text-gray-500 mb-2 truncate">
-                        {image.original_filename}
-                      </p>
+                      <div className="flex items-center gap-2 mb-2">
+                        <p className="text-sm text-gray-500 truncate">
+                          {image.original_filename}
+                        </p>
+                        {image.conclusions && (
+                          <>
+                            <span className="text-gray-400">•</span>
+                            <p className="text-xs text-blue-600 truncate" title={image.conclusions}>
+                              {image.conclusions}
+                            </p>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                   

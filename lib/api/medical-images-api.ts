@@ -92,7 +92,7 @@ class MedicalImagesApiService {
 
   async saveMedicalImage(imageData: SaveImageRequest): Promise<{ success: boolean; message: string; image_id: number }> {
     const response = await apiClient.post(
-      '/health-records/images',
+      '/health-records/health-record-doc-exam',
       imageData
     )
 
@@ -106,7 +106,7 @@ class MedicalImagesApiService {
 
   async getMedicalImages(skip: number = 0, limit: number = 10): Promise<MedicalImagesResponse> {
     const response = await apiClient.get(
-      `/health-records/images?skip=${skip}&limit=${limit}`
+      `/health-records/health-record-doc-exam?skip=${skip}&limit=${limit}`
     )
 
     return response.data
@@ -114,7 +114,7 @@ class MedicalImagesApiService {
 
   async getMedicalImageViewUrl(imageId: number): Promise<DownloadResponse> {
     const response = await apiClient.get(
-      `/health-records/images/${imageId}/download`
+      `/health-records/health-record-doc-exam/${imageId}/download`
     )
 
     return response.data
@@ -129,7 +129,7 @@ class MedicalImagesApiService {
     conclusions?: string
   }): Promise<MedicalImageData> {
     const response = await apiClient.put(
-      `/health-records/images/${imageId}`,
+      `/health-records/health-record-doc-exam/${imageId}`,
       updateData
     )
 
@@ -138,7 +138,7 @@ class MedicalImagesApiService {
 
   async deleteMedicalImage(imageId: number): Promise<{ success: boolean; message: string }> {
     const response = await apiClient.delete(
-      `/health-records/images/${imageId}`
+      `/health-records/health-record-doc-exam/${imageId}`
     )
 
     return response.data

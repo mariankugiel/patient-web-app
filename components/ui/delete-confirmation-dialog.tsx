@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,6 +12,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { AlertTriangle } from 'lucide-react'
 
 interface DeleteConfirmationDialogProps {
@@ -35,9 +37,26 @@ export function DeleteConfirmationDialog({
   loading = false,
   variant = 'destructive'
 }: DeleteConfirmationDialogProps) {
+  const [confirmText, setConfirmText] = useState('')
+  const [error, setError] = useState('')
+
   const handleConfirm = () => {
-    onConfirm()
-    onOpenChange(false)
+    if (confirmText.trim().toUpperCase() === 'DELETE') {
+      setError('')
+      onConfirm()
+      onOpenChange(false)
+      setConfirmText('')
+    } else {
+      setError('Please type "DELETE" to confirm')
+    }
+  }
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      setConfirmText('')
+      setError('')
+    }
+    onOpenChange(open)
   }
 
   const displayTitle = itemName ? `${title} "${itemName}"` : title
@@ -45,8 +64,10 @@ export function DeleteConfirmationDialog({
     ? `Are you sure you want to delete "${itemName}"? This action cannot be undone.`
     : description
 
+  const isConfirmValid = confirmText.trim().toUpperCase() === 'DELETE'
+
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent className="sm:max-w-[425px]">
         <AlertDialogHeader>
           <div className="flex items-center gap-3">
@@ -67,6 +88,27 @@ export function DeleteConfirmationDialog({
             {displayDescription}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        
+        <div className="py-4">
+          <Label htmlFor="delete-confirm" className="text-sm font-medium">
+            Type "DELETE" to confirm:
+          </Label>
+          <Input
+            id="delete-confirm"
+            value={confirmText}
+            onChange={(e) => {
+              setConfirmText(e.target.value)
+              setError('')
+            }}
+            placeholder="Type DELETE here"
+            className="mt-2"
+            disabled={loading}
+          />
+          {error && (
+            <p className="text-sm text-red-600 mt-1">{error}</p>
+          )}
+        </div>
+
         <AlertDialogFooter className="gap-2">
           <AlertDialogCancel asChild>
             <Button variant="outline" disabled={loading}>
@@ -77,7 +119,7 @@ export function DeleteConfirmationDialog({
             <Button 
               variant={variant}
               onClick={handleConfirm}
-              disabled={loading}
+              disabled={loading || !isConfirmValid}
               className={variant === 'destructive' ? 'bg-red-600 hover:bg-red-700' : ''}
             >
               {loading ? 'Deleting...' : 'Delete'}

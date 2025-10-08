@@ -1044,15 +1044,16 @@ const PersonalInformationStep = ({
           />
         </div>
         <div>
-          <Label htmlFor="email">{getTranslation(language, "fields.email")} *</Label>
+          <Label htmlFor="email">{getTranslation(language, "fields.email")}</Label>
           <Input
             type="email"
             id="email"
             value={formData.email}
-            onChange={(e) => updateFormData("email", e.target.value)}
+            readOnly
             placeholder={getTranslation(language, "placeholders.enterEmail")}
-            className="border-2 border-gray-300"
+            className="border-2 border-gray-300 bg-gray-50"
           />
+          <p className="text-xs text-gray-500 mt-1">Email cannot be changed here. You can update it in your profile settings.</p>
         </div>
       </div>
 
