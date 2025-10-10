@@ -366,6 +366,12 @@ export function LabDocumentDialog({
     if (!file) return
     
     setAnalyzing(true)
+    
+    // Show notification that analysis is starting
+    toast.info('Analyzing document... This may take a moment.', {
+      autoClose: 3000
+    })
+    
     try {
       const formDataToSend = new FormData()
       formDataToSend.append('file', file)

@@ -173,6 +173,12 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
   }
 
   const handleSave = async () => {
+    // Prevent double-save
+    if (saving) {
+      console.warn('Save already in progress, ignoring duplicate call')
+      return
+    }
+
     if (!formData.image_type || !formData.image_date) {
       toast.error('Please fill in all required fields')
       return
