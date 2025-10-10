@@ -127,6 +127,12 @@ class MedicalImagesApiService {
     notes?: string
     interpretation?: string
     conclusions?: string
+    doctor_name?: string
+    doctor_number?: string
+    s3_key?: string
+    original_filename?: string
+    file_size_bytes?: number
+    content_type?: string
   }): Promise<MedicalImageData> {
     const response = await apiClient.put(
       `/health-records/health-record-doc-exam/${imageId}`,

@@ -127,16 +127,16 @@ export function PastConditionsDialog({ open, onOpenChange, onRefresh }: PastCond
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[700px] max-h-[80vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>{t("health.editPastConditions")}</DialogTitle>
           <DialogDescription>
             {t("health.editPastConditionsDesc")}
           </DialogDescription>
         </DialogHeader>
         
-        <div className="max-h-[400px] overflow-y-auto space-y-4">
-          {/* Add New Button at Top */}
+        {/* Add New Button - Sticky at Top */}
+        <div className="flex-shrink-0 pb-4 border-b">
           <Button
             type="button"
             variant="outline"
@@ -146,7 +146,10 @@ export function PastConditionsDialog({ open, onOpenChange, onRefresh }: PastCond
             <Plus className="h-4 w-4 mr-2" />
             Add New Past Condition
           </Button>
-          
+        </div>
+        
+        {/* Scrollable Conditions List */}
+        <div className="flex-1 overflow-y-auto space-y-4 py-4">
           {editingConditions.map((condition, index) => (
             <div key={index} className="border rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
@@ -218,7 +221,7 @@ export function PastConditionsDialog({ open, onOpenChange, onRefresh }: PastCond
           ))}
         </div>
         
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0">
           <Button variant="outline" onClick={handleCancel} disabled={saving}>
             {t("action.cancel")}
           </Button>

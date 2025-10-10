@@ -44,6 +44,9 @@ export default function FamilyHistoryPage() {
   const saveProgress = async () => {
     if (user) {
       try {
+        // Note: Family history from step 3 onboarding is saved to user profile
+        // The actual family medical history tables are used from the Health Records page
+        // This is intentional - onboarding collects basic info, detailed history is managed later
         const profileData = {
           family_history: formData.familyHistory,
         }

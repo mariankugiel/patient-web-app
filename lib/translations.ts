@@ -293,6 +293,7 @@ export const translations = {
         none: "No Recovery"
       },
       status: {
+        label: "Status",
         controlled: "Controlled",
         partiallyControlled: "Partially Controlled", 
         uncontrolled: "Uncontrolled"
@@ -835,6 +836,7 @@ export const translations = {
         none: "Sin Recuperación"
       },
       status: {
+        label: "Estado",
         controlled: "Controlado",
         partiallyControlled: "Parcialmente Controlado",
         uncontrolled: "No Controlado"
@@ -1371,6 +1373,7 @@ export const translations = {
         none: "Sem Recuperação"
       },
       status: {
+        label: "Estado",
         controlled: "Controlado",
         partiallyControlled: "Parcialmente Controlado",
         uncontrolled: "Não Controlado"

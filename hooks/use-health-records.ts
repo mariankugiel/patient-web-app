@@ -428,7 +428,10 @@ export function formatMetricValue(value: number, unit?: string): string {
   const numericValue = Number(value)
   if (isNaN(numericValue)) return 'N/A'
   
-  return `${numericValue.toFixed(1)}${unit ? ` ${unit}` : ''}`
+  // Use intelligent precision: show up to 2 decimals, remove trailing zeros
+  const formatted = numericValue.toFixed(2).replace(/\.?0+$/, '')
+  
+  return `${formatted}${unit ? ` ${unit}` : ''}`
 }
 
 export function formatReferenceRange(min?: number, max?: number): string {

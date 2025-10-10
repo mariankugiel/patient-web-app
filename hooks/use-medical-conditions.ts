@@ -26,10 +26,21 @@ export interface PastCondition {
 
 export interface FamilyHistoryEntry {
   id?: number
-  condition: string
   relation: string
-  ageOfOnset: string
-  outcome: string
+  is_deceased?: boolean
+  age_at_death?: number
+  cause_of_death?: string
+  current_age?: number
+  gender?: string
+  chronic_diseases?: Array<{
+    disease: string
+    age_at_diagnosis: string
+    comments?: string
+  }>
+  // Legacy fields for backward compatibility
+  condition?: string
+  ageOfOnset?: string
+  outcome?: string
 }
 
 // ============================================================================
@@ -421,8 +432,15 @@ export function useFamilyMedicalHistory() {
       
       const transformedHistory: FamilyHistoryEntry[] = backendHistory.map(entry => ({
         id: entry.id,
-        condition: entry.condition_name,
         relation: entry.relation,
+        is_deceased: entry.is_deceased,
+        age_at_death: entry.age_at_death,
+        cause_of_death: entry.cause_of_death,
+        current_age: entry.current_age,
+        gender: entry.gender,
+        chronic_diseases: entry.chronic_diseases || [],
+        // Legacy fields
+        condition: entry.condition_name,
         ageOfOnset: entry.age_of_onset?.toString() || '',
         outcome: entry.outcome || ''
       }))

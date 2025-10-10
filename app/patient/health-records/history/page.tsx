@@ -217,24 +217,62 @@ export default function HistoryPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {familyHistory.map((entry, index) => (
-                <div key={entry.id || index} className="border-b pb-3 last:border-0 last:pb-0">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium">{entry.condition}</h3>
-                    <span className="text-sm text-muted-foreground">
-                      {t("health.ageOfOnset")}: {entry.ageOfOnset}
-                    </span>
+              {familyHistory.map((entry, index) => {
+                const chronicDiseases = entry.chronic_diseases || []
+                const isDeceased = entry.is_deceased || false
+                
+                return (
+                  <div key={entry.id || index} className="border rounded-lg p-4 bg-gray-50/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-base">{entry.relation}</h3>
+                      <Badge variant={isDeceased ? "secondary" : "default"}>
+                        {isDeceased ? "Deceased" : "Alive"}
+                      </Badge>
+                    </div>
+                    
+                    {isDeceased ? (
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        {entry.age_at_death && (
+                          <p><span className="font-medium">Age at Death:</span> {entry.age_at_death}</p>
+                        )}
+                        {entry.cause_of_death && (
+                          <p><span className="font-medium">Cause of Death:</span> {entry.cause_of_death}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {entry.current_age && (
+                          <p className="text-sm text-muted-foreground">
+                            <span className="font-medium">Current Age:</span> {entry.current_age}
+                          </p>
+                        )}
+                        {chronicDiseases.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium mb-1">Chronic Diseases:</p>
+                            <div className="space-y-1">
+                              {chronicDiseases.map((disease: any, idx: number) => (
+                                <div key={idx} className="text-sm text-muted-foreground pl-3">
+                                  • {disease.disease} {disease.age_at_diagnosis && `(diagnosed at age ${disease.age_at_diagnosis})`}
+                                  {disease.comments && <span className="text-xs italic"> - {disease.comments}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Legacy condition display for backward compatibility */}
+                    {entry.condition && (
+                      <div className="mt-2 text-sm text-muted-foreground border-t pt-2">
+                        <p><span className="font-medium">Condition:</span> {entry.condition}</p>
+                        {entry.ageOfOnset && <p><span className="font-medium">Age of Onset:</span> {entry.ageOfOnset}</p>}
+                        {entry.outcome && <p><span className="font-medium">Outcome:</span> {entry.outcome}</p>}
+                      </div>
+                    )}
                   </div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    <p>
-                      {t("health.relation")}: {entry.relation}
-                    </p>
-                    <p>
-                      {t("health.outcome")}: {entry.outcome}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </CardContent>

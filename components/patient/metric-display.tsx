@@ -117,7 +117,11 @@ export function MetricDisplay({ title, data, unit, referenceRange, icon, classNa
         <CardContent>
           <div className="space-y-2">
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold">{latestValue?.toFixed(1) || "--"}</span>
+              <span className="text-3xl font-bold">
+                {latestValue !== null && latestValue !== undefined 
+                  ? latestValue.toFixed(2).replace(/\.?0+$/, '') 
+                  : "--"}
+              </span>
               {unit && <span className="text-xs text-muted-foreground font-normal">{unit}</span>}
             </div>
 

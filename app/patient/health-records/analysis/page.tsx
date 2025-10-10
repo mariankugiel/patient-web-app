@@ -238,10 +238,12 @@ export default function AnalysisPage() {
                             {doc.lab_test_date ? new Date(doc.lab_test_date).toLocaleDateString() : 'No date'}
                             <span className="text-gray-600 font-normal"> • {doc.provider || 'No Provider'}</span>
                           </p>
-                          {doc.lab_test_name && (
-                            <p className="text-xs text-gray-700 mt-1 font-medium">{doc.lab_test_name}</p>
+                          {doc.lab_doc_type && (
+                            <p className="text-xs text-gray-700 mt-1 font-medium">{doc.lab_doc_type}</p>
                           )}
-                          <p className="text-xs text-gray-500 mt-1 line-clamp-2">{doc.description || 'No Description'}</p>
+                          {doc.description && (
+                            <p className="text-xs text-gray-500 mt-1 line-clamp-2">{doc.description}</p>
+                          )}
                         </div>
                         <div className="flex items-center gap-1 ml-2">
                           <Button
@@ -337,10 +339,12 @@ export default function AnalysisPage() {
                         {doc.lab_test_date ? new Date(doc.lab_test_date).toLocaleDateString() : 'No date'}
                         <span className="text-gray-600 font-normal"> • {doc.provider || 'No Provider'}</span>
                       </p>
-                      {doc.lab_test_name && (
-                        <p className="text-sm text-gray-700 mt-1 font-medium">{doc.lab_test_name}</p>
+                      {doc.lab_doc_type && (
+                        <p className="text-sm text-gray-700 mt-1 font-medium">{doc.lab_doc_type}</p>
                       )}
-                      <p className="text-sm text-gray-500 mt-1 line-clamp-2">{doc.description || 'No Description'}</p>
+                      {doc.description && (
+                        <p className="text-sm text-gray-500 mt-1 line-clamp-2">{doc.description}</p>
+                      )}
                     </div>
                     <Button
                       size="sm"
