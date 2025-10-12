@@ -22,8 +22,8 @@ export function ProtectedRoute({
   useEffect(() => {
     if (!isLoading) {
       if (requireAuth && !isAuthenticated) {
-        // User not authenticated, redirect to login
-        router.push('/')
+        // User not authenticated, redirect to login page
+        router.push('/auth/login')
       } else if (isAuthenticated && user) {
         // Check if user needs onboarding (has is_new_user flag or hasn't completed/skipped onboarding)
         const needsOnboarding = user.user_metadata?.is_new_user || 

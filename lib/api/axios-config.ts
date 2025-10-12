@@ -4,6 +4,20 @@ import { toast } from 'react-toastify'
 // Flag to prevent multiple session expired notifications
 let sessionExpiredNotificationShown = false
 
+// Router callback for client-side navigation (set by useAuthRedirect hook)
+let routerPushCallback: ((path: string) => void) | null = null
+
+// Logout callback to clear Redux state
+let logoutCallback: (() => void) | null = null
+
+export const setRouterCallback = (callback: (path: string) => void) => {
+  routerPushCallback = callback
+}
+
+export const setLogoutCallback = (callback: () => void) => {
+  logoutCallback = callback
+}
+
 // Function to reset the session expired notification flag (call after successful login)
 export const resetSessionExpiredFlag = () => {
   sessionExpiredNotificationShown = false
@@ -46,8 +60,13 @@ apiClient.interceptors.response.use(
     if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
       // Check if it's an AI analysis request
       const isAIAnalysis = error.config?.url?.includes('/ai-analysis')
+      const isOCRProcessing = error.config?.url?.includes('/health-record-doc-lab/upload') && 
+                             error.config?.data?.get?.('use_ocr') === 'true'
+      
       if (isAIAnalysis) {
         toast.error("AI analysis is taking longer than expected. Please try again.")
+      } else if (isOCRProcessing) {
+        toast.error("OCR processing is taking longer than expected. The file may be too large or complex. Please try again.")
       } else {
         toast.error("Connection failed. Please check your internet connection and try again.")
       }
@@ -68,14 +87,19 @@ apiClient.interceptors.response.use(
                              error.config?.url?.includes('/auth/')
       
       if (!isAuthEndpoint) {
-        // Clear localStorage and redirect to login only for non-auth endpoints
+        // Clear localStorage and Redux state, then redirect to login
         if (typeof window !== 'undefined') {
+          // Clear localStorage tokens
           localStorage.removeItem('access_token')
           localStorage.removeItem('refresh_token')
           localStorage.removeItem('expires_in')
           
-          // Only show session expired message if it's not a login attempt
-          // Login attempts will show their own error messages
+          // Clear Redux state via logout callback
+          if (logoutCallback) {
+            logoutCallback()
+          }
+          
+          // Only show session expired message once
           if (!sessionExpiredNotificationShown) {
             sessionExpiredNotificationShown = true
             toast.error("Session expired. Please log in again.")
@@ -86,7 +110,13 @@ apiClient.interceptors.response.use(
             }, 5000) // 5 seconds
           }
           
-          window.location.href = '/'
+          // Use router callback for faster navigation, fallback to window.location
+          // Redirect to login page, not homepage
+          if (routerPushCallback) {
+            routerPushCallback('/auth/login')
+          } else {
+            window.location.href = '/auth/login'
+          }
         }
       }
       // For auth endpoints, let the error bubble up to be handled by the component

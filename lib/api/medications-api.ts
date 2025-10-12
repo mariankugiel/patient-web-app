@@ -8,8 +8,8 @@ export interface Medication {
   status: 'active' | 'discontinued' | 'completed' | 'on_hold'
   start_date: string
   end_date?: string
-  prescribed_by: number
-  aws_file_id: string
+  reason_ended?: string
+  prescribed_by?: number
   created_at: string
   updated_at?: string
   // Additional fields for UI compatibility
@@ -17,12 +17,20 @@ export interface Medication {
   frequency?: string
   purpose?: string
   instructions?: string
+  // Prescription information (flat structure from backend)
+  rx_number?: string
+  pharmacy?: string
+  original_quantity?: number
+  refills_remaining?: number
+  last_filled_date?: string
+  // Optional reminders (UI only)
   reminders?: Array<{
     id: string
     time: string
     days: string[]
     enabled: boolean
   }>
+  // Deprecated nested prescription object (for backward compatibility)
   prescription?: {
     number: string
     pharmacy: string
@@ -39,16 +47,36 @@ export interface Medication {
 export interface MedicationCreate {
   medication_name: string
   medication_type: 'prescription' | 'over_the_counter' | 'supplement' | 'vaccine'
+  dosage?: string
+  frequency?: string
+  purpose?: string
+  instructions?: string
   start_date: string
   end_date?: string
+  // Prescription information (5 fields only)
+  rx_number?: string
+  pharmacy?: string
+  original_quantity?: number
+  refills_remaining?: number
+  last_filled_date?: string
 }
 
 export interface MedicationUpdate {
   medication_name?: string
   medication_type?: 'prescription' | 'over_the_counter' | 'supplement' | 'vaccine'
+  dosage?: string
+  frequency?: string
+  purpose?: string
+  instructions?: string
   status?: 'active' | 'discontinued' | 'completed' | 'on_hold'
   start_date?: string
   end_date?: string
+  // Prescription information (5 fields only)
+  rx_number?: string
+  pharmacy?: string
+  original_quantity?: number
+  refills_remaining?: number
+  last_filled_date?: string
 }
 
 class MedicationsApiService {
@@ -78,8 +106,8 @@ class MedicationsApiService {
     return response.data
   }
 
-  async endMedication(id: number): Promise<{ message: string; medication: Medication }> {
-    const response = await apiClient.patch(`/medications/${id}/end`)
+  async endMedication(id: number, reason?: string): Promise<{ message: string; medication: Medication }> {
+    const response = await apiClient.patch(`/medications/${id}/end`, { reason })
     return response.data
   }
 }

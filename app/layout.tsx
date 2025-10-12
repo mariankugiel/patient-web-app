@@ -5,6 +5,7 @@ import "./globals.css"
 import { LanguageProvider } from "@/contexts/language-context"
 import { ReduxProvider } from "@/components/providers/redux-provider"
 import { SessionProvider } from "@/components/providers/session-provider"
+import { RouterProvider } from "@/components/providers/router-provider"
 import { ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 
@@ -26,7 +27,9 @@ export default function RootLayout({
       <body className={inter.className}>
         <ReduxProvider>
           <SessionProvider>
-            <LanguageProvider>{children}</LanguageProvider>
+            <RouterProvider>
+              <LanguageProvider>{children}</LanguageProvider>
+            </RouterProvider>
           </SessionProvider>
         </ReduxProvider>
         <ToastContainer

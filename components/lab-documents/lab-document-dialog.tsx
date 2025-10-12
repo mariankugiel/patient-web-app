@@ -263,47 +263,35 @@ export function LabDocumentDialog({
     file_name: ''
   })
 
-  // Reset form when dialog opens/closes or document changes
+  // Initialize form data only for edit mode when dialog opens
   useEffect(() => {
-    if (open) {
-      if (mode === 'edit' && document) {
-        console.log('Edit mode - document data:', document) // Debug log
-        
-
-        const newFormData = {
-          lab_test_date: formatDateForInput(document.lab_test_date || ''),
-          lab_test_type: document.lab_doc_type || '',
-          provider: document.provider || '',
-          description: document.description || '',
-          file_name: document.file_name || ''
-        }
-        
-        console.log('Edit mode - formatted form data:', newFormData) // Debug log
-        setFormData(newFormData)
-        setInitialFormData(newFormData)
-      } else {
-        // Set today's date as default for new uploads
-        const todayDate = new Date().toISOString().split('T')[0]
-        const newFormData = {
-          lab_test_date: todayDate,
-          lab_test_type: '',
-          provider: 'Lab Corp',
-          description: '',
-          file_name: ''
-        }
-        setFormData(newFormData)
-        setInitialFormData(newFormData)
+    if (open && mode === 'edit' && document) {
+      console.log('Edit mode - document data:', document) // Debug log
+      
+      const newFormData = {
+        lab_test_date: formatDateForInput(document.lab_test_date || ''),
+        lab_test_type: document.lab_doc_type || '',
+        provider: document.provider || '',
+        description: document.description || '',
+        file_name: document.file_name || ''
       }
-       setSelectedFile(null)
-       setAnalysisResults([])
-       setEditableResults([])
-       setShowAnalysisResults(false)
-       setHasFormChanged(false)
-       setRejectedResults(false)
-       setEditingIndex(null)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
+      
+      console.log('Edit mode - formatted form data:', newFormData) // Debug log
+      setFormData(newFormData)
+      setInitialFormData(newFormData)
+    }
+    // For upload mode, only initialize if form is empty (first open)
+    else if (open && mode === 'upload' && !formData.lab_test_date) {
+      const todayDate = new Date().toISOString().split('T')[0]
+      const newFormData = {
+        lab_test_date: todayDate,
+        lab_test_type: '',
+        provider: 'Lab Corp',
+        description: '',
+        file_name: ''
       }
+      setFormData(newFormData)
+      setInitialFormData(newFormData)
     }
   }, [open, mode, document])
 
@@ -391,6 +379,68 @@ export function LabDocumentDialog({
         }
       })
 
+      // If backend suggests OCR, automatically retry with OCR mode
+      if (response.data.success && response.data.suggest_ocr) {
+        toast.info('No data found with standard extraction. Trying OCR mode... Please wait.')
+        
+        // Retry with OCR mode (with extended timeout for OCR processing)
+        const formDataOCR = new FormData()
+        formDataOCR.append('file', file)
+        formDataOCR.append('use_ocr', 'true')
+        if (formData.lab_test_date) {
+          formDataOCR.append('doc_date', formData.lab_test_date)
+        }
+        if (formData.lab_test_type) {
+          formDataOCR.append('doc_type', formData.lab_test_type)
+        }
+        if (formData.provider) {
+          formDataOCR.append('provider', formData.provider)
+        }
+        
+        const ocrResponse = await apiClient.post('/health-records/health-record-doc-lab/upload', formDataOCR, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          },
+          timeout: 120000  // 120 seconds (2 minutes) timeout for OCR processing
+        })
+        
+        if (ocrResponse.data.success && ocrResponse.data.lab_data) {
+          const extractedDate = ocrResponse.data.lab_data[0]?.date_of_value || ''
+          
+          const transformedResults = ocrResponse.data.lab_data.map((item: any) => ({
+            metric_name: item.metric_name || item.name_of_analysis || item.name || 'Unknown Metric',
+            value: item.value?.toString() || '',
+            unit: item.unit || '',
+            reference_range: item.reference || item.reference_range || '',
+            reference_range_parsed: item.reference_range_parsed || null,
+            status: 'normal',
+            confidence: item.confidence || 0.8,
+            type_of_analysis: item.type_of_analysis || 'General Lab Analysis',
+            date_of_value: item.date_of_value || formData.lab_test_date
+          }))
+          
+          let dateToSet = extractedDate || new Date().toISOString().split('T')[0]
+          if (extractedDate && extractedDate.includes('-') && extractedDate.split('-')[0].length === 2) {
+            const [day, month, year] = extractedDate.split('-')
+            dateToSet = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+          }
+          
+          const formattedDate = formatDateForInput(dateToSet)
+          setFormData(prev => ({
+            ...prev,
+            lab_test_date: formattedDate
+          }))
+          
+          setAnalysisResults(transformedResults)
+          setEditableResults(transformedResults)
+          setShowAnalysisResults(true)
+          toast.success('Document analyzed with OCR successfully!')
+        } else {
+          toast.error('OCR extraction also failed to find data')
+        }
+        return
+      }
+
       if (response.data.success && response.data.lab_data) {
         // Extract date from analysis results if available
         const extractedDate = response.data.lab_data[0]?.date_of_value || ''
@@ -464,6 +514,35 @@ export function LabDocumentDialog({
 
   const handleCancelEdit = () => {
     setEditingIndex(null)
+  }
+
+  // Helper function to reset form after successful upload
+  const resetFormAfterSuccess = () => {
+    const todayDate = new Date().toISOString().split('T')[0]
+    setFormData({
+      lab_test_date: todayDate,
+      lab_test_type: '',
+      provider: 'Lab Corp',
+      description: '',
+      file_name: ''
+    })
+    setInitialFormData({
+      lab_test_date: todayDate,
+      lab_test_type: '',
+      provider: 'Lab Corp',
+      description: '',
+      file_name: ''
+    })
+    setSelectedFile(null)
+    setAnalysisResults([])
+    setEditableResults([])
+    setShowAnalysisResults(false)
+    setHasFormChanged(false)
+    setRejectedResults(false)
+    setEditingIndex(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
   }
 
   const handleSave = async () => {
@@ -657,6 +736,11 @@ export function LabDocumentDialog({
 
         onDocumentUpdated?.(result)
         toast.success('Lab document updated successfully')
+      }
+
+      // Reset form after successful upload (not for edit mode)
+      if (mode === 'upload') {
+        resetFormAfterSuccess()
       }
 
       onOpenChange(false)

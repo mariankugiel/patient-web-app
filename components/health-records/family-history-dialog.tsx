@@ -54,7 +54,8 @@ const relationshipOptions = [
   "Mother",
   "Brother",
   "Sister",
-  "Child",
+  "Son",
+  "Daughter",
   "Maternal Grandfather",
   "Maternal Grandmother",
   "Paternal Grandfather",
@@ -282,7 +283,9 @@ export function FamilyHistoryDialog({ open, onOpenChange, onRefresh }: FamilyHis
             familyMembers.map((member, memberIndex) => (
               <div key={memberIndex} className="border-2 rounded-lg p-5 space-y-4 bg-blue-50/30">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-bold text-lg">Family Member {memberIndex + 1}</h4>
+                  <h4 className="font-bold text-lg">
+                    {member.relation || `Family Member ${memberIndex + 1}`}
+                  </h4>
                   <Button
                     type="button"
                     variant="ghost"
@@ -318,7 +321,7 @@ export function FamilyHistoryDialog({ open, onOpenChange, onRefresh }: FamilyHis
                 </div>
 
                 {/* Gender and Current Age (for siblings/children) */}
-                {(member.relation.includes('Brother') || member.relation.includes('Sister') || member.relation.includes('Child')) && (
+                {(member.relation.includes('Brother') || member.relation.includes('Sister') || member.relation.includes('Son') || member.relation.includes('Daughter')) && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Gender</Label>
