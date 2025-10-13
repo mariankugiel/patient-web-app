@@ -49,13 +49,38 @@ export function PastConditionsDialog({ open, onOpenChange, onRefresh }: PastCond
   useEffect(() => {
     if (open) {
       console.log('Loading past conditions into dialog:', conditions) // Debug log
+      console.log('Past conditions count:', conditions.length) // Debug log
       // Ensure dates are in YYYY-MM-DD format for date inputs
-      const formattedConditions = conditions.map(condition => ({
-        ...condition,
-        diagnosedDate: condition.diagnosedDate ? condition.diagnosedDate.split('T')[0] : '',
-        resolvedDate: condition.resolvedDate ? condition.resolvedDate.split('T')[0] : ''
-      }))
+      const formattedConditions = conditions.map(condition => {
+        // Handle various date formats for diagnosedDate
+        let formattedDiagnosedDate = ''
+        if (condition.diagnosedDate) {
+          if (condition.diagnosedDate.includes('T')) {
+            formattedDiagnosedDate = condition.diagnosedDate.split('T')[0]
+          } else {
+            formattedDiagnosedDate = condition.diagnosedDate
+          }
+        }
+        
+        // Handle various date formats for resolvedDate
+        let formattedResolvedDate = ''
+        if (condition.resolvedDate) {
+          if (condition.resolvedDate.includes('T')) {
+            formattedResolvedDate = condition.resolvedDate.split('T')[0]
+          } else {
+            formattedResolvedDate = condition.resolvedDate
+          }
+        }
+        
+        return {
+          ...condition,
+          diagnosedDate: formattedDiagnosedDate,
+          resolvedDate: formattedResolvedDate
+        }
+      })
       console.log('Formatted past conditions:', formattedConditions) // Debug log
+      console.log('Sample diagnosed date:', formattedConditions[0]?.diagnosedDate) // Debug log
+      console.log('Sample resolved date:', formattedConditions[0]?.resolvedDate) // Debug log
       setEditingConditions(formattedConditions)
       setDeletedConditionIds([]) // Reset deletion tracking
     }

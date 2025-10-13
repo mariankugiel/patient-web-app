@@ -56,12 +56,28 @@ export function CurrentConditionsDialog({ open, onOpenChange, onRefresh }: Curre
   useEffect(() => {
     if (open) {
       console.log('Loading conditions into dialog:', conditions) // Debug log
+      console.log('Conditions count:', conditions.length) // Debug log
       // Ensure dates are in YYYY-MM-DD format for date inputs
-      const formattedConditions = conditions.map(condition => ({
-        ...condition,
-        diagnosedDate: condition.diagnosedDate ? condition.diagnosedDate.split('T')[0] : ''
-      }))
+      const formattedConditions = conditions.map(condition => {
+        // Handle various date formats
+        let formattedDate = ''
+        if (condition.diagnosedDate) {
+          // If it contains 'T', it's an ISO datetime, split it
+          if (condition.diagnosedDate.includes('T')) {
+            formattedDate = condition.diagnosedDate.split('T')[0]
+          } else {
+            // Already in YYYY-MM-DD format
+            formattedDate = condition.diagnosedDate
+          }
+        }
+        
+        return {
+          ...condition,
+          diagnosedDate: formattedDate
+        }
+      })
       console.log('Formatted conditions:', formattedConditions) // Debug log
+      console.log('Sample diagnosed date:', formattedConditions[0]?.diagnosedDate) // Debug log
       setEditingConditions(formattedConditions)
       setDeletedConditionIds([]) // Reset deletion tracking
     }

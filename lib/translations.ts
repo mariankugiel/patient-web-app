@@ -512,7 +512,9 @@ export const translations = {
       add: "Add",
       addFirst: "Add First Entry",
       create: "Create",
+      creating: "Creating...",
       update: "Update",
+      updating: "Updating...",
       actions: "Actions"
     },
     // Dropdown
@@ -1092,7 +1094,9 @@ export const translations = {
       add: "Agregar",
       addFirst: "Agregar Primera Entrada",
       create: "Crear",
+      creating: "Creando...",
       update: "Actualizar",
+      updating: "Actualizando...",
       actions: "Acciones"
     },
     // Dropdown
@@ -1672,7 +1676,9 @@ export const translations = {
       add: "Adicionar",
       addFirst: "Adicionar Primeira Entrada",
       create: "Criar",
+      creating: "Criando...",
       update: "Atualizar",
+      updating: "Atualizando...",
       actions: "Ações"
     },
     // Dropdown

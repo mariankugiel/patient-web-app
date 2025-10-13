@@ -30,7 +30,7 @@ import { toast } from 'react-toastify'
 import { useLanguage } from '@/contexts/language-context'
 import { useSurgeryHospitalization } from '@/hooks/use-surgery-hospitalization'
 import { SurgeryHospitalization, SurgeryHospitalizationCreate, SurgeryHospitalizationUpdate } from '@/lib/api/surgery-hospitalization-api'
-import { Edit, Trash2, Plus } from 'lucide-react'
+import { Edit, Trash2, Plus, Loader2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils/date-formatter'
 
 export function SurgeriesHospitalizationsSection() {
@@ -40,6 +40,7 @@ export function SurgeriesHospitalizationsSection() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [selectedSurgery, setSelectedSurgery] = useState<SurgeryHospitalization | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [surgeryToDelete, setSurgeryToDelete] = useState<number | null>(null)
   const [formData, setFormData] = useState<SurgeryHospitalizationCreate>({
     procedure_type: 'surgery',
@@ -126,6 +127,7 @@ export function SurgeriesHospitalizationsSection() {
     }
 
     try {
+      setSaving(true)
       if (isEditing && selectedSurgery) {
         const updateData: SurgeryHospitalizationUpdate = {
           procedure_type: formData.procedure_type,
@@ -144,6 +146,8 @@ export function SurgeriesHospitalizationsSection() {
       setEditDialogOpen(false)
     } catch (error) {
       console.error('Error saving surgery/hospitalization:', error)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -364,11 +368,18 @@ export function SurgeriesHospitalizationsSection() {
           </div>
 
           <DialogFooter className="flex-shrink-0">
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={saving}>
               {t('action.cancel')}
             </Button>
-            <Button onClick={handleSave}>
-              {isEditing ? t('action.update') : t('action.create')}
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {isEditing ? t('action.updating') : t('action.creating')}
+                </>
+              ) : (
+                isEditing ? t('action.update') : t('action.create')
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
