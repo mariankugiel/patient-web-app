@@ -32,6 +32,7 @@ import {
   MedicationReminder,
   CreateReminderRequest
 } from '@/lib/api/medication-reminders-api'
+import { toast } from 'react-toastify'
 
 interface MedicationReminderManagerProps {
   medicationId: number
@@ -76,6 +77,7 @@ export function MedicationReminderManager({
       setReminders(data)
     } catch (error) {
       console.error('Failed to load reminders:', error)
+      toast.error('Failed to load reminders')
     } finally {
       setLoading(false)
     }
@@ -92,8 +94,10 @@ export function MedicationReminderManager({
       })
       loadReminders()
       onReminderChange?.()
+      toast.success('Reminder added successfully!')
     } catch (error) {
       console.error('Failed to create reminder:', error)
+      toast.error('Failed to add reminder. Please try again.')
     }
   }
 
@@ -121,8 +125,10 @@ export function MedicationReminderManager({
       loadReminders()
       onReminderChange?.()
       setReminderToDelete(null)
+      toast.success('Reminder deleted successfully!')
     } catch (error) {
       console.error('Failed to delete reminder:', error)
+      toast.error('Failed to delete reminder. Please try again.')
       setReminderToDelete(null)
     }
   }

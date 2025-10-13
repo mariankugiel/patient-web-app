@@ -12,6 +12,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -21,6 +31,7 @@ import { useLanguage } from '@/contexts/language-context'
 import { useSurgeryHospitalization } from '@/hooks/use-surgery-hospitalization'
 import { SurgeryHospitalization, SurgeryHospitalizationCreate, SurgeryHospitalizationUpdate } from '@/lib/api/surgery-hospitalization-api'
 import { Edit, Trash2, Plus } from 'lucide-react'
+import { formatDate } from '@/lib/utils/date-formatter'
 
 export function SurgeriesHospitalizationsSection() {
   const { t } = useLanguage()
@@ -29,6 +40,7 @@ export function SurgeriesHospitalizationsSection() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [selectedSurgery, setSelectedSurgery] = useState<SurgeryHospitalization | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [surgeryToDelete, setSurgeryToDelete] = useState<number | null>(null)
   const [formData, setFormData] = useState<SurgeryHospitalizationCreate>({
     procedure_type: 'surgery',
     name: '',
@@ -135,19 +147,18 @@ export function SurgeriesHospitalizationsSection() {
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (confirm(t('common.confirmDelete'))) {
-      try {
-        await deleteSurgery(id)
-      } catch (error) {
-        console.error('Error deleting surgery/hospitalization:', error)
-      }
+  const confirmDelete = async () => {
+    if (surgeryToDelete === null) return
+    
+    try {
+      await deleteSurgery(surgeryToDelete)
+      setSurgeryToDelete(null)
+    } catch (error) {
+      console.error('Error deleting surgery/hospitalization:', error)
+      setSurgeryToDelete(null)
     }
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString()
-  }
 
   return (
     <Card>
@@ -167,12 +178,9 @@ export function SurgeriesHospitalizationsSection() {
             <div className="text-muted-foreground">Loading...</div>
           </div>
         ) : surgeries.length === 0 ? (
-          <div className="text-center py-8">
-            <div className="text-muted-foreground mb-4">No surgeries or hospitalizations recorded</div>
-            <Button onClick={() => handleOpenEditDialog()} variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              {t('action.addFirst')}
-            </Button>
+          <div className="text-center py-8 text-muted-foreground">
+            <p>No surgeries or hospitalizations recorded.</p>
+            <p className="text-sm">Click the Add button above to add your first entry.</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -227,7 +235,7 @@ export function SurgeriesHospitalizationsSection() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => handleDelete(surgery.id)}
+                      onClick={() => setSurgeryToDelete(surgery.id)}
                       className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                       title={t('action.delete')}
                     >
@@ -243,7 +251,7 @@ export function SurgeriesHospitalizationsSection() {
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+        <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>
               {isEditing ? t('action.edit') : t('action.add')} {t('health.surgeriesHospitalizations')}
@@ -253,8 +261,8 @@ export function SurgeriesHospitalizationsSection() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 overflow-y-auto flex-1">
-            <div className="grid gap-2">
+          <div className="space-y-4 overflow-y-auto flex-1 py-4 px-2">
+            <div>
               <Label>{t('health.type')}</Label>
               <Select
                 value={formData.procedure_type}
@@ -262,7 +270,7 @@ export function SurgeriesHospitalizationsSection() {
                   setFormData(prev => ({ ...prev, procedure_type: value }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -272,54 +280,59 @@ export function SurgeriesHospitalizationsSection() {
               </Select>
             </div>
 
-            <div className="grid gap-2">
+            <div>
               <Label>{t('health.name')} <span className="text-red-500">*</span></Label>
               <Input
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 placeholder={t('health.namePlaceholder')}
+                className="mt-1"
                 required
               />
             </div>
 
-            <div className="grid gap-2">
+            <div>
               <Label>{t('health.date')} <span className="text-red-500">*</span></Label>
               <Input
                 type="date"
                 value={formData.procedure_date}
                 onChange={(e) => setFormData(prev => ({ ...prev, procedure_date: e.target.value }))}
+                className="mt-1"
                 required
               />
             </div>
 
-            <div className="grid gap-2">
+            <div>
               <Label>{t('health.reason')}</Label>
               <Input
                 value={formData.reason}
                 onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}
                 placeholder={t('health.reasonPlaceholder')}
+                className="mt-1"
               />
             </div>
 
-            <div className="grid gap-2">
+            <div>
               <Label>{t('health.treatment')}</Label>
               <Input
                 value={formData.treatment}
                 onChange={(e) => setFormData(prev => ({ ...prev, treatment: e.target.value }))}
                 placeholder={t('health.treatmentPlaceholder')}
+                className="mt-1"
               />
             </div>
 
-            <div className="grid gap-2">
+            <div>
               <Label>{t('health.bodyArea')}</Label>
               <Input
                 value={formData.body_area}
                 onChange={(e) => setFormData(prev => ({ ...prev, body_area: e.target.value }))}
                 placeholder={t('health.bodyAreaPlaceholder')}
+                className="mt-1"
               />
             </div>
 
-            <div className="grid gap-2">
+            <div>
               <Label>{t('health.currentStatus')}</Label>
               <Select
                 value={formData.recovery_status}
@@ -327,7 +340,7 @@ export function SurgeriesHospitalizationsSection() {
                   setFormData(prev => ({ ...prev, recovery_status: value }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -338,12 +351,13 @@ export function SurgeriesHospitalizationsSection() {
               </Select>
             </div>
 
-            <div className="grid gap-2">
+            <div>
               <Label>{t('health.notes')}</Label>
               <Textarea
                 value={formData.notes}
                 onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                 placeholder={t('health.notesPlaceholder')}
+                className="mt-1"
                 rows={3}
               />
             </div>
@@ -359,6 +373,27 @@ export function SurgeriesHospitalizationsSection() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={surgeryToDelete !== null} onOpenChange={() => setSurgeryToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Surgery/Hospitalization</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this entry? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setSurgeryToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }

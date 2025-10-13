@@ -20,6 +20,16 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Plus, Trash2, Loader2 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { toast } from "react-toastify"
@@ -38,8 +48,6 @@ interface FamilyMember {
   is_deceased: boolean
   age_at_death: string
   cause_of_death: string
-  current_age: string
-  gender: string
   chronic_diseases: ChronicDisease[]
 }
 
@@ -85,29 +93,60 @@ export function FamilyHistoryDialog({ open, onOpenChange, onRefresh }: FamilyHis
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
+  
+  // Track members marked for deletion (to delete from DB on save)
+  const [deletedMemberIds, setDeletedMemberIds] = useState<number[]>([])
+  
+  // Confirmation dialog states
+  const [memberToDelete, setMemberToDelete] = useState<number | null>(null)
+  const [diseaseToDelete, setDiseaseToDelete] = useState<{ memberIndex: number; diseaseId: string } | null>(null)
+
+  // Helper function to convert UPPERCASE_WITH_UNDERSCORES to Title Case With Spaces
+  const convertRelationToDisplayFormat = (relation: string): string => {
+    return relation
+      .split('_')
+      .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+      .join(' ')
+  }
+
+  // Get available relationship options for a specific member
+  const getAvailableRelationships = (currentMemberIndex: number): string[] => {
+    // Relationships that can appear multiple times
+    const multipleAllowed = ["Brother", "Sister", "Son", "Daughter"]
+    
+    // Get all currently used relationships except for the current member being edited
+    const usedRelationships = familyMembers
+      .filter((_, index) => index !== currentMemberIndex)
+      .map(member => member.relation)
+    
+    // Filter out relationships that are already used (unless they allow multiples)
+    return relationshipOptions.filter(relation => 
+      multipleAllowed.includes(relation) || !usedRelationships.includes(relation)
+    )
+  }
 
   // Load existing family history when dialog opens
   useEffect(() => {
     if (open) {
       loadFamilyHistory()
+      setDeletedMemberIds([]) // Reset deletion tracking
     }
   }, [open])
 
   const loadFamilyHistory = async () => {
     try {
       setLoading(true)
-      const response = await apiClient.get('/health-records/family-medical-history')
+      const response = await apiClient.get('/health-records/family-history')
       const histories = response.data || []
       
       // Convert backend format to component format
+      // Backend uses UPPERCASE with underscores, frontend uses Title Case with spaces
       const members: FamilyMember[] = histories.map((h: any) => ({
         id: h.id,
-        relation: h.relation || '',
+        relation: h.relation ? convertRelationToDisplayFormat(h.relation) : '',
         is_deceased: h.is_deceased || false,
         age_at_death: h.age_at_death?.toString() || '',
         cause_of_death: h.cause_of_death || '',
-        current_age: h.current_age?.toString() || '',
-        gender: h.gender || '',
         chronic_diseases: (h.chronic_diseases || []).map((d: any, idx: number) => ({
           id: `disease-${h.id}-${idx}`,
           disease: d.disease || '',
@@ -131,27 +170,24 @@ export function FamilyHistoryDialog({ open, onOpenChange, onRefresh }: FamilyHis
       is_deceased: false,
       age_at_death: '',
       cause_of_death: '',
-      current_age: '',
-      gender: '',
       chronic_diseases: []
     }
     setFamilyMembers(prev => [...prev, newMember])
   }
 
-  const handleRemoveFamilyMember = async (index: number) => {
-    const member = familyMembers[index]
+  const confirmRemoveFamilyMember = () => {
+    if (memberToDelete === null) return
+    
+    const member = familyMembers[memberToDelete]
+    
+    // If member exists in DB, track it for deletion on save
     if (member.id) {
-      try {
-        await apiClient.delete(`/health-records/family-medical-history/${member.id}`)
-        toast.success('Family member removed')
-        if (onRefresh) await onRefresh()
-      } catch (error) {
-        console.error('Failed to delete family member:', error)
-        toast.error('Failed to delete family member')
-        return
-      }
+      setDeletedMemberIds(prev => [...prev, member.id!])
     }
-    setFamilyMembers(prev => prev.filter((_, i) => i !== index))
+    
+    // Remove from frontend list
+    setFamilyMembers(prev => prev.filter((_, i) => i !== memberToDelete))
+    setMemberToDelete(null)
   }
 
   const handleUpdateMember = (index: number, field: keyof FamilyMember, value: any) => {
@@ -174,12 +210,15 @@ export function FamilyHistoryDialog({ open, onOpenChange, onRefresh }: FamilyHis
     ))
   }
 
-  const handleRemoveDisease = (memberIndex: number, diseaseId: string) => {
+  const confirmRemoveDisease = () => {
+    if (!diseaseToDelete) return
+    
     setFamilyMembers(prev => prev.map((member, i) => 
-      i === memberIndex 
-        ? { ...member, chronic_diseases: member.chronic_diseases.filter(d => d.id !== diseaseId) }
+      i === diseaseToDelete.memberIndex 
+        ? { ...member, chronic_diseases: member.chronic_diseases.filter(d => d.id !== diseaseToDelete.diseaseId) }
         : member
     ))
+    setDiseaseToDelete(null)
   }
 
   const handleUpdateDisease = (memberIndex: number, diseaseId: string, field: keyof ChronicDisease, value: string) => {
@@ -199,6 +238,21 @@ export function FamilyHistoryDialog({ open, onOpenChange, onRefresh }: FamilyHis
     try {
       setSaving(true)
       
+      console.log('Family members state before save:', familyMembers) // Debug log
+      console.log('Deleted member IDs:', deletedMemberIds) // Debug log
+      
+      // First, delete members that were marked for deletion
+      for (const memberId of deletedMemberIds) {
+        try {
+          await apiClient.delete(`/health-records/family-history/${memberId}`)
+          console.log(`Deleted family member ${memberId}`)
+        } catch (error) {
+          console.error(`Failed to delete family member ${memberId}:`, error)
+          // Continue with other operations even if one deletion fails
+        }
+      }
+      
+      // Then, save or update the remaining members
       for (const member of familyMembers) {
         // Validate required fields
         if (!member.relation) {
@@ -207,30 +261,35 @@ export function FamilyHistoryDialog({ open, onOpenChange, onRefresh }: FamilyHis
           return
         }
         
+        console.log('Processing member:', member) // Debug log
+        
         const memberData = {
-          relation: member.relation,
+          relation: member.relation.toUpperCase().replace(/ /g, '_'), // Convert to uppercase with underscores
           is_deceased: member.is_deceased,
           age_at_death: member.age_at_death ? parseInt(member.age_at_death) : null,
           cause_of_death: member.cause_of_death || null,
-          current_age: member.current_age ? parseInt(member.current_age) : null,
-          gender: member.gender || null,
-          chronic_diseases: member.chronic_diseases.map(d => ({
-            disease: d.disease,
-            age_at_diagnosis: d.age_at_diagnosis,
-            comments: d.comments
-          }))
+          chronic_diseases: member.chronic_diseases
+            .filter(d => d.disease) // Only include diseases with a name
+            .map(d => ({
+              disease: d.disease,
+              age_at_diagnosis: d.age_at_diagnosis,
+              comments: d.comments
+            }))
         }
+        
+        console.log('Saving family member data:', memberData) // Debug log
         
         if (member.id) {
           // Update existing
-          await apiClient.put(`/health-records/family-medical-history/${member.id}`, memberData)
+          await apiClient.put(`/health-records/family-history/${member.id}`, memberData)
         } else {
           // Create new
-          await apiClient.post('/health-records/family-medical-history', memberData)
+          await apiClient.post('/health-records/family-history', memberData)
         }
       }
       
       toast.success('Family medical history saved successfully!')
+      setDeletedMemberIds([]) // Clear deletion tracking
       if (onRefresh) await onRefresh()
       onOpenChange(false)
     } catch (error) {
@@ -241,13 +300,41 @@ export function FamilyHistoryDialog({ open, onOpenChange, onRefresh }: FamilyHis
     }
   }
 
+  const validateForm = (): boolean => {
+    // Allow saving even with no members (user can delete all)
+    if (familyMembers.length === 0) {
+      return true
+    }
+    
+    // Check if all family members have a relation selected
+    for (const member of familyMembers) {
+      if (!member.relation) {
+        return false
+      }
+      
+      // If deceased, must have age at death
+      if (member.is_deceased && !member.age_at_death) {
+        return false
+      }
+      
+      // Check all chronic diseases have at least a disease name
+      for (const disease of member.chronic_diseases) {
+        if (!disease.disease) {
+          return false
+        }
+      }
+    }
+    
+    return true
+  }
+
   const handleCancel = () => {
     onOpenChange(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>{t("health.editFamilyHistory")}</DialogTitle>
           <DialogDescription>
@@ -290,7 +377,7 @@ export function FamilyHistoryDialog({ open, onOpenChange, onRefresh }: FamilyHis
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleRemoveFamilyMember(memberIndex)}
+                    onClick={() => setMemberToDelete(memberIndex)}
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
@@ -311,7 +398,7 @@ export function FamilyHistoryDialog({ open, onOpenChange, onRefresh }: FamilyHis
                       <SelectValue placeholder="Select relationship" />
                     </SelectTrigger>
                     <SelectContent>
-                      {relationshipOptions.map((option) => (
+                      {getAvailableRelationships(memberIndex).map((option) => (
                         <SelectItem key={option} value={option}>
                           {option}
                         </SelectItem>
@@ -319,40 +406,6 @@ export function FamilyHistoryDialog({ open, onOpenChange, onRefresh }: FamilyHis
                     </SelectContent>
                   </Select>
                 </div>
-
-                {/* Gender and Current Age (for siblings/children) */}
-                {(member.relation.includes('Brother') || member.relation.includes('Sister') || member.relation.includes('Son') || member.relation.includes('Daughter')) && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Gender</Label>
-                      <Select 
-                        value={member.gender} 
-                        onValueChange={(value) => handleUpdateMember(memberIndex, 'gender', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select gender" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="male">Male</SelectItem>
-                          <SelectItem value="female">Female</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {!member.is_deceased && (
-                      <div>
-                        <Label>Current Age</Label>
-                        <Input
-                          type="number"
-                          value={member.current_age}
-                          onChange={(e) => handleUpdateMember(memberIndex, 'current_age', e.target.value)}
-                          placeholder="Current age"
-                          min="0"
-                          max="120"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* Alive/Deceased Toggle */}
                 <div className="flex items-center gap-4">
@@ -463,7 +516,7 @@ export function FamilyHistoryDialog({ open, onOpenChange, onRefresh }: FamilyHis
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleRemoveDisease(memberIndex, disease.id)}
+                              onClick={() => setDiseaseToDelete({ memberIndex, diseaseId: disease.id })}
                               className="text-red-600 hover:text-red-700 mt-5"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -492,12 +545,54 @@ export function FamilyHistoryDialog({ open, onOpenChange, onRefresh }: FamilyHis
           <Button variant="outline" onClick={handleCancel} disabled={saving || loading}>
             {t("action.cancel")}
           </Button>
-          <Button onClick={handleSave} disabled={saving || loading || familyMembers.length === 0}>
+          <Button onClick={handleSave} disabled={saving || loading || !validateForm()}>
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {t("action.save")}
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Delete Family Member Confirmation Dialog */}
+      <AlertDialog open={memberToDelete !== null} onOpenChange={() => setMemberToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Family Member</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this family member? This will delete all their medical history information.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setMemberToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmRemoveFamilyMember}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Chronic Disease Confirmation Dialog */}
+      <AlertDialog open={diseaseToDelete !== null} onOpenChange={() => setDiseaseToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Chronic Disease</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this chronic disease entry?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDiseaseToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmRemoveDisease}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

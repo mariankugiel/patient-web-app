@@ -281,6 +281,7 @@ export const translations = {
       treatment: "Treatment",
       resolved: "Resolved",
       resolvedDate: "Resolved Date",
+      resolvedDateMustBeAfterDiagnosed: "Resolved date must be after diagnosed date",
       ageOfOnset: "Age of Onset",
       relation: "Relation",
       outcome: "Outcome",
@@ -509,6 +510,7 @@ export const translations = {
       cancel: "Cancel",
       delete: "Delete",
       add: "Add",
+      addFirst: "Add First Entry",
       create: "Create",
       update: "Update",
       actions: "Actions"
@@ -865,6 +867,7 @@ export const translations = {
       treatment: "Tratamiento",
       resolved: "Resuelto",
       resolvedDate: "Fecha de Resolución",
+      resolvedDateMustBeAfterDiagnosed: "La fecha de resolución debe ser posterior a la fecha de diagnóstico",
       ageOfOnset: "Edad de Inicio",
       relation: "Relación",
       outcome: "Resultado",
@@ -1087,6 +1090,7 @@ export const translations = {
       cancel: "Cancelar",
       delete: "Eliminar",
       add: "Agregar",
+      addFirst: "Agregar Primera Entrada",
       create: "Crear",
       update: "Actualizar",
       actions: "Acciones"
@@ -1443,6 +1447,7 @@ export const translations = {
       treatment: "Tratamento",
       resolved: "Resolvido",
       resolvedDate: "Data de Resolução",
+      resolvedDateMustBeAfterDiagnosed: "A data de resolução deve ser posterior à data de diagnóstico",
       ageOfOnset: "Idade de Início",
       relation: "Relação",
       outcome: "Resultado",
@@ -1665,6 +1670,7 @@ export const translations = {
       cancel: "Cancelar",
       delete: "Eliminar",
       add: "Adicionar",
+      addFirst: "Adicionar Primeira Entrada",
       create: "Criar",
       update: "Atualizar",
       actions: "Ações"

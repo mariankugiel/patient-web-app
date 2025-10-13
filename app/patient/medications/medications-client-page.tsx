@@ -28,7 +28,8 @@ import { useLanguage } from "@/contexts/language-context"
 import { MedicationReminderManager } from "@/components/medication-reminder-manager"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { toast } from "sonner"
+import { toast } from "react-toastify"
+import { formatDate } from "@/lib/utils/date-formatter"
 
 const daysOfWeek = [
   { id: "monday", label: "Mon" },
@@ -62,6 +63,12 @@ export default function MedicationsClientPage() {
   const [messageText, setMessageText] = useState("")
   const [selectedMedicationForMessage, setSelectedMedicationForMessage] = useState<any>(null)
   const [openAddMedicationDialog, setOpenAddMedicationDialog] = useState(false)
+  const getDefaultEndDate = () => {
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    return tomorrow.toISOString().split("T")[0]
+  }
+
   const [newMedication, setNewMedication] = useState({
     name: "",
     dosage: "",
@@ -69,7 +76,7 @@ export default function MedicationsClientPage() {
     purpose: "",
     prescribedBy: "",
     startDate: new Date().toISOString().split("T")[0],
-    endDate: "",
+    endDate: getDefaultEndDate(),
     instructions: "",
     prescription: {
       number: "",
@@ -229,23 +236,31 @@ export default function MedicationsClientPage() {
   const handleAddMedication = async () => {
     // Validate required fields
     if (!newMedication.name) {
-      alert("Please fill in medication name")
+      toast.error("Please fill in medication name")
       return
     }
     if (!newMedication.dosage) {
-      alert("Please fill in dosage")
+      toast.error("Please fill in dosage")
       return
     }
     if (!newMedication.frequency) {
-      alert("Please fill in frequency")
+      toast.error("Please fill in frequency")
       return
     }
     if (!newMedication.startDate) {
-      alert("Please fill in start date")
+      toast.error("Please fill in start date")
       return
     }
     if (!newMedication.endDate) {
-      alert("Please fill in end date")
+      toast.error("Please fill in end date")
+      return
+    }
+    
+    // Validate end date is after start date
+    const startDate = new Date(newMedication.startDate)
+    const endDate = new Date(newMedication.endDate)
+    if (endDate <= startDate) {
+      toast.error("End date must be after start date")
       return
     }
 
@@ -274,27 +289,33 @@ export default function MedicationsClientPage() {
       setCurrentMeds((prevMeds) => [...prevMeds, createdMedication])
       
       // Reset form
+      const today = new Date().toISOString().split("T")[0]
+      const tomorrow = new Date()
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      const tomorrowStr = tomorrow.toISOString().split("T")[0]
+      
       setNewMedication({
         name: "",
         dosage: "",
         frequency: "",
         purpose: "",
         prescribedBy: "",
-        startDate: new Date().toISOString().split("T")[0],
-        endDate: "",
+        startDate: today,
+        endDate: tomorrowStr,
         instructions: "",
         prescription: {
           number: "",
           pharmacy: "",
           originalQuantity: "",
           refillsRemaining: "",
-          lastFilled: new Date().toISOString().split("T")[0],
+          lastFilled: today,
         },
       })
       setOpenAddMedicationDialog(false)
+      toast.success('Medication added successfully!')
     } catch (err) {
       console.error('Failed to add medication:', err)
-      alert('Failed to add medication. Please try again.')
+      toast.error('Failed to add medication. Please try again.')
     } finally {
       setSavingMedication(false)
     }
@@ -357,9 +378,11 @@ export default function MedicationsClientPage() {
       // Close dialog and reset state
       setOpenDeleteDialog(false)
       setMedicationToDelete(null)
+      
+      toast.success(`Medication ${medicationToDelete.medication_name} deleted successfully!`)
     } catch (err) {
       console.error('Failed to delete medication:', err)
-      alert('Failed to delete medication. Please try again.')
+      toast.error('Failed to delete medication. Please try again.')
     } finally {
       setDeletingMedication(false)
     }
@@ -622,7 +645,17 @@ export default function MedicationsClientPage() {
                   id="startDate"
                   type="date"
                   value={newMedication.startDate}
-                  onChange={(e) => setNewMedication({ ...newMedication, startDate: e.target.value })}
+                  onChange={(e) => {
+                    const newStartDate = e.target.value
+                    const newEndDateObj = new Date(newStartDate)
+                    newEndDateObj.setDate(newEndDateObj.getDate() + 1)
+                    const newEndDate = newEndDateObj.toISOString().split("T")[0]
+                    setNewMedication({ 
+                      ...newMedication, 
+                      startDate: newStartDate,
+                      endDate: newEndDate
+                    })
+                  }}
                   className="col-span-3"
                   required
                 />
@@ -632,14 +665,27 @@ export default function MedicationsClientPage() {
                 <Label htmlFor="endDate" className="text-right">
                   {language === "en" ? "End Date" : t("medications.endDate")} <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={newMedication.endDate}
-                  onChange={(e) => setNewMedication({ ...newMedication, endDate: e.target.value })}
-                  className="col-span-3"
-                  required
-                />
+                <div className="col-span-3">
+                  <Input
+                    id="endDate"
+                    type="date"
+                    value={newMedication.endDate}
+                    onChange={(e) => setNewMedication({ ...newMedication, endDate: e.target.value })}
+                    className={
+                      newMedication.startDate && newMedication.endDate && 
+                      new Date(newMedication.endDate) <= new Date(newMedication.startDate)
+                        ? "border-red-500"
+                        : ""
+                    }
+                    required
+                  />
+                  {newMedication.startDate && newMedication.endDate && 
+                   new Date(newMedication.endDate) <= new Date(newMedication.startDate) && (
+                    <p className="text-xs text-red-500 mt-1">
+                      {language === "en" ? "End date must be after start date" : "La fecha de finalización debe ser posterior a la fecha de inicio"}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-4 items-center gap-4">
@@ -771,7 +817,15 @@ export default function MedicationsClientPage() {
               <Button
                 type="button"
                 onClick={handleAddMedication}
-                disabled={!newMedication.name || !newMedication.dosage || !newMedication.frequency || savingMedication}
+                disabled={
+                  !newMedication.name || 
+                  !newMedication.dosage || 
+                  !newMedication.frequency || 
+                  !newMedication.startDate ||
+                  !newMedication.endDate ||
+                  new Date(newMedication.endDate) <= new Date(newMedication.startDate) ||
+                  savingMedication
+                }
               >
                 {savingMedication && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {language === "en" ? "Add Medication" : t("medications.addMedication")}
@@ -862,7 +916,7 @@ export default function MedicationsClientPage() {
                       <span className="text-sm text-gray-500 dark:text-gray-400">
                         {language === "en" ? "Start Date:" : t("medications.startDate") + ":"}
                       </span>
-                      <span className="text-sm font-medium">{new Date(medication.start_date).toLocaleDateString()}</span>
+                      <span className="text-sm font-medium">{formatDate(medication.start_date)}</span>
                     </div>
                     
                     {/* End Date / End Now Button */}
@@ -897,7 +951,7 @@ export default function MedicationsClientPage() {
                         <span className="text-sm text-gray-500 dark:text-gray-400">
                           {language === "en" ? "Last Refill Date:" : t("medications.lastRefillDate") + ":"}
                         </span>
-                        <span className="text-sm font-medium">{new Date(medication.last_filled_date).toLocaleDateString()}</span>
+                        <span className="text-sm font-medium">{formatDate(medication.last_filled_date)}</span>
                       </div>
                     )}
                   </div>
@@ -1040,7 +1094,7 @@ export default function MedicationsClientPage() {
                       <span className="text-sm text-gray-500 dark:text-gray-400">
                         {language === "en" ? "Start Date:" : t("medications.startDate") + ":"}
                       </span>
-                      <span className="text-sm font-medium">{new Date(medication.start_date).toLocaleDateString()}</span>
+                      <span className="text-sm font-medium">{formatDate(medication.start_date)}</span>
                     </div>
                     
                     {/* End Date */}
@@ -1048,7 +1102,7 @@ export default function MedicationsClientPage() {
                       <span className="text-sm text-gray-500 dark:text-gray-400">
                         {language === "en" ? "End Date:" : t("medications.endDate") + ":"}
                       </span>
-                      <span className="text-sm font-medium">{medication.end_date ? new Date(medication.end_date).toLocaleDateString() : 'N/A'}</span>
+                      <span className="text-sm font-medium">{formatDate(medication.end_date)}</span>
                     </div>
                     
                     {/* Reason Ended */}

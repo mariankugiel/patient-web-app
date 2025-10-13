@@ -12,12 +12,21 @@ import { CurrentConditionsDialog } from "@/components/health-records/current-con
 import { PastConditionsDialog } from "@/components/health-records/past-conditions-dialog"
 import { FamilyHistoryDialog } from "@/components/health-records/family-history-dialog"
 import { SurgeriesHospitalizationsSection } from "@/components/health-records/surgeries-hospitalizations-section"
+import { formatDate } from "@/lib/utils/date-formatter"
 
 export default function HistoryPage() {
   const { t } = useLanguage()
   const [editCurrentConditionsOpen, setEditCurrentConditionsOpen] = useState(false)
   const [editPastConditionsOpen, setEditPastConditionsOpen] = useState(false)
   const [editFamilyHistoryOpen, setEditFamilyHistoryOpen] = useState(false)
+
+  // Helper function to convert UPPERCASE_WITH_UNDERSCORES to Title Case With Spaces
+  const formatRelationName = (relation: string): string => {
+    return relation
+      .split('_')
+      .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+      .join(' ')
+  }
 
   // Use custom hooks for data management
   const { 
@@ -96,12 +105,12 @@ export default function HistoryPage() {
                     <div className="mt-1 text-sm text-muted-foreground">
                       {condition.diagnosedDate && (
                         <p>
-                          {t("health.diagnosed")}: {condition.diagnosedDate}
+                          <span className="font-medium">{t("health.diagnosed")}:</span> {formatDate(condition.diagnosedDate)}
                         </p>
                       )}
                       {condition.treatedWith && (
                         <p>
-                          {t("health.treatment")}: {condition.treatedWith}
+                          <span className="font-medium">{t("health.treatment")}:</span> {condition.treatedWith}
                         </p>
                       )}
                       {condition.notes && (
@@ -159,17 +168,17 @@ export default function HistoryPage() {
                     <div className="mt-1 text-sm text-muted-foreground">
                       {condition.diagnosedDate && (
                         <p>
-                          {t("health.diagnosed")}: {condition.diagnosedDate}
+                          <span className="font-medium">{t("health.diagnosed")}:</span> {formatDate(condition.diagnosedDate)}
                         </p>
                       )}
                       {condition.resolvedDate && (
                         <p>
-                          {t("health.resolved")}: {condition.resolvedDate}
+                          <span className="font-medium">{t("health.resolved")}:</span> {formatDate(condition.resolvedDate)}
                         </p>
                       )}
                       {condition.treatedWith && (
                         <p>
-                          {t("health.treatment")}: {condition.treatedWith}
+                          <span className="font-medium">{t("health.treatment")}:</span> {condition.treatedWith}
                         </p>
                       )}
                       {condition.notes && (
@@ -224,7 +233,7 @@ export default function HistoryPage() {
                 return (
                   <div key={entry.id || index} className="border rounded-lg p-4 bg-gray-50/50">
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-semibold text-base">{entry.relation}</h3>
+                      <h3 className="font-semibold text-base">{formatRelationName(entry.relation)}</h3>
                       <Badge variant={isDeceased ? "secondary" : "default"}>
                         {isDeceased ? "Deceased" : "Alive"}
                       </Badge>
