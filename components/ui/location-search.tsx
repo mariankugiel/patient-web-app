@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MapPin, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { loadGoogleMaps, isGoogleMapsReady } from "@/lib/google-maps-loader"
 
 // Declare Google Maps types
 declare global {
@@ -54,7 +55,6 @@ export function LocationSearch({
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
-  const autocompleteServiceRef = useRef<any>(null)
   const placesServiceRef = useRef<any>(null)
 
   // Debug: Log when value prop changes
@@ -62,39 +62,30 @@ export function LocationSearch({
     console.log("LocationSearch value prop changed to:", value)
   }, [value])
 
-  // Load Google Maps SDK
+  // Load Google Maps SDK using global loader
   useEffect(() => {
-    const loadGoogleMaps = () => {
-      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY
-      
-      if (!apiKey || apiKey === "your_google_places_api_key_here") {
-        return
-      }
-
-      if (window.google && window.google.maps) {
+    const initializeGoogleMaps = async () => {
+      try {
+        await loadGoogleMaps()
         setIsGoogleMapsLoaded(true)
-        autocompleteServiceRef.current = new window.google.maps.places.AutocompleteService()
         placesServiceRef.current = new window.google.maps.places.PlacesService(
           document.createElement('div')
         )
-        return
+      } catch (error) {
+        console.warn('Failed to load Google Maps API:', error)
+        // Component will fallback to Nominatim API
       }
-
-      const script = document.createElement('script')
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`
-      script.async = true
-      script.defer = true
-      script.onload = () => {
-        setIsGoogleMapsLoaded(true)
-        autocompleteServiceRef.current = new window.google.maps.places.AutocompleteService()
-        placesServiceRef.current = new window.google.maps.places.PlacesService(
-          document.createElement('div')
-        )
-      }
-      document.head.appendChild(script)
     }
 
-    loadGoogleMaps()
+    // Check if already loaded
+    if (isGoogleMapsReady()) {
+      setIsGoogleMapsLoaded(true)
+      placesServiceRef.current = new window.google.maps.places.PlacesService(
+        document.createElement('div')
+      )
+    } else {
+      initializeGoogleMaps()
+    }
   }, [])
 
   // Debounced search function
@@ -108,7 +99,7 @@ export function LocationSearch({
     
     try {
       // Try Google Places API first (if loaded)
-      if (isGoogleMapsLoaded && autocompleteServiceRef.current) {
+      if (isGoogleMapsLoaded) {
         const googleResults = await searchGooglePlaces(query)
         if (googleResults.length > 0) {
           setResults(googleResults)
@@ -131,91 +122,63 @@ export function LocationSearch({
     }
   }
 
-  // Google Places API search using JavaScript SDK
+  // Google Places API search using new Places API (Text Search)
   const searchGooglePlaces = async (query: string): Promise<LocationResult[]> => {
-    return new Promise((resolve, reject) => {
-      if (!autocompleteServiceRef.current) {
-        reject(new Error("Google Places service not initialized"))
-        return
+    try {
+      if (!window.google?.maps?.places) {
+        throw new Error("Google Places API not available")
       }
 
-      const request = {
-        input: query,
-        types: ['geocode']
-      }
+      // Use the new Places API with text search
+      const service = new window.google.maps.places.PlacesService(
+        document.createElement('div')
+      )
 
-      autocompleteServiceRef.current.getPlacePredictions(request, (predictions: any[], status: any) => {
-        if (status !== window.google.maps.places.PlacesServiceStatus.OK || !predictions) {
-          reject(new Error(`Google Places API error: ${status}`))
-          return
+      return new Promise((resolve, reject) => {
+        const request = {
+          query: query,
+          fields: ['place_id', 'name', 'formatted_address', 'geometry', 'address_components']
         }
 
-        // Get detailed place information for each prediction
-        const detailedResults = predictions.slice(0, 5).map((prediction: any) => {
-          return new Promise<LocationResult>((resolveDetail) => {
-            if (!placesServiceRef.current) {
-              resolveDetail({
-                id: prediction.place_id,
-                display_name: prediction.description,
-                address: {},
-                lat: "0",
-                lon: "0"
-              })
-              return
-            }
+        service.textSearch(request, (results: any[], status: any) => {
+          if (status !== window.google.maps.places.PlacesServiceStatus.OK || !results) {
+            reject(new Error(`Google Places API error: ${status}`))
+            return
+          }
 
-            const detailsRequest = {
-              placeId: prediction.place_id,
-              fields: ['geometry', 'address_components', 'formatted_address']
-            }
-
-            placesServiceRef.current.getDetails(detailsRequest, (place: any, detailStatus: any) => {
-              if (detailStatus !== window.google.maps.places.PlacesServiceStatus.OK || !place) {
-                resolveDetail({
-                  id: prediction.place_id,
-                  display_name: prediction.description,
-                  address: {},
-                  lat: "0",
-                  lon: "0"
-                })
-                return
+          const locationResults: LocationResult[] = results.slice(0, 5).map((place: any) => {
+            const addressComponents = place.address_components || []
+            const address: any = {}
+            
+            addressComponents.forEach((component: any) => {
+              const types = component.types
+              if (types.includes('country')) {
+                address.country = component.long_name
+                address.country_code = component.short_name
+              } else if (types.includes('administrative_area_level_1')) {
+                address.state = component.long_name
+              } else if (types.includes('locality')) {
+                address.city = component.long_name
+              } else if (types.includes('postal_code')) {
+                address.postcode = component.long_name
               }
-
-              const location = place.geometry?.location
-              
-              // Parse address components
-              const addressComponents = place.address_components || []
-              const address = {
-                city: addressComponents.find((comp: any) => 
-                  comp.types.includes('locality') || comp.types.includes('administrative_area_level_2')
-                )?.long_name,
-                state: addressComponents.find((comp: any) => 
-                  comp.types.includes('administrative_area_level_1')
-                )?.long_name,
-                country: addressComponents.find((comp: any) => 
-                  comp.types.includes('country')
-                )?.long_name,
-                country_code: addressComponents.find((comp: any) => 
-                  comp.types.includes('country')
-                )?.short_name
-              }
-
-              resolveDetail({
-                id: prediction.place_id,
-                display_name: prediction.description,
-                address,
-                lat: location?.lat?.toString() || "0",
-                lon: location?.lng?.toString() || "0"
-              })
             })
-          })
-        })
 
-        Promise.all(detailedResults).then(results => {
-          resolve(results.filter(result => result.lat !== "0" && result.lon !== "0"))
-        }).catch(reject)
+            return {
+              id: place.place_id,
+              display_name: place.formatted_address || place.name,
+              address,
+              lat: place.geometry?.location?.lat?.toString() || "0",
+              lon: place.geometry?.location?.lng?.toString() || "0"
+            }
+          })
+
+          resolve(locationResults.filter(result => result.lat !== "0" && result.lon !== "0"))
+        })
       })
-    })
+    } catch (error) {
+      throw new Error(`Google Places API error: ${error}`)
+    }
   }
 
   // OpenStreetMap Nominatim search (free fallback)

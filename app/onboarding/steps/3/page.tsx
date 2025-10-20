@@ -99,9 +99,7 @@ export default function FamilyHistoryPage() {
       stepTitle={getTranslation(language, "steps.familyHistory")}
     >
       <FamilyHistoryStep 
-        formData={formData} 
-        updateFormData={updateFormData} 
-        language={language} 
+        language={language}
       />
     </OnboardingLayout>
   )

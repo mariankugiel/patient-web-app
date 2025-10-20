@@ -5,13 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -38,114 +32,128 @@ interface CurrentConditionsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onRefresh?: () => Promise<void>
+  selectedCondition?: any | null
 }
 
-export function CurrentConditionsDialog({ open, onOpenChange, onRefresh }: CurrentConditionsDialogProps) {
+export function CurrentConditionsDialog({ 
+  open, 
+  onOpenChange, 
+  onRefresh, 
+  selectedCondition 
+}: CurrentConditionsDialogProps) {
   const { t } = useLanguage()
   const { conditions, loading, addCondition, updateCondition, deleteCondition, refresh } = useCurrentMedicalConditions()
   
-  const [editingConditions, setEditingConditions] = useState<CurrentCondition[]>([])
   const [saving, setSaving] = useState(false)
-  
-  // Track conditions marked for deletion (to delete from DB on save)
-  const [deletedConditionIds, setDeletedConditionIds] = useState<number[]>([])
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [editingCondition, setEditingCondition] = useState<CurrentCondition | null>(null)
+  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({})
   
   // Confirmation dialog state
   const [conditionToDelete, setConditionToDelete] = useState<number | null>(null)
 
   useEffect(() => {
     if (open) {
-      console.log('Loading conditions into dialog:', conditions) // Debug log
-      console.log('Conditions count:', conditions.length) // Debug log
-      // Ensure dates are in YYYY-MM-DD format for date inputs
-      const formattedConditions = conditions.map(condition => {
-        // Handle various date formats
-        let formattedDate = ''
-        if (condition.diagnosedDate) {
-          // If it contains 'T', it's an ISO datetime, split it
-          if (condition.diagnosedDate.includes('T')) {
-            formattedDate = condition.diagnosedDate.split('T')[0]
-          } else {
-            // Already in YYYY-MM-DD format
-            formattedDate = condition.diagnosedDate
-          }
+      // Clear validation errors when dialog opens
+      setValidationErrors({})
+      
+      if (selectedCondition) {
+        // Edit mode - edit single condition
+        setIsEditMode(true)
+        const formattedCondition = {
+          ...selectedCondition,
+          // Map backend fields to frontend fields
+          condition: selectedCondition.condition_name || selectedCondition.condition || '',
+          diagnosedDate: selectedCondition.diagnosed_date?.includes('T') 
+            ? selectedCondition.diagnosed_date.split('T')[0] 
+            : selectedCondition.diagnosed_date || '',
+          status: selectedCondition.status || 'uncontrolled',
+          treatedWith: selectedCondition.treatment_plan || selectedCondition.treatedWith || '',
+          notes: selectedCondition.description || selectedCondition.notes || ''
         }
-        
-        return {
-          ...condition,
-          diagnosedDate: formattedDate
+        setEditingCondition(formattedCondition)
+      } else {
+        // Add mode - create new single condition
+        setIsEditMode(false)
+        const newCondition: CurrentCondition = {
+          condition: '',
+          diagnosedDate: '',
+          status: 'uncontrolled',
+          treatedWith: '',
+          notes: ''
         }
-      })
-      console.log('Formatted conditions:', formattedConditions) // Debug log
-      console.log('Sample diagnosed date:', formattedConditions[0]?.diagnosedDate) // Debug log
-      setEditingConditions(formattedConditions)
-      setDeletedConditionIds([]) // Reset deletion tracking
+        setEditingCondition(newCondition)
+      }
     }
-  }, [open, conditions])
+  }, [open, conditions, selectedCondition])
 
-  const handleAddNew = () => {
-    const newCondition: CurrentCondition = {
-      condition: '',
-      diagnosedDate: '',
-      treatedWith: '',
-      status: 'controlled',
-      notes: ''
+
+  const updateSingleConditionField = (field: keyof CurrentCondition, value: string) => {
+    if (editingCondition) {
+      setEditingCondition(prev => prev ? { ...prev, [field]: value } : null)
+      // Clear validation error when user starts typing
+      if (validationErrors[field]) {
+        setValidationErrors(prev => {
+          const newErrors = { ...prev }
+          delete newErrors[field]
+          return newErrors
+        })
+      }
     }
-    setEditingConditions(prev => [...prev, newCondition])
   }
 
-  const handleUpdateCondition = (index: number, field: keyof CurrentCondition, value: string) => {
-    setEditingConditions(prev => prev.map((condition, i) => 
-      i === index ? { ...condition, [field]: value } : condition
-    ))
-  }
-
-  const confirmRemoveCondition = () => {
-    if (conditionToDelete === null) return
+  const validateForm = () => {
+    const errors: {[key: string]: string} = {}
     
-    const condition = editingConditions[conditionToDelete]
-    
-    // If condition exists in DB, track it for deletion on save
-    if (condition.id) {
-      setDeletedConditionIds(prev => [...prev, condition.id!])
+    if (!editingCondition?.condition?.trim()) {
+      errors.condition = 'Condition name is required'
     }
     
-    // Remove from frontend list
-    setEditingConditions(prev => prev.filter((_, i) => i !== conditionToDelete))
-    setConditionToDelete(null)
+    if (!editingCondition?.diagnosedDate?.trim()) {
+      errors.diagnosedDate = 'Diagnosed date is required'
+    }
+    
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
   }
+
 
   const handleSave = async () => {
+    if (!validateForm()) {
+      return
+    }
+    
+    setSaving(true)
     try {
-      setSaving(true)
-      
-      // First, delete conditions that were marked for deletion
-      for (const conditionId of deletedConditionIds) {
-        try {
-          await deleteCondition(conditionId)
-        } catch (error) {
-          console.error(`Failed to delete condition ${conditionId}:`, error)
-          // Continue with other operations
+      if (isEditMode && editingCondition) {
+        // Edit single condition
+        if (editingCondition.id) {
+          await updateCondition(editingCondition.id, editingCondition)
         }
+      } else if (!isEditMode && editingCondition) {
+        // Add mode - add single new condition
+        await addCondition(editingCondition)
       }
       
-      // Then, save or update the remaining conditions
-      for (const condition of editingConditions) {
-        if (condition.id) {
-          // Check if condition has actually changed
-          const originalCondition = conditions.find(c => c.id === condition.id)
-          if (originalCondition && hasConditionChanged(originalCondition, condition)) {
-            await updateCondition(condition.id, condition)
-          }
-        } else if (condition.condition.trim()) {
-          // Add new condition
-          await addCondition(condition)
-        }
+      if (onRefresh) {
+        await onRefresh()
+      } else {
+        await refresh()
       }
       
-      setDeletedConditionIds([]) // Clear deletion tracking
-      
-      // Refresh the data to ensure UI is updated
+      onOpenChange(false)
+    } catch (error) {
+      console.error('Failed to save conditions:', error)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!editingCondition?.id) return
+    
+    try {
+      await deleteCondition(editingCondition.id)
       if (onRefresh) {
         await onRefresh()
       } else {
@@ -153,198 +161,247 @@ export function CurrentConditionsDialog({ open, onOpenChange, onRefresh }: Curre
       }
       onOpenChange(false)
     } catch (error) {
-      // Error handling is done in the hook
-    } finally {
-      setSaving(false)
+      console.error('Failed to delete condition:', error)
     }
   }
 
-  const hasConditionChanged = (original: CurrentCondition, edited: CurrentCondition): boolean => {
-    return (
-      original.condition !== edited.condition ||
-      original.diagnosedDate !== edited.diagnosedDate ||
-      original.treatedWith !== edited.treatedWith ||
-      original.status !== edited.status ||
-      original.notes !== edited.notes
-    )
-  }
-
-  const validateForm = (): boolean => {
-    // Allow saving even with no conditions (user can delete all)
-    if (editingConditions.length === 0) {
-      return true
-    }
-    
-    // Check if all remaining conditions have required fields
-    for (const condition of editingConditions) {
-      // Condition name is required
-      if (!condition.condition || !condition.condition.trim()) {
-        return false
-      }
-      // Diagnosed date is required
-      if (!condition.diagnosedDate) {
-        return false
-      }
-      // Treatment is required
-      if (!condition.treatedWith || !condition.treatedWith.trim()) {
-        return false
-      }
-    }
-    return true
-  }
 
   const handleCancel = () => {
-    setEditingConditions([...conditions])
+    setEditingCondition(null)
     onOpenChange(false)
   }
 
+  const confirmDelete = () => {
+    setConditionToDelete(editingCondition?.id || null)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (conditionToDelete) {
+      try {
+        await deleteCondition(conditionToDelete)
+        if (onRefresh) {
+          await onRefresh()
+        } else {
+          await refresh()
+        }
+        onOpenChange(false)
+      } catch (error) {
+        console.error('Failed to delete condition:', error)
+      }
+    }
+    setConditionToDelete(null)
+  }
+
+  const handleDeleteCancel = () => {
+    setConditionToDelete(null)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle>{t("health.editCurrentConditions")}</DialogTitle>
-          <DialogDescription>
-            {t("health.editCurrentConditionsDesc")}
-          </DialogDescription>
-        </DialogHeader>
-        
-        {/* Add New Button - Sticky at Top */}
-        <div className="flex-shrink-0 pb-4 border-b">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleAddNew}
-            className="w-full"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add New Current Condition
-          </Button>
-        </div>
-        
-        {/* Scrollable Conditions List */}
-        <div className="flex-1 overflow-y-auto space-y-4 py-4">
-          {editingConditions.map((condition, index) => (
-            <div key={index} className="border rounded-lg p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="font-medium">
-                  {condition.condition || `Condition ${index + 1}`}
-                </h4>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setConditionToDelete(index)}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor={`condition-${index}`}>
-                    {t("health.condition")} <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id={`condition-${index}`}
-                    value={condition.condition}
-                    onChange={(e) => handleUpdateCondition(index, 'condition', e.target.value)}
-                    placeholder="Enter condition name"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor={`status-${index}`}>{t("health.status.label")}</Label>
-                  <Select
-                    value={condition.status}
-                    onValueChange={(value: 'controlled' | 'partiallyControlled' | 'uncontrolled') => 
-                      handleUpdateCondition(index, 'status', value)
-                    }
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {isEditMode ? 'Edit Current Medical Condition' : 'Add New Current Medical Condition'}
+            </DialogTitle>
+            <DialogDescription>
+              {isEditMode 
+                ? 'Edit your current medical condition details.'
+                : 'Add a new current medical condition. All fields are optional except Condition Name.'
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+
+            {/* Edit Mode - Single Condition */}
+            {isEditMode && editingCondition && (
+              <div className="border rounded-lg p-4 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-medium text-gray-900">Edit Condition</h4>
+                  <Button
+                    onClick={confirmDelete}
+                    size="sm"
+                    variant="outline"
+                    className="text-red-600 hover:text-red-700"
                   >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="controlled">{t("health.status.controlled")}</SelectItem>
-                      <SelectItem value="partiallyControlled">{t("health.status.partiallyControlled")}</SelectItem>
-                      <SelectItem value="uncontrolled">{t("health.status.uncontrolled")}</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor={`diagnosed-${index}`}>
-                    {t("health.diagnosed")} <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id={`diagnosed-${index}`}
-                    type="date"
-                    value={condition.diagnosedDate}
-                    onChange={(e) => handleUpdateCondition(index, 'diagnosedDate', e.target.value)}
-                    required
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="condition">Condition Name <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="condition"
+                      value={editingCondition.condition}
+                      onChange={(e) => updateSingleConditionField('condition', e.target.value)}
+                      placeholder="Enter condition name"
+                      className={validationErrors.condition ? "border-red-500" : ""}
+                    />
+                    {validationErrors.condition && (
+                      <p className="text-sm text-red-500">{validationErrors.condition}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Status</Label>
+                    <Select
+                      value={editingCondition.status}
+                      onValueChange={(value) => updateSingleConditionField('status', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="controlled">Controlled</SelectItem>
+                        <SelectItem value="partiallyControlled">Partially Controlled</SelectItem>
+                        <SelectItem value="uncontrolled">Uncontrolled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="diagnosedDate">Date Diagnosed <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="diagnosedDate"
+                      type="date"
+                      value={editingCondition.diagnosedDate}
+                      onChange={(e) => updateSingleConditionField('diagnosedDate', e.target.value)}
+                      className={validationErrors.diagnosedDate ? "border-red-500" : ""}
+                    />
+                    {validationErrors.diagnosedDate && (
+                      <p className="text-sm text-red-500">{validationErrors.diagnosedDate}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="treatedWith">Treatment</Label>
+                    <Input
+                      id="treatedWith"
+                      value={editingCondition.treatedWith}
+                      onChange={(e) => updateSingleConditionField('treatedWith', e.target.value)}
+                      placeholder="Current treatment"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea
+                    id="notes"
+                    value={editingCondition.notes}
+                    onChange={(e) => updateSingleConditionField('notes', e.target.value)}
+                    placeholder="Additional notes about the condition"
+                    rows={3}
                   />
                 </div>
-                <div>
-                  <Label htmlFor={`treatment-${index}`}>
-                    {t("health.treatment")} <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id={`treatment-${index}`}
-                    value={condition.treatedWith}
-                    onChange={(e) => handleUpdateCondition(index, 'treatedWith', e.target.value)}
-                    placeholder="Enter treatment details"
-                    required
+              </div>
+            )}
+
+            {/* Add Mode - Single Condition Form */}
+            {!isEditMode && editingCondition && (
+              <div className="border rounded-lg p-4 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="add_condition">Condition Name <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="add_condition"
+                      value={editingCondition.condition}
+                      onChange={(e) => updateSingleConditionField('condition', e.target.value)}
+                      placeholder="Enter condition name"
+                      className={validationErrors.condition ? "border-red-500" : ""}
+                    />
+                    {validationErrors.condition && (
+                      <p className="text-sm text-red-500">{validationErrors.condition}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="add_status">Status</Label>
+                    <Select
+                      value={editingCondition.status}
+                      onValueChange={(value) => updateSingleConditionField('status', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="controlled">Controlled</SelectItem>
+                        <SelectItem value="partiallyControlled">Partially Controlled</SelectItem>
+                        <SelectItem value="uncontrolled">Uncontrolled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="add_diagnosedDate">Date Diagnosed <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="add_diagnosedDate"
+                      type="date"
+                      value={editingCondition.diagnosedDate}
+                      onChange={(e) => updateSingleConditionField('diagnosedDate', e.target.value)}
+                      className={validationErrors.diagnosedDate ? "border-red-500" : ""}
+                    />
+                    {validationErrors.diagnosedDate && (
+                      <p className="text-sm text-red-500">{validationErrors.diagnosedDate}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="add_treatedWith">Treatment</Label>
+                    <Input
+                      id="add_treatedWith"
+                      value={editingCondition.treatedWith}
+                      onChange={(e) => updateSingleConditionField('treatedWith', e.target.value)}
+                      placeholder="Current treatment"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="add_notes">Notes</Label>
+                  <Textarea
+                    id="add_notes"
+                    value={editingCondition.notes}
+                    onChange={(e) => updateSingleConditionField('notes', e.target.value)}
+                    placeholder="Additional notes about the condition"
+                    rows={3}
                   />
                 </div>
               </div>
-              
-              <div>
-                <Label htmlFor={`notes-${index}`}>{t("health.notes")}</Label>
-                <Textarea
-                  id={`notes-${index}`}
-                  value={condition.notes}
-                  onChange={(e) => handleUpdateCondition(index, 'notes', e.target.value)}
-                  placeholder="Enter additional notes"
-                  rows={2}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-        
-        <DialogFooter className="flex-shrink-0">
-          <Button variant="outline" onClick={handleCancel} disabled={saving || loading}>
-            {t("action.cancel")}
-          </Button>
-          <Button onClick={handleSave} disabled={saving || loading || !validateForm()}>
-            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {t("action.save")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancel} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {isEditMode ? 'Update Condition' : 'Add Condition'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={conditionToDelete !== null} onOpenChange={() => setConditionToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Condition</AlertDialogTitle>
+            <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove this condition? This action will be saved when you click the Save button.
+              Are you sure you want to delete this medical condition? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConditionToDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmRemoveCondition}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-            >
-              Remove
+            <AlertDialogCancel onClick={handleDeleteCancel}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-red-600 hover:bg-red-700">
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Dialog>
+    </>
   )
 }

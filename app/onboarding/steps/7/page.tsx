@@ -74,7 +74,7 @@ export default function AccessPage() {
   }
 
   const handleStepClick = (stepId: number) => {
-    if (completedSteps.has(stepId) || stepId <= 7) {
+    if (completedSteps.includes(stepId) || stepId <= 7) {
       router.push(`/onboarding/steps/${stepId}`)
     }
   }

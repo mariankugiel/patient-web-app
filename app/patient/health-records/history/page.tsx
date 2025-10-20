@@ -4,10 +4,9 @@ import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { PencilIcon, Loader2 } from "lucide-react"
+import { Loader2, Plus } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { useCurrentMedicalConditions, usePastMedicalConditions, useFamilyMedicalHistory } from "@/hooks/use-medical-conditions"
-import { useSurgeryHospitalization } from "@/hooks/use-surgery-hospitalization"
 import { CurrentConditionsDialog } from "@/components/health-records/current-conditions-dialog"
 import { PastConditionsDialog } from "@/components/health-records/past-conditions-dialog"
 import { FamilyHistoryDialog } from "@/components/health-records/family-history-dialog"
@@ -19,6 +18,11 @@ export default function HistoryPage() {
   const [editCurrentConditionsOpen, setEditCurrentConditionsOpen] = useState(false)
   const [editPastConditionsOpen, setEditPastConditionsOpen] = useState(false)
   const [editFamilyHistoryOpen, setEditFamilyHistoryOpen] = useState(false)
+  
+  // State for selected items to edit
+  const [selectedCurrentCondition, setSelectedCurrentCondition] = useState<any>(null)
+  const [selectedPastCondition, setSelectedPastCondition] = useState<any>(null)
+  const [selectedFamilyHistory, setSelectedFamilyHistory] = useState<any>(null)
 
   // Helper function to convert UPPERCASE_WITH_UNDERSCORES to Title Case With Spaces
   const formatRelationName = (relation: string): string => {
@@ -63,10 +67,13 @@ export default function HistoryPage() {
               variant="outline" 
               size="sm" 
               className="h-8 gap-1 bg-transparent"
-              onClick={() => setEditCurrentConditionsOpen(true)}
+              onClick={() => {
+                setSelectedCurrentCondition(null)
+                setEditCurrentConditionsOpen(true)
+              }}
             >
-              <PencilIcon className="h-3.5 w-3.5" />
-              <span>{t("action.edit")}</span>
+              <Plus className="h-3.5 w-3.5" />
+              <span>{t("action.add")}</span>
             </Button>
           </CardHeader>
           <CardContent>
@@ -82,14 +89,21 @@ export default function HistoryPage() {
             ) : currentConditions.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <p>No current medical conditions recorded.</p>
-                <p className="text-sm">Click Edit to add your current conditions.</p>
+                <p className="text-sm">Click Add to add your current conditions.</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {currentConditions.map((condition, index) => (
-                  <div key={condition.id || index} className="border-b pb-3 last:border-0 last:pb-0">
+                  <div 
+                    key={condition.id || index} 
+                    className="p-4 border rounded-lg bg-white hover:shadow-md hover:border-blue-300 transition-all duration-200 cursor-pointer group"
+                    onClick={() => {
+                      setSelectedCurrentCondition(condition)
+                      setEditCurrentConditionsOpen(true)
+                    }}
+                  >
                     <div className="flex items-center justify-between">
-                      <h3 className="font-medium">{condition.condition}</h3>
+                      <h3 className="font-medium group-hover:text-blue-600 transition-colors">{condition.condition}</h3>
                       <Badge
                         variant={condition.status === 'controlled' ? "outline" : "secondary"}
                         className={
@@ -102,7 +116,7 @@ export default function HistoryPage() {
                          t("health.status.uncontrolled")}
                       </Badge>
                     </div>
-                    <div className="mt-1 text-sm text-muted-foreground">
+                    <div className="mt-2 text-sm text-muted-foreground">
                       {condition.diagnosedDate && (
                         <p>
                           <span className="font-medium">{t("health.diagnosed")}:</span> {formatDate(condition.diagnosedDate)}
@@ -134,10 +148,13 @@ export default function HistoryPage() {
               variant="outline" 
               size="sm" 
               className="h-8 gap-1 bg-transparent"
-              onClick={() => setEditPastConditionsOpen(true)}
+              onClick={() => {
+                setSelectedPastCondition(null)
+                setEditPastConditionsOpen(true)
+              }}
             >
-              <PencilIcon className="h-3.5 w-3.5" />
-              <span>{t("action.edit")}</span>
+              <Plus className="h-3.5 w-3.5" />
+              <span>{t("action.add")}</span>
             </Button>
           </CardHeader>
           <CardContent>
@@ -153,19 +170,26 @@ export default function HistoryPage() {
             ) : pastConditions.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <p>No past medical conditions recorded.</p>
-                <p className="text-sm">Click Edit to add your past conditions.</p>
+                <p className="text-sm">Click Add to add your past conditions.</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {pastConditions.map((condition, index) => (
-                  <div key={condition.id || index} className="border-b pb-3 last:border-0 last:pb-0">
+                  <div 
+                    key={condition.id || index} 
+                    className="p-4 border rounded-lg bg-white hover:shadow-md hover:border-blue-300 transition-all duration-200 cursor-pointer group"
+                    onClick={() => {
+                      setSelectedPastCondition(condition)
+                      setEditPastConditionsOpen(true)
+                    }}
+                  >
                     <div className="flex items-center justify-between">
-                      <h3 className="font-medium">{condition.condition}</h3>
+                      <h3 className="font-medium group-hover:text-blue-600 transition-colors">{condition.condition}</h3>
                       <Badge variant="outline" className="text-green-500">
                         {t("health.resolved")}
                       </Badge>
                     </div>
-                    <div className="mt-1 text-sm text-muted-foreground">
+                    <div className="mt-2 text-sm text-muted-foreground">
                       {condition.diagnosedDate && (
                         <p>
                           <span className="font-medium">{t("health.diagnosed")}:</span> {formatDate(condition.diagnosedDate)}
@@ -203,10 +227,13 @@ export default function HistoryPage() {
             variant="outline" 
             size="sm" 
             className="h-8 gap-1 bg-transparent"
-            onClick={() => setEditFamilyHistoryOpen(true)}
+            onClick={() => {
+              setSelectedFamilyHistory(null)
+              setEditFamilyHistoryOpen(true)
+            }}
           >
-            <PencilIcon className="h-3.5 w-3.5" />
-            <span>{t("action.edit")}</span>
+            <Plus className="h-3.5 w-3.5" />
+            <span>{t("action.add")}</span>
           </Button>
         </CardHeader>
         <CardContent>
@@ -222,18 +249,25 @@ export default function HistoryPage() {
           ) : familyHistory.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <p>No family medical history recorded.</p>
-              <p className="text-sm">Click Edit to add your family medical history.</p>
+              <p className="text-sm">Click Add to add your family medical history.</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {familyHistory.map((entry, index) => {
                 const chronicDiseases = entry.chronic_diseases || []
                 const isDeceased = entry.is_deceased || false
                 
                 return (
-                  <div key={entry.id || index} className="border rounded-lg p-4 bg-gray-50/50">
+                  <div 
+                    key={entry.id || index} 
+                    className="p-4 border rounded-lg bg-white hover:shadow-md hover:border-blue-300 transition-all duration-200 cursor-pointer group"
+                    onClick={() => {
+                      setSelectedFamilyHistory(entry)
+                      setEditFamilyHistoryOpen(true)
+                    }}
+                  >
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-semibold text-base">{formatRelationName(entry.relation)}</h3>
+                      <h3 className="font-semibold text-base group-hover:text-blue-600 transition-colors">{formatRelationName(entry.relation)}</h3>
                       <Badge variant={isDeceased ? "secondary" : "default"}>
                         {isDeceased ? "Deceased" : "Alive"}
                       </Badge>
@@ -293,18 +327,31 @@ export default function HistoryPage() {
       {/* Dialog Components */}
       <CurrentConditionsDialog 
         open={editCurrentConditionsOpen} 
-        onOpenChange={setEditCurrentConditionsOpen}
+        onOpenChange={(open) => {
+          setEditCurrentConditionsOpen(open)
+          if (!open) setSelectedCurrentCondition(null)
+        }}
         onRefresh={refreshCurrentConditions}
+        selectedCondition={selectedCurrentCondition}
       />
       <PastConditionsDialog 
         open={editPastConditionsOpen} 
-        onOpenChange={setEditPastConditionsOpen}
+        onOpenChange={(open) => {
+          setEditPastConditionsOpen(open)
+          if (!open) setSelectedPastCondition(null)
+        }}
         onRefresh={refreshPastConditions}
+        selectedCondition={selectedPastCondition}
       />
       <FamilyHistoryDialog 
         open={editFamilyHistoryOpen} 
-        onOpenChange={setEditFamilyHistoryOpen}
+        onOpenChange={(open) => {
+          setEditFamilyHistoryOpen(open)
+          if (!open) setSelectedFamilyHistory(null)
+        }}
         onRefresh={refreshFamilyHistory}
+        selectedEntry={selectedFamilyHistory}
+        existingEntries={familyHistory}
       />
     </div>
   )

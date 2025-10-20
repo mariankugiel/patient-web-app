@@ -285,6 +285,38 @@ export class HealthRecordsApiService {
     return response.data
   }
 
+  // Get all user metrics for health plan dialog
+  static async getAllUserMetrics(): Promise<HealthRecordMetric[]> {
+    const response = await apiClient.get('/health-records/metrics/all')
+    return response.data
+  }
+
+  // Health Goals endpoints
+  static async getHealthGoals(): Promise<any[]> {
+    const response = await apiClient.get('/health-plans/health-goals')
+    return response.data
+  }
+
+  static async createHealthGoal(goalData: {
+    name: string
+    target_value: { operator: string, value: string }
+    start_date: string
+    end_date: string
+    metric_id?: number
+  }): Promise<any> {
+    const response = await apiClient.post('/health-plans/health-goals', goalData)
+    return response.data
+  }
+
+  static async updateHealthGoal(goalId: number, goalData: any): Promise<any> {
+    const response = await apiClient.put(`/health-plans/health-goals/${goalId}`, goalData)
+    return response.data
+  }
+
+  static async deleteHealthGoal(goalId: number): Promise<void> {
+    await apiClient.delete(`/health-plans/health-goals/${goalId}`)
+  }
+
   // Admin Templates
   static async getAdminSectionTemplates(healthRecordTypeId: number = 1): Promise<HealthRecordSectionTemplate[]> {
     const response = await apiClient.get(`/health-records/admin-templates/sections?health_record_type_id=${healthRecordTypeId}`)

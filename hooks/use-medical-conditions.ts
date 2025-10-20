@@ -63,7 +63,7 @@ export function useCurrentMedicalConditions() {
         condition: condition.condition_name,
         diagnosedDate: condition.diagnosed_date ? condition.diagnosed_date.split('T')[0] : '', // Keep ISO date format (YYYY-MM-DD)
         treatedWith: condition.treatment_plan || '',
-        status: MedicalConditionApiService.mapStatusToFrontend(condition.status),
+        status: MedicalConditionApiService.mapStatusToFrontend(condition.status) as 'controlled' | 'partiallyControlled' | 'uncontrolled',
         notes: condition.description || ''
       }))
       
@@ -116,7 +116,7 @@ export function useCurrentMedicalConditions() {
         condition: result.condition_name,
         diagnosedDate: result.diagnosed_date ? new Date(result.diagnosed_date).toLocaleDateString() : '',
         treatedWith: result.treatment_plan || '',
-        status: MedicalConditionApiService.mapStatusToFrontend(result.status),
+        status: MedicalConditionApiService.mapStatusToFrontend(result.status) as 'controlled' | 'partiallyControlled' | 'uncontrolled',
         notes: result.description || ''
       }
       
@@ -169,7 +169,7 @@ export function useCurrentMedicalConditions() {
         condition: result.condition_name,
         diagnosedDate: result.diagnosed_date ? new Date(result.diagnosed_date).toLocaleDateString() : '',
         treatedWith: result.treatment_plan || '',
-        status: MedicalConditionApiService.mapStatusToFrontend(result.status),
+        status: MedicalConditionApiService.mapStatusToFrontend(result.status) as 'controlled' | 'partiallyControlled' | 'uncontrolled',
         notes: result.description || ''
       }
       
@@ -434,15 +434,15 @@ export function useFamilyMedicalHistory() {
         id: entry.id,
         relation: entry.relation,
         is_deceased: entry.is_deceased,
-        age_at_death: entry.age_at_death,
-        cause_of_death: entry.cause_of_death,
-        current_age: entry.current_age,
-        gender: entry.gender,
+        age_at_death: entry.age_at_death || undefined,
+        cause_of_death: entry.cause_of_death || undefined,
+        current_age: entry.current_age || undefined,
+        gender: entry.gender || undefined,
         chronic_diseases: entry.chronic_diseases || [],
         // Legacy fields
-        condition: entry.condition_name,
+        condition: entry.condition_name || undefined,
         ageOfOnset: entry.age_of_onset?.toString() || '',
-        outcome: entry.outcome || ''
+        outcome: entry.outcome || undefined
       }))
       
       setHistory(transformedHistory)
@@ -454,20 +454,16 @@ export function useFamilyMedicalHistory() {
     }
   }
 
-  const addHistoryEntry = async (entry: Omit<FamilyHistoryEntry, 'id'>) => {
+  const addHistoryEntry = async (entry: any) => {
     try {
-      const backendData = {
-        condition: entry.condition,
-        relationship: entry.relation,
-        age: entry.ageOfOnset,
-        notes: entry.outcome
-      }
-      
-      const result = await MedicalConditionApiService.createFamilyHistory(backendData)
+      console.log('Hook - addHistoryEntry called with:', entry)
+      console.log('Hook - Chronic diseases in entry:', entry?.chronic_diseases)
+      // Pass the entry data directly to the API service
+      const result = await MedicalConditionApiService.createFamilyHistory(entry)
       
       const newEntry: FamilyHistoryEntry = {
         id: result.id,
-        condition: result.condition_name,
+        condition: result.condition_name || '',
         relation: result.relation,
         ageOfOnset: result.age_of_onset?.toString() || '',
         outcome: result.outcome || ''
@@ -482,23 +478,17 @@ export function useFamilyMedicalHistory() {
     }
   }
 
-  const updateHistoryEntry = async (id: number, entry: Omit<FamilyHistoryEntry, 'id'>) => {
+  const updateHistoryEntry = async (id: number, entry: any) => {
     try {
-      const backendData = {
-        condition: entry.condition,
-        relationship: entry.relation,
-        age: entry.ageOfOnset,
-        notes: entry.outcome
-      }
-      
-      const result = await MedicalConditionApiService.updateFamilyHistory(id, backendData)
+      // Pass the entry data directly to the API service
+      const result = await MedicalConditionApiService.updateFamilyHistory(id, entry)
       
       const updatedEntry: FamilyHistoryEntry = {
         id: result.id,
-        condition: result.condition_name,
+        condition: result.condition_name || undefined,
         relation: result.relation,
         ageOfOnset: result.age_of_onset?.toString() || '',
-        outcome: result.outcome || ''
+        outcome: result.outcome || undefined
       }
       
       setHistory(prev => prev.map(h => h.id === id ? updatedEntry : h))

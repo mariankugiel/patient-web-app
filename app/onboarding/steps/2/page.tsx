@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDispatch, useSelector } from 'react-redux'
 import { RootState, AppDispatch } from '@/lib/store'
@@ -10,6 +10,7 @@ import {
   addCompletedStep,
   validateMedicalConditions,
   addCurrentHealthProblem,
+  addMedication,
   addPastMedicalCondition,
   addPastSurgery
 } from '@/lib/features/onboarding/onboardingSlice'
@@ -33,71 +34,13 @@ export default function MedicalConditionPage() {
   
   const [language, setLanguage] = useState<Language>("en-US")
   const [showValidationSummary, setShowValidationSummary] = useState(false)
+  const [isLoadingData, setIsLoadingData] = useState(false)
+  const hasLoadedData = useRef(false)
 
   // Set current step
   useEffect(() => {
     dispatch(setCurrentStep(2))
   }, [dispatch])
-
-  // Load existing data if available (only once)
-  useEffect(() => {
-    const loadExistingData = async () => {
-      if (user?.user_metadata) {
-        const metadata = user.user_metadata
-        
-        // Only load if Redux state is empty (first time loading)
-        if (medicalConditions.currentHealthProblems.length === 0 && 
-            medicalConditions.medications.length === 0 && 
-            medicalConditions.pastMedicalConditions.length === 0 && 
-            medicalConditions.pastSurgeries.length === 0) {
-          
-          // Try to load from dedicated medical condition tables first
-          try {
-            const [currentProblems, pastConditions, pastSurgeries, familyHistory] = await Promise.all([
-              MedicalConditionApiService.getCurrentHealthProblems(),
-              MedicalConditionApiService.getPastMedicalConditions(),
-              MedicalConditionApiService.getPastSurgeries(),
-              MedicalConditionApiService.getFamilyHistory()
-            ])
-
-            // Transform backend data to frontend format and add to Redux
-            currentProblems.forEach(condition => {
-              const transformed = MedicalConditionApiService.transformBackendToFrontend(condition) as any
-              dispatch(addCurrentHealthProblem(transformed))
-            })
-            
-            pastConditions.forEach(condition => {
-              const transformed = MedicalConditionApiService.transformBackendToFrontend(condition) as any
-              dispatch(addPastMedicalCondition(transformed))
-            })
-
-            pastSurgeries.forEach(condition => {
-              const transformed = MedicalConditionApiService.transformBackendToFrontend(condition) as any
-              dispatch(addPastSurgery(transformed))
-            })
-
-          } catch (error) {
-            console.log('Could not load from medical condition tables, using profile data:', error)
-            
-            // Fallback to user metadata
-            if (metadata.current_health_problems) {
-              metadata.current_health_problems.forEach((condition: string) => {
-                dispatch(addCurrentHealthProblem({
-                  condition,
-                  yearOfDiagnosis: '',
-                  diagnosticProvider: '',
-                  treatment: '',
-                  comments: ''
-                }))
-              })
-            }
-          }
-        }
-      }
-    }
-
-    loadExistingData()
-  }, [user?.id]) // Only depend on user ID to prevent infinite loops
 
   // ============================================================================
   // VALIDATION FUNCTIONS
@@ -117,34 +60,53 @@ export default function MedicalConditionPage() {
   const saveProgress = async (skipValidation = false) => {
     if (user) {
       try {
-        // Save to dedicated medical condition tables
-        const medicalData = {
-          currentHealthProblems: medicalConditions.currentHealthProblems,
-          medications: medicalConditions.medications,
-          pastMedicalConditions: medicalConditions.pastMedicalConditions,
-          pastSurgeries: medicalConditions.pastSurgeries,
-        }
+        // Check if there's any data to save
+        const hasAnyData = medicalConditions.currentHealthProblems.length > 0 || 
+                          medicalConditions.medications.length > 0 || 
+                          medicalConditions.pastMedicalConditions.length > 0 || 
+                          medicalConditions.pastSurgeries.length > 0
 
-        // Save to backend medical condition tables
-        await MedicalConditionApiService.saveAllMedicalData(medicalData)
-
-        // Also save to user profile for quick access
-        const profileData = {
-          current_health_problems: medicalConditions.currentHealthProblems.map(p => p.condition),
-          medications: medicalConditions.medications,
-          past_medical_conditions: medicalConditions.pastMedicalConditions.map(c => c.condition),
-          past_surgeries: medicalConditions.pastSurgeries.map(s => s.surgeryType),
-        }
-
-        await AuthApiService.updateProfile(profileData)
-
-        // Update Redux state
-        dispatch(updateUser({
-          user_metadata: {
-            ...user.user_metadata,
-            ...profileData,
+        if (hasAnyData) {
+          // Save to dedicated medical condition tables
+          const medicalData = {
+            currentHealthProblems: medicalConditions.currentHealthProblems,
+            medications: medicalConditions.medications,
+            pastMedicalConditions: medicalConditions.pastMedicalConditions,
+            pastSurgeries: medicalConditions.pastSurgeries,
           }
-        }))
+
+          // Save to backend medical condition tables
+          await MedicalConditionApiService.saveAllMedicalData(medicalData)
+        }
+
+        // Also save to user profile for quick access (only if there's data)
+        if (hasAnyData) {
+          const profileData = {
+            current_health_problems: medicalConditions.currentHealthProblems.map(p => p.condition),
+            medications: medicalConditions.medications,
+            past_medical_conditions: medicalConditions.pastMedicalConditions.map(c => c.condition),
+            past_surgeries: medicalConditions.pastSurgeries.map(s => s.surgeryType),
+          }
+
+          await AuthApiService.updateProfile(profileData)
+        }
+
+        // Update Redux state (only if there's data)
+        if (hasAnyData) {
+          const profileData = {
+            current_health_problems: medicalConditions.currentHealthProblems.map(p => p.condition),
+            medications: medicalConditions.medications,
+            past_medical_conditions: medicalConditions.pastMedicalConditions.map(c => c.condition),
+            past_surgeries: medicalConditions.pastSurgeries.map(s => s.surgeryType),
+          }
+          
+          dispatch(updateUser({
+            user_metadata: {
+              ...user.user_metadata,
+              ...profileData,
+            }
+          }))
+        }
         
         if (!skipValidation) {
           toast.success("Medical information saved successfully!")
@@ -216,19 +178,32 @@ export default function MedicalConditionPage() {
   }
 
   const handleSkip = async () => {
-    // Validate any existing data before skipping
-    dispatch(validateMedicalConditions())
-    
-    if (medicalConditions.errors.length > 0) {
-      // Show validation errors but allow skipping
-      toast.warning("Some medical information has validation errors, but you can still skip onboarding.")
-      medicalConditions.errors.forEach(error => {
-        toast.error(error)
-      })
-    }
+    // Check if there's any data to save
+    const hasAnyData = medicalConditions.currentHealthProblems.length > 0 || 
+                      medicalConditions.medications.length > 0 || 
+                      medicalConditions.pastMedicalConditions.length > 0 || 
+                      medicalConditions.pastSurgeries.length > 0
 
-    // Save any existing data before skipping
-    await saveProgress()
+    if (hasAnyData) {
+      // Validate any existing data before skipping
+      dispatch(validateMedicalConditions())
+      
+      if (medicalConditions.errors.length > 0) {
+        // Show validation errors but allow skipping
+        toast.warning("Some medical information has validation errors, but you can still skip onboarding.")
+        medicalConditions.errors.forEach(error => {
+          toast.error(error)
+        })
+      }
+
+      // Save any existing data before skipping
+      try {
+        await saveProgress(true) // skipValidation = true
+      } catch (error) {
+        console.error('Error saving data during skip:', error)
+        toast.warning("Could not save medical data, but continuing with skip...")
+      }
+    }
     
     await skipOnboarding()
   }

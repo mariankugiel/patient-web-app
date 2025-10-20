@@ -231,7 +231,7 @@ export function OnboardingSurvey() {
   const [showWelcome, setShowWelcome] = useState(true)
   const [language, setLanguage] = useState<Language>("en-US")
   const [currentStep, setCurrentStep] = useState(1)
-  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set())
+  const [completedSteps, setCompletedSteps] = useState<number[]>([])
   const [formData, setFormData] = useState<FormData>({
     firstName: "",
     lastName: "",
@@ -568,7 +568,7 @@ export function OnboardingSurvey() {
           <div className="flex justify-between mt-4">
             {steps.map((step) => {
               const Icon = step.icon
-              const isCompleted = completedSteps.has(step.id)
+              const isCompleted = completedSteps.includes(step.id)
               const isCurrent = step.id === currentStep
               const isAccessible = step.id <= currentStep || isCompleted
 

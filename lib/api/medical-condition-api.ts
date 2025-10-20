@@ -65,7 +65,7 @@ export interface BackendMedicalCondition {
   condition_name: string
   description?: string
   diagnosed_date?: string
-  status: 'Active' | 'Resolved' | 'Chronic' | 'Remission' | 'Deceased'
+  status: 'Active' | 'Resolved' | 'Chronic' | 'Remission' | 'Deceased' | 'controlled' | 'partiallyControlled' | 'uncontrolled' | 'resolved'
   severity?: 'Mild' | 'Moderate' | 'Severe' | 'Critical'
   source?: 'Doctor Diagnosis' | 'Self Diagnosis' | 'Lab Results' | 'Imaging' | 'Genetic Testing' | 'Family History'
   treatment_plan?: string
@@ -76,13 +76,20 @@ export interface BackendMedicalCondition {
 
 export interface BackendFamilyHistory {
   id?: number
-  condition_name: string
-  relation: 'Father' | 'Mother' | 'Brother' | 'Sister' | 'Child' | 'Maternal Grandfather' | 'Maternal Grandmother' | 'Paternal Grandfather' | 'Paternal Grandmother'
-  age_of_onset?: number
+  condition_name?: string | null
+  relation: string
+  age_of_onset?: number | null
   description?: string
-  outcome?: string
+  outcome?: string | null
   status?: 'Alive' | 'Deceased' | 'Unknown'
   source?: 'Family Member' | 'Medical Records' | 'Genetic Testing' | 'Doctor Interview'
+  // New fields for enhanced family history
+  current_age?: number | null
+  is_deceased?: boolean
+  age_at_death?: number | null
+  cause_of_death?: string | null
+  chronic_diseases?: any[]
+  gender?: string | null
 }
 
 // ============================================================================
@@ -116,6 +123,42 @@ export class MedicalConditionApiService {
       case 'deceased':
         return status
       default: return 'uncontrolled'
+    }
+  }
+
+  // ============================================================================
+  // GENERAL MEDICAL CONDITIONS
+  // ============================================================================
+
+  static async getAllMedicalConditions(): Promise<BackendMedicalCondition[]> {
+    try {
+      const response = await apiClient.get('/health-records/conditions')
+      console.log('getAllMedicalConditions response:', response.data)
+      
+      // Ensure response.data is an array
+      const data = Array.isArray(response.data) ? response.data : []
+      console.log('getAllMedicalConditions data array:', data)
+      
+      return data
+    } catch (error: any) {
+      const message = error.response?.data?.detail || error.message || 'Failed to get medical conditions'
+      throw new Error(message)
+    }
+  }
+
+  static async getMedications(): Promise<any[]> {
+    try {
+      const response = await apiClient.get('/medications')
+      console.log('getMedications response:', response.data)
+      
+      // Ensure response.data is an array
+      const data = Array.isArray(response.data) ? response.data : []
+      console.log('getMedications data array:', data)
+      
+      return data
+    } catch (error: any) {
+      const message = error.response?.data?.detail || error.message || 'Failed to get medications'
+      throw new Error(message)
     }
   }
 
@@ -159,14 +202,13 @@ export class MedicalConditionApiService {
 
   static async getCurrentHealthProblems(): Promise<BackendMedicalCondition[]> {
     try {
-      const response = await apiClient.get('/health-records/conditions')
-      return response.data.filter((condition: BackendMedicalCondition) => 
-        condition.status === 'controlled' || 
-        condition.status === 'partiallyControlled' || 
-        condition.status === 'uncontrolled' ||
-        // Legacy support for old status values
+      const allConditions = await this.getAllMedicalConditions()
+      return allConditions.filter((condition: BackendMedicalCondition) => 
         condition.status === 'Active' || 
-        condition.status === 'Chronic'
+        condition.status === 'Chronic' ||
+        condition.status === 'uncontrolled' ||
+        condition.status === 'controlled' ||
+        condition.status === 'partiallyControlled'
       )
     } catch (error: any) {
       const message = error.response?.data?.detail || error.message || 'Failed to get health problems'
@@ -270,11 +312,10 @@ export class MedicalConditionApiService {
 
   static async getPastMedicalConditions(): Promise<BackendMedicalCondition[]> {
     try {
-      const response = await apiClient.get('/health-records/conditions')
-      return response.data.filter((condition: BackendMedicalCondition) => 
-        condition.status === 'resolved' ||
-        // Legacy support for old status values
-        condition.status === 'Resolved'
+      const allConditions = await this.getAllMedicalConditions()
+      return allConditions.filter((condition: BackendMedicalCondition) => 
+        condition.status === 'Resolved' ||
+        condition.status === 'resolved'
       )
     } catch (error: any) {
       const message = error.response?.data?.detail || error.message || 'Failed to get past medical conditions'
@@ -343,23 +384,30 @@ export class MedicalConditionApiService {
   // FAMILY MEDICAL HISTORY
   // ============================================================================
 
-  static async createFamilyHistory(history: {
-    condition: string
-    relationship: string
-    age: string
-    notes: string
-  }): Promise<BackendFamilyHistory> {
+  static async createFamilyHistory(history: any): Promise<BackendFamilyHistory> {
     try {
-      const backendData: BackendFamilyHistory = {
-        condition_name: history.condition,
-        relation: history.relationship as any,
-        age_of_onset: history.age ? parseInt(history.age) : undefined,
-        description: history.notes,
-        outcome: history.notes, // Also include outcome field
-        status: 'Alive',
+      console.log('API Service - Received history data:', history)
+      
+      const backendData: any = {
+        relation: history.relation,
+        current_age: history.current_age ? parseInt(history.current_age) : null,
+        is_deceased: history.is_deceased || false,
+        chronic_diseases: history.chronic_diseases || [],
+        condition_name: null,
+        age_of_onset: null,
+        description: '',
+        outcome: null,
+        status: history.is_deceased ? 'Deceased' : 'Alive',
         source: 'Family Member'
       }
 
+      // Only include age_at_death and cause_of_death if deceased
+      if (history.is_deceased) {
+        backendData.age_at_death = history.age_at_death ? parseInt(history.age_at_death) : null
+        backendData.cause_of_death = history.cause_of_death || null
+      }
+
+      console.log('API Service - Sending backend data:', JSON.stringify(backendData, null, 2))
       const response = await apiClient.post('/health-records/family-history', backendData)
       return response.data
     } catch (error: any) {
@@ -378,23 +426,30 @@ export class MedicalConditionApiService {
     }
   }
 
-  static async updateFamilyHistory(id: number, history: {
-    condition: string
-    relationship: string
-    age: string
-    notes: string
-  }): Promise<BackendFamilyHistory> {
+  static async updateFamilyHistory(id: number, history: any): Promise<BackendFamilyHistory> {
     try {
-      const backendData: Partial<BackendFamilyHistory> = {
-        condition_name: history.condition,
-        relation: history.relationship as any,
-        age_of_onset: history.age ? parseInt(history.age) : undefined,
-        description: history.notes,
-        outcome: history.notes, // Also include outcome field
-        status: 'Alive',
+      console.log('API Service - Update received history data:', history)
+      
+      const backendData: any = {
+        relation: history.relation,
+        current_age: history.current_age ? parseInt(history.current_age) : null,
+        is_deceased: history.is_deceased || false,
+        chronic_diseases: history.chronic_diseases || [],
+        condition_name: null,
+        age_of_onset: null,
+        description: '',
+        outcome: null,
+        status: history.is_deceased ? 'Deceased' : 'Alive',
         source: 'Family Member'
       }
 
+      // Only include age_at_death and cause_of_death if deceased
+      if (history.is_deceased) {
+        backendData.age_at_death = history.age_at_death ? parseInt(history.age_at_death) : null
+        backendData.cause_of_death = history.cause_of_death || null
+      }
+
+      console.log('API Service - Update sending backend data:', JSON.stringify(backendData, null, 2))
       const response = await apiClient.put(`/health-records/family-history/${id}`, backendData)
       return response.data
     } catch (error: any) {
@@ -440,10 +495,27 @@ export class MedicalConditionApiService {
 
   static async getPastSurgeries(): Promise<BackendMedicalCondition[]> {
     try {
-      const response = await apiClient.get('/health-records/conditions')
-      return response.data.filter((condition: BackendMedicalCondition) => 
-        condition.condition_name.startsWith('Surgery:') && condition.status === 'Resolved'
-      )
+      const response = await apiClient.get('/health-records/surgeries-hospitalizations')
+      console.log('getPastSurgeries response:', response.data)
+      
+      // Extract surgeries array from response structure {surgeries: [], total: 1, skip: 0, limit: 100}
+      const data = response.data?.surgeries || (Array.isArray(response.data) ? response.data : [])
+      console.log('getPastSurgeries data array:', data)
+      
+      // Transform surgery data to match the expected format
+      return data.map((surgery: any) => ({
+        id: surgery.id,
+        condition_name: `Surgery: ${surgery.name}`,
+        description: surgery.notes || '',
+        status: 'Resolved',
+        source: 'Doctor Diagnosis',
+        treatment_plan: surgery.treatment || '',
+        diagnosed_date: surgery.procedure_date,
+        resolved_date: surgery.procedure_date,
+        outcome: surgery.recovery_status,
+        created_at: surgery.created_at,
+        updated_at: surgery.updated_at
+      }))
     } catch (error: any) {
       const message = error.response?.data?.detail || error.message || 'Failed to get past surgeries'
       throw new Error(message)
@@ -499,42 +571,6 @@ export class MedicalConditionApiService {
   // ============================================================================
   // DATA TRANSFORMATION HELPERS
   // ============================================================================
-
-  static transformBackendToFrontend(backendCondition: BackendMedicalCondition): CurrentHealthProblem | PastMedicalCondition | PastSurgery {
-    const isResolved = backendCondition.status === 'Resolved'
-    const isSurgery = backendCondition.condition_name.startsWith('Surgery:')
-    
-    if (isSurgery) {
-      // Extract surgery type from condition name
-      const surgeryType = backendCondition.condition_name.replace('Surgery: ', '')
-      // Extract location from outcome
-      const location = backendCondition.outcome?.replace('Location: ', '') || ''
-      
-      return {
-        surgeryType: surgeryType,
-        year: backendCondition.diagnosed_date ? new Date(backendCondition.diagnosed_date).getFullYear().toString() : '',
-        location: location,
-        existingConditions: backendCondition.treatment_plan || '',
-        comments: backendCondition.description || ''
-      }
-    } else if (isResolved) {
-      return {
-        condition: backendCondition.condition_name,
-        yearOfDiagnosis: backendCondition.diagnosed_date ? new Date(backendCondition.diagnosed_date).getFullYear().toString() : '',
-        yearResolved: backendCondition.resolved_date ? new Date(backendCondition.resolved_date).getFullYear().toString() : '',
-        treatment: backendCondition.treatment_plan || '',
-        comments: backendCondition.description || ''
-      }
-    } else {
-      return {
-        condition: backendCondition.condition_name,
-        yearOfDiagnosis: backendCondition.diagnosed_date ? new Date(backendCondition.diagnosed_date).getFullYear().toString() : '',
-        diagnosticProvider: backendCondition.outcome || '',
-        treatment: backendCondition.treatment_plan || '',
-        comments: backendCondition.description || ''
-      }
-    }
-  }
 
   static transformFrontendToBackend(problem: CurrentHealthProblem, isResolved: boolean = false): BackendMedicalCondition {
     return {

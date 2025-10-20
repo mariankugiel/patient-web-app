@@ -204,16 +204,23 @@ export class MessagesApiService {
     }
   }
 
-  // Get available contacts for new messages
-  async getAvailableContacts(): Promise<Array<{
+  // Get available contacts for new messages with pagination
+  async getAvailableContacts(params?: {
+    search?: string
+    offset?: number
+    limit?: number
+  }): Promise<Array<{
     id: string
     name: string
+    firstName?: string
+    lastName?: string
     role: string
     avatar?: string
     isOnline: boolean
+    specialty?: string
   }>> {
     try {
-      const response = await apiClient.get('/messages/contacts')
+      const response = await apiClient.get('/messages/contacts', { params })
       return response.data
     } catch (error) {
       console.error('Failed to get available contacts:', error)

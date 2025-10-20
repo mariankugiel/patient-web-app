@@ -62,10 +62,6 @@ export function useSurgeryHospitalization() {
     }
   }, [])
 
-  useEffect(() => {
-    loadSurgeries()
-  }, [loadSurgeries])
-
   return {
     surgeries,
     loading,

@@ -71,7 +71,7 @@ export default function HealthRecordsPage() {
   }
 
   const handleStepClick = (stepId: number) => {
-    if (completedSteps.has(stepId) || stepId <= 4) {
+    if (completedSteps.includes(stepId) || stepId <= 4) {
       router.push(`/onboarding/steps/${stepId}`)
     }
   }

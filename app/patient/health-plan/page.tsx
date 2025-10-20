@@ -1,11 +1,14 @@
-import type { Metadata } from "next"
-import HealthPlanClientPage from "./health-plan-client-page"
+"use client"
 
-export const metadata: Metadata = {
-  title: "Plano de Saúde | Saluso",
-  description: "Visualize e gerencie o seu plano de saúde personalizado",
-}
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 
 export default function HealthPlanPage() {
-  return <HealthPlanClientPage />
+  const router = useRouter()
+
+  useEffect(() => {
+    router.replace("/patient/health-plan/overview")
+  }, [router])
+
+  return null
 }

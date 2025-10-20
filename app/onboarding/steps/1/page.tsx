@@ -12,6 +12,7 @@ import { OnboardingLayout } from '@/components/onboarding/onboarding-layout'
 import { type Language, getTranslation } from '@/lib/translations'
 import { toast } from 'react-toastify'
 import { useOnboardingSkip } from '@/hooks/use-onboarding-skip'
+import { useOnboardingAuth } from '@/hooks/use-onboarding-auth'
 
 interface LocationDetails {
   display_name: string
@@ -35,8 +36,10 @@ interface FormData {
   waistDiameter: string
   location: string
   locationDetails?: LocationDetails
+  phoneCountryCode: string
   phone: string
   emergencyContactName: string
+  emergencyContactCountryCode: string
   emergencyContactPhone: string
   emergencyContactRelationship: string
 }
@@ -44,7 +47,7 @@ interface FormData {
 export default function PersonalInformationPage() {
   const router = useRouter()
   const dispatch = useDispatch<AppDispatch>()
-  const { user } = useSelector((state: RootState) => state.auth)
+  const { user, isReady } = useOnboardingAuth()
   const completedSteps = useSelector((state: RootState) => state.onboarding.completedSteps)
   const { skipOnboarding, isSkipping } = useOnboardingSkip()
   const [language, setLanguage] = useState<Language>("en-US")
@@ -59,8 +62,10 @@ export default function PersonalInformationPage() {
     weight: "",
     waistDiameter: "",
     location: "",
+    phoneCountryCode: "+351", // Default to Portugal
     phone: "",
     emergencyContactName: "",
+    emergencyContactCountryCode: "+351", // Default to Portugal
     emergencyContactPhone: "",
     emergencyContactRelationship: "",
   })
@@ -72,8 +77,8 @@ export default function PersonalInformationPage() {
 
   // Load existing data if available
   useEffect(() => {
-    console.log('Loading user data:', user)
-    if (user?.user_metadata) {
+    if (isReady && user?.user_metadata) {
+      console.log('Loading user data:', user)
       const metadata = user.user_metadata
       console.log('User metadata found:', metadata)
         setFormData(prev => ({
@@ -86,15 +91,15 @@ export default function PersonalInformationPage() {
           weight: metadata.weight || "",
           waistDiameter: metadata.waist_diameter || "",
           location: metadata.address || "",
+          phoneCountryCode: metadata.phone_country_code || "+351",
           phone: metadata.phone_number || "",
           emergencyContactName: metadata.emergency_contact_name || "",
+          emergencyContactCountryCode: metadata.emergency_contact_country_code || "+351",
           emergencyContactPhone: metadata.emergency_contact_phone || "",
           emergencyContactRelationship: metadata.emergency_contact_relationship || "",
         }))
-    } else {
-      console.log('No user data found')
     }
-  }, [user])
+  }, [isReady, user])
 
   const updateFormData = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -110,42 +115,37 @@ export default function PersonalInformationPage() {
 
   const saveProgress = async () => {
     if (user) {
-      try {
-        const profileData = {
-          full_name: `${formData.firstName} ${formData.lastName}`.trim(),
-          date_of_birth: formData.dateOfBirth,
-          gender: formData.gender,
-          height: formData.height,
-          weight: formData.weight,
-          waist_diameter: formData.waistDiameter,
-          address: formData.location,
-          country: formData.locationDetails?.address?.country || "",
-          country_code: formData.locationDetails?.address?.country_code || "",
-          city: formData.locationDetails?.address?.city || "",
-          state: formData.locationDetails?.address?.state || "",
-          latitude: formData.locationDetails?.lat || "",
-          longitude: formData.locationDetails?.lon || "",
-          phone_number: formData.phone,
-          emergency_contact_name: formData.emergencyContactName,
-          emergency_contact_phone: formData.emergencyContactPhone,
-          emergency_contact_relationship: formData.emergencyContactRelationship,
-        }
-
-        await AuthApiService.updateProfile(profileData)
-
-        // Update Redux state
-        dispatch(updateUser({
-          user_metadata: {
-            ...user.user_metadata,
-            ...profileData,
-          }
-        }))
-        
-        toast.success("Personal information saved successfully!")
-      } catch (error) {
-        console.error('Error saving progress:', error)
-        toast.error("Failed to save personal information. Please try again.")
+      const profileData = {
+        full_name: `${formData.firstName} ${formData.lastName}`.trim(),
+        date_of_birth: formData.dateOfBirth,
+        gender: formData.gender,
+        height: formData.height,
+        weight: formData.weight,
+        waist_diameter: formData.waistDiameter,
+        address: formData.location,
+        country: formData.locationDetails?.address?.country || "",
+        country_code: formData.locationDetails?.address?.country_code || "",
+        city: formData.locationDetails?.address?.city || "",
+        state: formData.locationDetails?.address?.state || "",
+        latitude: formData.locationDetails?.lat || "",
+        longitude: formData.locationDetails?.lon || "",
+        phone_country_code: formData.phoneCountryCode,
+        phone_number: formData.phone,
+        emergency_contact_name: formData.emergencyContactName,
+        emergency_contact_country_code: formData.emergencyContactCountryCode,
+        emergency_contact_phone: formData.emergencyContactPhone,
+        emergency_contact_relationship: formData.emergencyContactRelationship,
       }
+
+      await AuthApiService.updateProfile(profileData)
+
+      // Update Redux state
+      dispatch(updateUser({
+        user_metadata: {
+          ...user.user_metadata,
+          ...profileData,
+        }
+      }))
     }
   }
 
@@ -163,6 +163,9 @@ export default function PersonalInformationPage() {
     }
     if (!formData.gender.trim()) {
       errors.gender = "Gender is required"
+    }
+    if (!formData.location.trim()) {
+      errors.location = "Location is required"
     }
     if (!formData.phone.trim()) {
       errors.phone = "Phone number is required"
@@ -196,10 +199,11 @@ export default function PersonalInformationPage() {
     try {
       await saveProgress()
       dispatch(addCompletedStep(1))
+      toast.success("Personal information saved successfully!")
       router.push('/onboarding/steps/2')
     } catch (error) {
       console.error('Error in handleNext:', error)
-      toast.error("Failed to save progress. Please try again.")
+      toast.error("Failed to save personal information. Please try again.")
     } finally {
       setIsSubmitting(false)
     }

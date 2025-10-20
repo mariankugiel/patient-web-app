@@ -7,14 +7,19 @@ export interface Database {
           first_name: string | null
           last_name: string | null
           date_of_birth: string | null
+          phone_country_code: string | null
           phone: string | null
           address: string | null
           emergency_contact_name: string | null
+          emergency_contact_country_code: string | null
           emergency_contact_phone: string | null
           medical_record_number: string | null
           insurance_provider: string | null
           insurance_policy_number: string | null
           preferred_language: string | null
+          height: number | null
+          weight: number | null
+          waist_diameter: number | null
           created_at: string
           updated_at: string
         }
@@ -23,14 +28,19 @@ export interface Database {
           first_name?: string | null
           last_name?: string | null
           date_of_birth?: string | null
+          phone_country_code?: string | null
           phone?: string | null
           address?: string | null
           emergency_contact_name?: string | null
+          emergency_contact_country_code?: string | null
           emergency_contact_phone?: string | null
           medical_record_number?: string | null
           insurance_provider?: string | null
           insurance_policy_number?: string | null
           preferred_language?: string | null
+          height?: number | null
+          weight?: number | null
+          waist_diameter?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -39,14 +49,19 @@ export interface Database {
           first_name?: string | null
           last_name?: string | null
           date_of_birth?: string | null
+          phone_country_code?: string | null
           phone?: string | null
           address?: string | null
           emergency_contact_name?: string | null
+          emergency_contact_country_code?: string | null
           emergency_contact_phone?: string | null
           medical_record_number?: string | null
           insurance_provider?: string | null
           insurance_policy_number?: string | null
           preferred_language?: string | null
+          height?: number | null
+          weight?: number | null
+          waist_diameter?: number | null
           created_at?: string
           updated_at?: string
         }

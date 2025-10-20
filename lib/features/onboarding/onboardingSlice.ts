@@ -6,6 +6,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
 export interface CurrentHealthProblem {
   id: string
+  backendId?: number
   condition: string
   yearOfDiagnosis: string
   diagnosticProvider: string
@@ -37,6 +38,7 @@ export interface Medication {
 
 export interface PastMedicalCondition {
   id: string
+  backendId?: number
   condition: string
   yearOfDiagnosis: string
   yearResolved: string
@@ -48,6 +50,7 @@ export interface PastMedicalCondition {
 
 export interface PastSurgery {
   id: string
+  backendId?: number
   surgeryType: string
   year: string
   location: string
@@ -220,7 +223,7 @@ export interface OnboardingState {
 
   // Overall onboarding state
   currentStep: number
-  completedSteps: Set<number>
+  completedSteps: number[]
   isSubmitting: boolean
   lastSaved: string | null
 }
@@ -307,7 +310,7 @@ const initialState: OnboardingState = {
     errors: []
   },
   currentStep: 1,
-  completedSteps: new Set([1]),
+  completedSteps: [1],
   isSubmitting: false,
   lastSaved: null
 }
@@ -328,12 +331,14 @@ const onboardingSlice = createSlice({
       state.currentStep = action.payload
     },
 
-    setCompletedSteps: (state, action: PayloadAction<Set<number>>) => {
+    setCompletedSteps: (state, action: PayloadAction<number[]>) => {
       state.completedSteps = action.payload
     },
 
     addCompletedStep: (state, action: PayloadAction<number>) => {
-      state.completedSteps.add(action.payload)
+      if (!state.completedSteps.includes(action.payload)) {
+        state.completedSteps.push(action.payload)
+      }
     },
 
     setSubmitting: (state, action: PayloadAction<boolean>) => {
@@ -372,14 +377,19 @@ const onboardingSlice = createSlice({
     // MEDICAL CONDITIONS ACTIONS
     // ============================================================================
     
-    addCurrentHealthProblem: (state, action: PayloadAction<Omit<CurrentHealthProblem, 'id' | 'isValid' | 'errors'>>) => {
+    addCurrentHealthProblem: (state, action: PayloadAction<Omit<CurrentHealthProblem, 'isValid' | 'errors'> & { id?: string }>) => {
       const newProblem: CurrentHealthProblem = {
         ...action.payload,
-        id: `health-problem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: action.payload.id || `health-problem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         isValid: false,
         errors: []
       }
-      state.medicalConditions.currentHealthProblems.push(newProblem)
+      
+      // Check if entry with this ID already exists
+      const existingIndex = state.medicalConditions.currentHealthProblems.findIndex(p => p.id === newProblem.id)
+      if (existingIndex === -1) {
+        state.medicalConditions.currentHealthProblems.push(newProblem)
+      }
     },
 
     updateCurrentHealthProblem: (state, action: PayloadAction<{ id: string; updates: Partial<CurrentHealthProblem> }>) => {
@@ -467,14 +477,19 @@ const onboardingSlice = createSlice({
       }
     },
 
-    addPastMedicalCondition: (state, action: PayloadAction<Omit<PastMedicalCondition, 'id' | 'isValid' | 'errors'>>) => {
+    addPastMedicalCondition: (state, action: PayloadAction<Omit<PastMedicalCondition, 'isValid' | 'errors'> & { id?: string }>) => {
       const newCondition: PastMedicalCondition = {
         ...action.payload,
-        id: `past-condition-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: action.payload.id || `past-condition-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         isValid: false,
         errors: []
       }
-      state.medicalConditions.pastMedicalConditions.push(newCondition)
+      
+      // Check if entry with this ID already exists
+      const existingIndex = state.medicalConditions.pastMedicalConditions.findIndex(c => c.id === newCondition.id)
+      if (existingIndex === -1) {
+        state.medicalConditions.pastMedicalConditions.push(newCondition)
+      }
     },
 
     updatePastMedicalCondition: (state, action: PayloadAction<{ id: string; updates: Partial<PastMedicalCondition> }>) => {
@@ -520,14 +535,19 @@ const onboardingSlice = createSlice({
       }
     },
 
-    addPastSurgery: (state, action: PayloadAction<Omit<PastSurgery, 'id' | 'isValid' | 'errors'>>) => {
+    addPastSurgery: (state, action: PayloadAction<Omit<PastSurgery, 'isValid' | 'errors'> & { id?: string }>) => {
       const newSurgery: PastSurgery = {
         ...action.payload,
-        id: `past-surgery-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: action.payload.id || `past-surgery-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         isValid: false,
         errors: []
       }
-      state.medicalConditions.pastSurgeries.push(newSurgery)
+      
+      // Check if entry with this ID already exists
+      const existingIndex = state.medicalConditions.pastSurgeries.findIndex(s => s.id === newSurgery.id)
+      if (existingIndex === -1) {
+        state.medicalConditions.pastSurgeries.push(newSurgery)
+      }
     },
 
     updatePastSurgery: (state, action: PayloadAction<{ id: string; updates: Partial<PastSurgery> }>) => {

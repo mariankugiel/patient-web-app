@@ -1,3 +1,6 @@
+SALUSO - Healthcare Platform
+=============================
+
 Welcome to Saluso!
 
 Please confirm your email address to complete your registration and start managing your health journey.

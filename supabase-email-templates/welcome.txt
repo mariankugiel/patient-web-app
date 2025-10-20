@@ -1,0 +1,31 @@
+SALUSO - Healthcare Platform
+=============================
+
+Welcome to Saluso!
+
+Your health journey starts here. We're excited to help you take control of your wellness.
+
+GET STARTED:
+https://patient-web-app-mocha.vercel.app
+
+🎯 Your Health Dashboard
+Track your health metrics, view your medical records, and monitor your progress all in one place.
+
+🤝 Connect with Professionals
+Communicate directly with healthcare providers and get personalized medical advice.
+
+🧠 AI-Powered Insights
+Receive intelligent health recommendations and early warning alerts based on your data.
+
+💊 Medication Management
+Set reminders, track prescriptions, and never miss a dose again.
+
+---
+This email was sent to {{ .Email }}
+
+Visit our website: https://saluso.com
+Support: https://saluso.com/support
+Privacy Policy: https://saluso.com/privacy
+
+© 2024 Saluso. All rights reserved.
+This is an automated message, please do not reply.

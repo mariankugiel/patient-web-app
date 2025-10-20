@@ -35,11 +35,17 @@ export default function AuthCallbackPage() {
           
           // Get user profile from backend
           let userProfile
+          let isNewUser = false
+          
           try {
             // Try to get profile from backend using Supabase token
             userProfile = await AuthApiService.getProfile()
+            console.log('Existing user profile found:', userProfile)
+            isNewUser = false
           } catch (error) {
-            console.log('Backend profile not found, using Supabase data')
+            console.log('Backend profile not found, creating new user profile')
+            isNewUser = true
+            
             // If backend profile doesn't exist, create one with Supabase data
             userProfile = {
               email: user.email,
@@ -47,6 +53,20 @@ export default function AuthCallbackPage() {
               is_new_user: true,
               onboarding_completed: false,
               onboarding_skipped: false,
+            }
+            
+            // Try to create the profile in backend
+            try {
+              await AuthApiService.createOAuthUserProfile({
+                email: user.email,
+                full_name: user.user_metadata?.full_name || user.user_metadata?.name,
+                avatar_url: user.user_metadata?.avatar_url,
+                provider: 'google'
+              })
+              console.log('OAuth user profile created successfully')
+            } catch (profileError) {
+              console.warn('Failed to create OAuth user profile:', profileError)
+              // Continue with local profile data
             }
           }
 
@@ -56,7 +76,7 @@ export default function AuthCallbackPage() {
             email: user.email || '',
             user_metadata: {
               ...userProfile,
-              is_new_user: userProfile.is_new_user !== undefined ? userProfile.is_new_user : true,
+              is_new_user: isNewUser,
             },
             access_token: session.access_token,
             refresh_token: session.refresh_token,
@@ -82,7 +102,7 @@ export default function AuthCallbackPage() {
           toast.success("Successfully signed in!")
           
           // Redirect based on onboarding status
-          const needsOnboarding = userProfile.is_new_user || 
+          const needsOnboarding = isNewUser || 
                                  (!userProfile.onboarding_completed && !userProfile.onboarding_skipped)
           
           if (needsOnboarding) {

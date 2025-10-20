@@ -61,7 +61,7 @@ export default function AppointmentsPage() {
   }
 
   const handleStepClick = (stepId: number) => {
-    if (completedSteps.has(stepId) || stepId <= 6) {
+    if (completedSteps.includes(stepId) || stepId <= 6) {
       router.push(`/onboarding/steps/${stepId}`)
     }
   }

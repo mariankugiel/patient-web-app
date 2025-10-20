@@ -41,9 +41,11 @@ export interface UserResponse {
 export interface UserProfile {
   full_name?: string
   date_of_birth?: string
+  phone_country_code?: string
   phone_number?: string
   address?: string
   emergency_contact_name?: string
+  emergency_contact_country_code?: string
   emergency_contact_phone?: string
   emergency_contact_relationship?: string
   gender?: string
@@ -69,6 +71,13 @@ export interface UserProfile {
   onboarding_completed_at?: string
   onboarding_skipped_at?: string
   is_new_user?: boolean
+}
+
+export interface OAuthUserProfileData {
+  email: string
+  full_name?: string
+  avatar_url?: string
+  provider: string
 }
 
 // Helper function to handle timeout and network errors
@@ -135,6 +144,26 @@ export class AuthApiService {
       return response.data
     } catch (error: any) {
       throw handleApiError(error, 'Failed to update profile')
+    }
+  }
+
+  // Create OAuth user profile (for Google, GitHub, etc.)
+  static async createOAuthUserProfile(oauthData: OAuthUserProfileData): Promise<UserProfile> {
+    try {
+      const response = await apiClient.post('/auth/oauth-profile', oauthData)
+      return response.data
+    } catch (error: any) {
+      throw handleApiError(error, 'Failed to create OAuth user profile')
+    }
+  }
+
+  // Request password reset
+  static async resetPassword(email: string): Promise<{ message: string }> {
+    try {
+      const response = await apiClient.post('/auth/reset-password', { email })
+      return response.data
+    } catch (error: any) {
+      throw handleApiError(error, 'Failed to send password reset email')
     }
   }
 }

@@ -17,10 +17,10 @@ export function ProtectedRoute({
   redirectTo = '/patient/dashboard' 
 }: ProtectedRouteProps) {
   const router = useRouter()
-  const { user, isAuthenticated, isLoading } = useSelector((state: RootState) => state.auth)
+  const { user, isAuthenticated, isLoading, isRestoringSession } = useSelector((state: RootState) => state.auth)
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading && !isRestoringSession) {
       if (requireAuth && !isAuthenticated) {
         // User not authenticated, redirect to login page
         router.push('/auth/login')
@@ -38,9 +38,9 @@ export function ProtectedRoute({
         }
       }
     }
-  }, [isAuthenticated, user, isLoading, router, requireAuth, redirectTo])
+  }, [isAuthenticated, user, isLoading, isRestoringSession, router, requireAuth, redirectTo])
 
-  if (isLoading) {
+  if (isLoading || isRestoringSession) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-teal-600"></div>

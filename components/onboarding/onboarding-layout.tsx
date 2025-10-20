@@ -18,7 +18,7 @@ interface Step {
 interface OnboardingLayoutProps {
   currentStep: number
   totalSteps: number
-  completedSteps: Set<number>
+  completedSteps: number[]
   language: Language
   onLanguageChange: (language: Language) => void
   onStepClick: (stepId: number) => void
@@ -100,7 +100,7 @@ export function OnboardingLayout({
           <div className="flex justify-between mt-4">
             {steps.map((step) => {
               const Icon = step.icon
-              const isCompleted = completedSteps.has(step.id)
+              const isCompleted = completedSteps.includes(step.id)
               const isCurrent = step.id === currentStep
               const isAccessible = step.id <= currentStep || isCompleted
 

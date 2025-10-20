@@ -1,32 +1,43 @@
 "use client"
 
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { Plus, Trash2, Upload } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Plus, Trash2, Edit, Calendar, FileText, Image, Loader2 } from "lucide-react"
 import { type Language, getTranslation } from "@/lib/translations"
+import { MedicalImageUploadDialog } from '@/components/medical-images/medical-image-upload-dialog'
+import { LabDocumentDialog } from '@/components/lab-documents/lab-document-dialog'
+import { medicalDocumentsApiService } from '@/lib/api/medical-documents-api'
+import { medicalImagesApiService } from '@/lib/api/medical-images-api'
+
+interface LabResult {
+  id: string
+  name: string
+  date: string
+  file: File | null
+  fileName: string
+  extractedData?: string
+  isValid: boolean
+  errors: string[]
+}
+
+interface MedicalImage {
+  id: string
+  category: string
+  date: string
+  files: File[]
+  fileNames: string[]
+  conclusion: string
+  status: string
+  extractedData?: string
+  isValid: boolean
+  errors: string[]
+}
 
 interface HealthRecordsData {
-  labResults: Array<{
-    id: string
-    name: string
-    date: string
-    file: File | null
-    fileName: string
-    extractedData?: string
-  }>
-  images: Array<{
-    id: string
-    category: string
-    date: string
-    files: File[]
-    fileNames: string[]
-    conclusion: string
-    status: string
-    extractedData?: string
-  }>
+  labResults: LabResult[]
+  images: MedicalImage[]
 }
 
 interface HealthRecordsStepProps {
@@ -37,336 +48,244 @@ interface HealthRecordsStepProps {
 
 export function HealthRecordsStep({ formData, updateFormData, language }: HealthRecordsStepProps) {
   const t = getTranslation(language, "steps.healthRecords")
+  
+  // Dialog states
+  const [showLabDocumentsDialog, setShowLabDocumentsDialog] = useState(false)
+  const [showMedicalImagesDialog, setShowMedicalImagesDialog] = useState(false)
+  
+  // Edit states
+  const [editingLabDocument, setEditingLabDocument] = useState<any>(null)
+  
+  // Data states
+  const [labDocuments, setLabDocuments] = useState<any[]>([])
+  const [medicalImages, setMedicalImages] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Load existing data
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
+        
+        // Load lab documents
+        const labDocs = await medicalDocumentsApiService.getMedicalDocuments()
+        setLabDocuments(labDocs)
+        
+        // Load medical images
+        const medImagesResponse = await medicalImagesApiService.getMedicalImages()
+        setMedicalImages(medImagesResponse.images)
+        
+      } catch (error) {
+        console.error('Failed to load health records data:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  // Refresh data function
+  const refreshData = async () => {
+    try {
+      // Load lab documents
+      const labDocs = await medicalDocumentsApiService.getMedicalDocuments()
+      setLabDocuments(labDocs)
+      
+      // Load medical images
+      const medImagesResponse = await medicalImagesApiService.getMedicalImages()
+      setMedicalImages(medImagesResponse.images)
+    } catch (error) {
+      console.error('Failed to refresh health records data:', error)
+    }
+  }
+
+  // Dialog handlers
+  const handleLabDocumentCreated = async () => {
+    setShowLabDocumentsDialog(false)
+    setEditingLabDocument(null)
+    await refreshData() // Refresh data after creation
+  }
+
+  const handleMedicalImageSaved = async () => {
+    setShowMedicalImagesDialog(false)
+    await refreshData() // Refresh data after creation
+  }
+
+  const handleDeleteLabResult = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this lab result?')) {
+      const updatedResults = (formData.healthRecords?.labResults || []).filter(result => result.id !== id)
+      updateFormData({ labResults: updatedResults })
+    }
+  }
+
+  const handleDeleteMedicalImage = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this medical image?')) {
+      const updatedImages = (formData.healthRecords?.images || []).filter(image => image.id !== id)
+      updateFormData({ images: updatedImages })
+    }
+  }
 
   // Add new entries
   const addLabResult = () => {
-    const newLabResult = {
-      id: `lab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: "",
-      date: "",
-      file: null,
-      fileName: "",
-      extractedData: ""
-    }
-    updateFormData({
-      labResults: [...(formData.healthRecords?.labResults || []), newLabResult]
-    })
+    setEditingLabDocument(null)
+    setShowLabDocumentsDialog(true)
   }
 
   const addImage = () => {
-    const newImage = {
-      id: `image-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      category: "",
-      date: "",
-      files: [],
-      fileNames: [],
-      conclusion: "",
-      status: "",
-      extractedData: ""
-    }
-    updateFormData({
-      images: [...(formData.healthRecords?.images || []), newImage]
-    })
+    setShowMedicalImagesDialog(true)
   }
 
-  const removeLabResult = (index: number) => {
-    const updatedLabResults = [...(formData.healthRecords?.labResults || [])]
-    updatedLabResults.splice(index, 1)
-    updateFormData({
-      labResults: updatedLabResults
-    })
+  // Edit handlers
+  const handleEditLabDocument = (doc: any) => {
+    setEditingLabDocument(doc)
+    setShowLabDocumentsDialog(true)
   }
 
-  const removeImage = (index: number) => {
-    const updatedImages = [...(formData.healthRecords?.images || [])]
-    updatedImages.splice(index, 1)
-    updateFormData({
-      images: updatedImages
-    })
+  const handleEditMedicalImage = (image: any) => {
+    // Note: MedicalImageUploadDialog doesn't support edit mode yet
+    // For now, show a message that edit is not available
+    console.log('Edit medical image requested:', image)
+    alert('Edit functionality for medical images is not yet implemented. Please delete and re-upload if you need to make changes.')
   }
 
-  // File upload handlers
-  const handleLabFileUpload = (index: number, event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      const updatedLabResults = [...(formData.healthRecords?.labResults || [])]
-      updatedLabResults[index] = {
-        ...updatedLabResults[index],
-        file,
-        fileName: file.name,
-        extractedData: `Sample extracted data from ${file.name}:\n\n• Test Type: Blood Test\n• Date: ${new Date().toLocaleDateString()}\n• Results: Normal range\n• Notes: No abnormalities detected\n\n[This is simulated data from PDFplumber service]`
-      }
-      updateFormData({
-        labResults: updatedLabResults
-      })
-    }
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading health records...</span>
+      </div>
+    )
   }
-
-  const handleImageFileUpload = (index: number, event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || [])
-    if (files.length > 0) {
-      const updatedImages = [...(formData.healthRecords?.images || [])]
-      updatedImages[index] = {
-        ...updatedImages[index],
-        files: [...updatedImages[index].files, ...files],
-        fileNames: [...updatedImages[index].fileNames, ...files.map(f => f.name)],
-        extractedData: `Sample extracted data from medical images:\n\n• Image Type: ${files.map(f => f.name).join(', ')}\n• Date: ${new Date().toLocaleDateString()}\n• Findings: Normal anatomy\n• Recommendations: Follow-up in 6 months\n\n[This is simulated data from PDFplumber service]`
-      }
-      updateFormData({
-        images: updatedImages
-      })
-    }
-  }
-
 
   return (
     <div className="space-y-8">
-
-      {/* Lab Results */}
-      <Card className="p-4">
+      {/* Lab Results Section */}
+      <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Lab Results</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Lab Results ({labDocuments.length})
+            </CardTitle>
+            <Button onClick={addLabResult} size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Lab Result
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {(formData.healthRecords?.labResults || []).map((labResult, index) => (
-            <div key={index} className="border rounded-lg p-4 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor={`labName-${index}`}>Test Name</Label>
-                  <Input
-                    id={`labName-${index}`}
-                    value={labResult.name}
-                    onChange={(e) => {
-                      const updatedLabResults = [...(formData.healthRecords?.labResults || [])]
-                      updatedLabResults[index] = { ...updatedLabResults[index], name: e.target.value }
-                      updateFormData({
-                        labResults: updatedLabResults
-                      })
-                    }}
-                    placeholder="e.g., Blood Test, Urine Test"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor={`labDate-${index}`}>Date</Label>
-                  <Input
-                    id={`labDate-${index}`}
-                    type="date"
-                    value={labResult.date}
-                    onChange={(e) => {
-                      const updatedLabResults = [...(formData.healthRecords?.labResults || [])]
-                      updatedLabResults[index] = { ...updatedLabResults[index], date: e.target.value }
-                      updateFormData({
-                        labResults: updatedLabResults
-                      })
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="file"
-                  id={`labFile-${index}`}
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                  onChange={(e) => handleLabFileUpload(index, e)}
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => document.getElementById(`labFile-${index}`)?.click()}
-                  className="flex items-center gap-2"
-                >
-                  <Upload className="w-4 h-4" />
-                  {labResult.fileName || "Upload File"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const updatedLabResults = (formData.healthRecords?.labResults || []).filter((_, i) => i !== index)
-                    updateFormData({
-                      labResults: updatedLabResults
-                    })
-                  }}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-              
-              {/* Extracted Data Preview */}
-              {labResult.extractedData && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <Label className="text-sm font-medium text-gray-700">Extracted Data Preview</Label>
-                  <div className="mt-2 p-3 bg-white border rounded text-sm text-gray-600 max-h-32 overflow-y-auto">
-                    {labResult.extractedData}
+        <CardContent>
+          {labDocuments.length > 0 ? (
+            <div className="space-y-3">
+              {labDocuments.map((doc) => (
+                <div key={doc.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">{doc.document_name || doc.name || 'Lab Document'}</h4>
+                      <p className="text-sm text-gray-600">
+                        Uploaded: {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : 'Unknown'}
+                      </p>
+                      {doc.document_type && (
+                        <Badge variant="outline" className="mt-1">
+                          {doc.document_type}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleEditLabDocument(doc)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleDeleteLabResult(doc.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              )}
+              ))}
             </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={addLabResult}
-            className="w-full"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Lab Result
-          </Button>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>No lab results uploaded yet</p>
+              <p className="text-sm">Click "Add Lab Result" to upload your first lab document</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Medical Images */}
-      <Card className="p-4">
+      {/* Medical Images Section */}
+      <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Medical Images</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Image className="h-5 w-5" />
+              Medical Images ({medicalImages.length})
+            </CardTitle>
+            <Button onClick={addImage} size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Medical Image
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {(formData.healthRecords?.images || []).map((image, index) => (
-            <div key={index} className="border rounded-lg p-4 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor={`imageCategory-${index}`}>Category</Label>
-                  <Select
-                    value={image.category}
-                    onValueChange={(value) => {
-                      const updatedImages = [...(formData.healthRecords?.images || [])]
-                      updatedImages[index] = { ...updatedImages[index], category: value }
-                      updateFormData({
-                        images: updatedImages
-                      })
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="x-ray">X-Ray</SelectItem>
-                      <SelectItem value="ct-scan">CT Scan</SelectItem>
-                      <SelectItem value="mri">MRI</SelectItem>
-                      <SelectItem value="ultrasound">Ultrasound</SelectItem>
-                      <SelectItem value="mammogram">Mammogram</SelectItem>
-                      <SelectItem value="endoscopy">Endoscopy</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor={`imageDate-${index}`}>Date</Label>
-                  <Input
-                    id={`imageDate-${index}`}
-                    type="date"
-                    value={image.date}
-                    onChange={(e) => {
-                      const updatedImages = [...(formData.healthRecords?.images || [])]
-                      updatedImages[index] = { ...updatedImages[index], date: e.target.value }
-                      updateFormData({
-                        images: updatedImages
-                      })
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor={`imageConclusion-${index}`}>Conclusion of the Report</Label>
-                  <Input
-                    id={`imageConclusion-${index}`}
-                    value={image.conclusion || ""}
-                    onChange={(e) => {
-                      const updatedImages = [...(formData.healthRecords?.images || [])]
-                      updatedImages[index] = { ...updatedImages[index], conclusion: e.target.value }
-                      updateFormData({
-                        images: updatedImages
-                      })
-                    }}
-                    placeholder="Enter conclusion of the report"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor={`imageStatus-${index}`}>Status</Label>
-                  <Select
-                    value={image.status || ""}
-                    onValueChange={(value) => {
-                      const updatedImages = [...(formData.healthRecords?.images || [])]
-                      updatedImages[index] = { ...updatedImages[index], status: value }
-                      updateFormData({
-                        images: updatedImages
-                      })
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="no-findings">No findings</SelectItem>
-                      <SelectItem value="low-risk-findings">Low risk findings</SelectItem>
-                      <SelectItem value="relevant-findings">Relevant findings</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="file"
-                  id={`imageFiles-${index}`}
-                  accept=".jpg,.jpeg,.png,.dcm,.dicom"
-                  multiple
-                  onChange={(e) => handleImageFileUpload(index, e)}
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => document.getElementById(`imageFiles-${index}`)?.click()}
-                  className="flex items-center gap-2"
-                >
-                  <Upload className="w-4 h-4" />
-                  Upload Images ({image.fileNames.length} files)
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const updatedImages = (formData.healthRecords?.images || []).filter((_, i) => i !== index)
-                    updateFormData({
-                      images: updatedImages
-                    })
-                  }}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-              {image.fileNames.length > 0 && (
-                <div className="text-sm text-gray-600">
-                  <strong>Uploaded files:</strong> {image.fileNames.join(", ")}
-                </div>
-              )}
-              
-              {/* Extracted Data Preview */}
-              {image.extractedData && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <Label className="text-sm font-medium text-gray-700">Extracted Data Preview</Label>
-                  <div className="mt-2 p-3 bg-white border rounded text-sm text-gray-600 max-h-32 overflow-y-auto">
-                    {image.extractedData}
+        <CardContent>
+          {medicalImages.length > 0 ? (
+            <div className="space-y-3">
+              {medicalImages.map((image) => (
+                <div key={image.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">{image.image_name || image.name || 'Medical Image'}</h4>
+                      <p className="text-sm text-gray-600">
+                        Uploaded: {image.created_at ? new Date(image.created_at).toLocaleDateString() : 'Unknown'}
+                      </p>
+                      {image.image_type && (
+                        <Badge variant="outline" className="mt-1">
+                          {image.image_type}
+                        </Badge>
+                      )}
+                      {image.conclusion && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          Conclusion: {image.conclusion}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleEditMedicalImage(image)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleDeleteMedicalImage(image.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              )}
+              ))}
             </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={addImage}
-            className="w-full"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Medical Image
-          </Button>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Image className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>No medical images uploaded yet</p>
+              <p className="text-sm">Click "Add Medical Image" to upload your first medical image</p>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Dialogs */}
+      <LabDocumentDialog
+        open={showLabDocumentsDialog}
+        onOpenChange={setShowLabDocumentsDialog}
+        mode={editingLabDocument ? "edit" : "upload"}
+        document={editingLabDocument}
+        onDocumentCreated={handleLabDocumentCreated}
+        onDocumentUpdated={handleLabDocumentCreated}
+      />
+
+      <MedicalImageUploadDialog
+        open={showMedicalImagesDialog}
+        onOpenChange={setShowMedicalImagesDialog}
+        onImageSaved={handleMedicalImageSaved}
+      />
     </div>
   )
 }

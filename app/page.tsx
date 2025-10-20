@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useAuthRedirect } from "@/hooks/use-auth-redirect"
 import { AuthModal } from "@/components/auth/auth-modal"
+import { useRouter } from "next/navigation"
 import {
   Heart,
   Shield,
@@ -31,6 +32,7 @@ import { toast } from "react-toastify"
 export default function LandingPage() {
   // Use auth redirect hook to handle automatic redirects
   useAuthRedirect()
+  const router = useRouter()
   const [language, setLanguage] = useState<"en" | "pt">("en")
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authMode, setAuthMode] = useState<"login" | "signup">("login")
@@ -42,6 +44,24 @@ export default function LandingPage() {
     [0, 0.1],
     ["rgba(230, 247, 247, 0.9)", "rgba(255, 255, 255, 0.95)"],
   )
+
+  // Check for password reset tokens in URL hash
+  useEffect(() => {
+    const hash = window.location.hash
+    if (hash.includes('type=recovery') && hash.includes('access_token')) {
+      // Extract tokens from hash and redirect to reset password page
+      const urlParams = new URLSearchParams(hash.substring(1)) // Remove # from hash
+      const accessToken = urlParams.get('access_token')
+      const refreshToken = urlParams.get('refresh_token')
+      const expiresAt = urlParams.get('expires_at')
+      
+      if (accessToken && refreshToken) {
+        // Redirect to reset password page with tokens
+        const resetUrl = `/auth/reset-password?access_token=${accessToken}&refresh_token=${refreshToken}&expires_at=${expiresAt}`
+        router.push(resetUrl)
+      }
+    }
+  }, [router])
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {

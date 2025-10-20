@@ -67,7 +67,7 @@ export function useMessages(): UseMessagesReturn {
       setError(null)
       const response = await messagesApiService.getConversations(filters)
       setConversations(response.conversations)
-      setUnreadCount(response.unreadCount)
+      setUnreadCount(response.unreadCount) // ✅ Already included in response
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load conversations')
     } finally {
@@ -166,34 +166,42 @@ export function useMessages(): UseMessagesReturn {
             msg.id === messageId ? { ...msg, status: 'read', readAt: new Date().toISOString() } : msg
           )
         )
+        // Update unread count locally
+        setUnreadCount(prev => Math.max(0, prev - 1))
       } else {
         await messagesApiService.markMessagesAsRead(selectedConversation.id)
         setMessages(prev => 
           prev.map(msg => ({ ...msg, status: 'read', readAt: new Date().toISOString() }))
         )
+        // Update unread count locally
+        setUnreadCount(prev => Math.max(0, prev - selectedConversation.unreadCount))
       }
-
-      // Update unread count
-      loadUnreadCount()
     } catch (err) {
       console.error('Failed to mark message as read:', err)
     }
-  }, [selectedConversation, loadUnreadCount])
+  }, [selectedConversation])
 
   // Mark conversation as read
   const markConversationAsRead = useCallback(async (conversationId: string) => {
     try {
       await messagesApiService.markMessagesAsRead(conversationId)
+      
+      // Find the conversation to get its unread count
+      const conversation = conversations.find(c => c.id === conversationId)
+      const unreadCountToSubtract = conversation?.unreadCount || 0
+      
       setConversations(prev => 
         prev.map(conv => 
           conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv
         )
       )
-      loadUnreadCount()
+      
+      // Update total unread count locally
+      setUnreadCount(prev => Math.max(0, prev - unreadCountToSubtract))
     } catch (err) {
       console.error('Failed to mark conversation as read:', err)
     }
-  }, [loadUnreadCount])
+  }, [conversations])
 
   // Archive conversation
   const archiveConversation = useCallback(async (conversationId: string) => {
@@ -249,9 +257,8 @@ export function useMessages(): UseMessagesReturn {
 
   // Refresh conversations
   const refreshConversations = useCallback(async () => {
-    await loadConversations(currentFilters || undefined)
-    await loadUnreadCount()
-  }, [loadConversations, loadUnreadCount, currentFilters])
+    await loadConversations(currentFilters || undefined) // ✅ This already includes unread count
+  }, [loadConversations, currentFilters])
 
   // Filter conversations
   const filterConversations = useCallback((filters: MessageFilters) => {
@@ -347,9 +354,9 @@ export function useMessages(): UseMessagesReturn {
 
   // Load initial data
   useEffect(() => {
-    loadConversations()
-    loadUnreadCount()
-  }, [loadConversations, loadUnreadCount])
+    loadConversations() // ✅ This already includes unread count
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run on mount
 
   // Handle WebSocket messages
   useEffect(() => {
@@ -376,10 +383,10 @@ export function useMessages(): UseMessagesReturn {
           // Update messages if this conversation is selected
           if (selectedConversation?.id === conversationId) {
             setMessages(prev => [...prev, message])
+          } else {
+            // Update unread count locally for other conversations
+            setUnreadCount(prev => prev + 1)
           }
-
-          // Update unread count
-          loadUnreadCount()
         }
       }
 
@@ -387,7 +394,7 @@ export function useMessages(): UseMessagesReturn {
       // This would be implemented based on your WebSocket context
       // sendWebSocketMessage({ type: 'subscribe', data: { channel: 'messages' } })
     }
-  }, [isConnected, selectedConversation, loadUnreadCount])
+  }, [isConnected, selectedConversation])
 
   return {
     // Data
@@ -424,3 +431,4 @@ export function useMessages(): UseMessagesReturn {
     getMessageStats
   }
 }
+

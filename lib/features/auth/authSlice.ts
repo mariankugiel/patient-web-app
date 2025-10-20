@@ -29,6 +29,7 @@ interface AuthState {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
+  isRestoringSession: boolean
   error: string | null
 }
 
@@ -36,6 +37,7 @@ const initialState: AuthState = {
   user: null,
   isAuthenticated: false,
   isLoading: false,
+  isRestoringSession: true,
   error: null,
 }
 
@@ -125,9 +127,15 @@ const authSlice = createSlice({
     clearError: (state) => {
       state.error = null
     },
+    sessionRestorationStart: (state) => {
+      state.isRestoringSession = true
+    },
+    sessionRestorationComplete: (state) => {
+      state.isRestoringSession = false
+    },
   },
 })
 
-export const { loginStart, loginSuccess, loginFailure, signupStart, signupSuccess, signupFailure, logout, updateUser, clearError } = authSlice.actions
+export const { loginStart, loginSuccess, loginFailure, signupStart, signupSuccess, signupFailure, logout, updateUser, clearError, sessionRestorationStart, sessionRestorationComplete } = authSlice.actions
 
 export default authSlice.reducer

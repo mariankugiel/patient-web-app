@@ -1,265 +1,453 @@
 "use client"
 
-import { useState } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import { RootState, AppDispatch } from '@/lib/store'
-import { 
-  addCurrentHealthProblem, 
-  updateCurrentHealthProblem, 
-  removeCurrentHealthProblem,
-  validateCurrentHealthProblem,
-  addMedication,
-  updateMedication,
-  removeMedication,
-  validateMedication,
-  addPastMedicalCondition,
-  updatePastMedicalCondition,
-  removePastMedicalCondition,
-  validatePastMedicalCondition,
-  addPastSurgery,
-  updatePastSurgery,
-  removePastSurgery,
-  validatePastSurgery
-} from '@/lib/features/onboarding/onboardingSlice'
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
+import React, { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, Clock, Calendar, AlertCircle, CheckCircle } from 'lucide-react'
-import { type Language, getTranslation } from "@/lib/translations"
-import { toast } from 'react-toastify'
+import { Badge } from "@/components/ui/badge"
+import { Calendar, AlertCircle, CheckCircle, Plus, Info } from 'lucide-react'
+import { type Language } from "@/lib/translations"
+import { CurrentConditionsDialog } from "@/components/health-records/current-conditions-dialog"
+import { PastConditionsDialog } from "@/components/health-records/past-conditions-dialog"
+import { PastSurgeriesDialog } from "@/components/health-records/past-surgeries-dialog"
+import { MedicationsDialog } from '@/components/onboarding/dialogs/medications-dialog'
+import { MedicalConditionApiService } from '@/lib/api/medical-condition-api'
+import { medicationsApiService } from '@/lib/api/medications-api'
+import { medicationRemindersApiService } from '@/lib/api/medication-reminders-api'
 
 interface MedicalConditionStepProps {
   language: Language
 }
 
-const commonHealthProblems = [
-  "Diabetes",
-  "Hypertension",
-  "Heart Disease",
-  "Asthma",
-  "Arthritis",
-  "Depression",
-  "Anxiety",
-  "High Cholesterol",
-  "Thyroid Problems",
-  "Migraine",
-  "Back Pain",
-  "Chronic Fatigue Syndrome",
-  "Fibromyalgia",
-  "Crohn's Disease",
-  "Ulcerative Colitis",
-  "Other"
-]
-
-const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
 export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
-  const dispatch = useDispatch<AppDispatch>()
-  const { medicalConditions } = useSelector((state: RootState) => state.onboarding)
+  // Local state for medical conditions data
+  const [currentHealthProblems, setCurrentHealthProblems] = useState<any[]>([])
+  const [medications, setMedications] = useState<any[]>([])
+  const [pastMedicalConditions, setPastMedicalConditions] = useState<any[]>([])
+  const [pastSurgeries, setPastSurgeries] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Form visibility states
-  const [showHealthProblemForm, setShowHealthProblemForm] = useState(false)
-  const [showMedicationForm, setShowMedicationForm] = useState(false)
-  const [showPastConditionForm, setShowPastConditionForm] = useState(false)
-  const [showSurgeryForm, setShowSurgeryForm] = useState(false)
+  // Helper function to format dates (handles both date and datetime formats)
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'Not specified'
 
-  // Form states for new entries
-  const [newHealthProblem, setNewHealthProblem] = useState({
-    condition: "",
-    yearOfDiagnosis: "",
-    diagnosticProvider: "",
-    treatment: "",
-    comments: ""
-  })
+    try {
+      // Handle both date (YYYY-MM-DD) and datetime (YYYY-MM-DDTHH:mm:ss) formats
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) {
+        return dateString
+      }
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+    } catch (error) {
+      return dateString
+    }
+  }
 
-  const [newMedication, setNewMedication] = useState({
-    drugName: "",
-    purpose: "",
-    dosage: "",
-    frequency: "",
-    schedule: [] as Array<{ id: string; time: string; days: string[] }>,
-    hasReminder: false,
-    reminderTime: "",
-    reminderDays: [] as string[]
-  })
+  // Helper function to format frequency in user-friendly way
+  const formatFrequency = (frequency: string): string => {
+    if (!frequency) return "Not specified"
+    
+    // Convert technical frequency values to user-friendly labels
+    const frequencyMap: Record<string, string> = {
+      'once-daily': 'Once daily',
+      'twice-daily': 'Twice daily',
+      'three-times-daily': 'Three times daily',
+      'four-times-daily': 'Four times daily',
+      'as-needed': 'As needed',
+      'weekly': 'Weekly',
+      'monthly': 'Monthly',
+      'daily': 'Daily',
+      'bid': 'Twice daily',
+      'tid': 'Three times daily',
+      'qid': 'Four times daily',
+      'qd': 'Daily',
+      'prn': 'As needed'
+    }
+    
+    return frequencyMap[frequency.toLowerCase()] || frequency
+  }
 
-  const [newPastCondition, setNewPastCondition] = useState({
-    condition: "",
-    yearOfDiagnosis: "",
-    yearResolved: "",
-    treatment: "",
-    comments: ""
-  })
+  // Helper function to format reminder display
+  const formatReminderDisplay = (medication: any): string => {
+    if (!medication.has_reminder || !medication.reminder_time) return ""
+    
+    const time = medication.reminder_time
+    const days = medication.reminder_days
+    
+    // Format time to HH:MM style
+    let display = ""
+    if (time) {
+      // Handle both "08:00:00" and "08:00" formats
+      const timeOnly = time.split(' ')[0] // Remove date part if present
+      const [hours, minutes] = timeOnly.split(':')
+      display = `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`
+    }
+    
+    return display
+  }
 
-  const [newSurgery, setNewSurgery] = useState({
-    surgeryType: "",
-    year: "",
-    location: "",
-    existingConditions: "",
-    comments: ""
-  })
+  // Helper function to format reminder days display
+  const formatReminderDaysDisplay = (medication: any): string => {
+    if (!medication.has_reminder || !medication.reminder_days) return ""
+    
+    const days = medication.reminder_days
+    
+    if (days.length === 7) {
+      return "Daily"
+    } else if (days.length === 5 && !days.includes('Saturday') && !days.includes('Sunday')) {
+      return "Weekdays"
+    } else {
+      return days.join(', ')
+    }
+  }
 
-  // ============================================================================
-  // HEALTH PROBLEMS
-  // ============================================================================
-
-  const addHealthProblem = () => {
-    if (!newHealthProblem.condition.trim()) {
-      toast.error("Condition name is required")
-      return
+  // Helper function to get status badge
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
+      // Medical condition statuses
+      'uncontrolled': { label: 'Uncontrolled', variant: 'destructive' as const },
+      'controlled': { label: 'Controlled', variant: 'default' as const },
+      'partiallyControlled': { label: 'Partially Controlled', variant: 'secondary' as const },
+      'resolved': { label: 'Resolved', variant: 'outline' as const },
+      // Surgery recovery statuses
+      'full_recovery': { label: 'Full Recovery', variant: 'default' as const },
+      'ongoing_treatment': { label: 'Ongoing Treatment', variant: 'secondary' as const },
+      'no_recovery': { label: 'No Recovery', variant: 'destructive' as const }
     }
 
-    dispatch(addCurrentHealthProblem(newHealthProblem))
-    dispatch(validateCurrentHealthProblem(`health-problem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`))
-    
-    setNewHealthProblem({
-      condition: "",
-      yearOfDiagnosis: "",
-      diagnosticProvider: "",
-      treatment: "",
-      comments: ""
-    })
-    
-    setShowHealthProblemForm(false)
-    toast.success("Health problem added successfully!")
+    const config = statusConfig[status as keyof typeof statusConfig] || { label: status, variant: 'outline' as const }
+    return <Badge variant={config.variant}>{config.label}</Badge>
   }
 
-  const removeHealthProblem = (id: string) => {
-    dispatch(removeCurrentHealthProblem(id))
-    toast.success("Health problem removed")
-  }
+  // Dialog states
+  const [showCurrentConditionsDialog, setShowCurrentConditionsDialog] = useState(false)
+  const [showMedicationsDialog, setShowMedicationsDialog] = useState(false)
+  const [showPastConditionsDialog, setShowPastConditionsDialog] = useState(false)
+  const [showSurgeriesDialog, setShowSurgeriesDialog] = useState(false)
 
-  // ============================================================================
-  // MEDICATIONS
-  // ============================================================================
+  // Selected entries for editing
+  const [selectedCurrentCondition, setSelectedCurrentCondition] = useState<any>(null)
+  const [selectedPastCondition, setSelectedPastCondition] = useState<any>(null)
+  const [selectedSurgery, setSelectedSurgery] = useState<any>(null)
+  const [selectedMedication, setSelectedMedication] = useState<any>(null)
 
-  const addMedicationEntry = () => {
-    if (!newMedication.drugName.trim()) {
-      toast.error("Drug name is required")
-      return
-    }
+  // Load all data on initial mount
+  const loadData = async () => {
+    console.log('loadData called - initial loading of all medical conditions data')
+    try {
+      setIsLoading(true)
+      setError(null)
 
-    dispatch(addMedication(newMedication))
-    dispatch(validateMedication(`medication-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`))
-    
-    setNewMedication({
-      drugName: "",
-      purpose: "",
-      dosage: "",
-      frequency: "",
-      schedule: [] as Array<{ id: string; time: string; days: string[] }>,
-      hasReminder: false,
-      reminderTime: "",
-      reminderDays: []
-    })
-    
-    setShowMedicationForm(false)
-    toast.success("Medication added successfully!")
-  }
+      // Load all data in parallel
+      const [allConditions, surgeries, medicationsData] = await Promise.all([
+        MedicalConditionApiService.getAllMedicalConditions(),
+        MedicalConditionApiService.getPastSurgeries(),
+        medicationsApiService.getMedications()
+      ])
 
-  const removeMedicationEntry = (id: string) => {
-    dispatch(removeMedication(id))
-    toast.success("Medication removed")
-  }
-
-  const addScheduleEntry = () => {
-    setNewMedication(prev => ({
-      ...prev,
-      schedule: [...prev.schedule, { 
-        id: `schedule-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        time: "", 
-        days: [] 
-      }]
-    }))
-  }
-
-  const removeScheduleEntry = (index: number) => {
-    setNewMedication(prev => ({
-      ...prev,
-      schedule: prev.schedule.filter((_, i) => i !== index)
-    }))
-  }
-
-  const updateScheduleEntry = (index: number, field: string, value: any) => {
-    setNewMedication(prev => ({
-      ...prev,
-      schedule: prev.schedule.map((entry, i) => 
-        i === index ? { ...entry, [field]: value } : entry
+      // Filter conditions by status
+      const currentProblems = allConditions.filter(condition =>
+        condition.status === 'uncontrolled' ||
+        condition.status === 'controlled' ||
+        condition.status === 'partiallyControlled'
       )
-    }))
-  }
+      const pastConditions = allConditions.filter(condition =>
+        condition.status === 'resolved'
+      )
 
-  const toggleDay = (day: string) => {
-    setNewMedication(prev => ({
-      ...prev,
-      reminderDays: prev.reminderDays.includes(day)
-        ? prev.reminderDays.filter(d => d !== day)
-        : [...prev.reminderDays, day]
-    }))
-  }
-
-  // ============================================================================
-  // PAST MEDICAL CONDITIONS
-  // ============================================================================
-
-  const addPastCondition = () => {
-    if (!newPastCondition.condition.trim()) {
-      toast.error("Condition name is required")
-      return
+      setCurrentHealthProblems(currentProblems)
+      setPastMedicalConditions(pastConditions)
+      setPastSurgeries(surgeries)
+      
+      // Map backend fields to frontend fields for medications display
+      const mappedMedications = await Promise.all(medicationsData.map(async (medication: any) => {
+        // Fetch reminder data for each medication
+        let hasReminder = false
+        let reminderTime = null
+        let reminderDays = null
+        
+        try {
+          console.log(`Fetching reminders for medication ${medication.id} (${medication.medication_name})`)
+          const reminders = await medicationRemindersApiService.getReminders(medication.id)
+          console.log(`Reminders for medication ${medication.id}:`, reminders)
+          if (reminders && reminders.length > 0) {
+            hasReminder = true
+            reminderTime = reminders[0]?.reminder_time
+            reminderDays = reminders[0]?.days_of_week || reminders[0]?.reminder_days
+            console.log(`Reminder data for ${medication.medication_name}:`, { reminderTime, reminderDays })
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch reminders for medication ${medication.id}:`, error)
+        }
+        
+        return {
+          ...medication,
+          drugName: medication.medication_name,
+          drug_name: medication.medication_name, // Alternative field name
+          notes: medication.instructions,
+          has_reminder: hasReminder,
+          reminder_time: reminderTime,
+          reminder_days: reminderDays
+        }
+      }))
+      setMedications(mappedMedications)
+    } catch (err) {
+      console.error('Failed to load medical conditions:', err)
+      setError('Failed to load medical conditions data')
+    } finally {
+      setIsLoading(false)
     }
-
-    dispatch(addPastMedicalCondition(newPastCondition))
-    dispatch(validatePastMedicalCondition(`past-condition-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`))
-    
-    setNewPastCondition({
-      condition: "",
-      yearOfDiagnosis: "",
-      yearResolved: "",
-      treatment: "",
-      comments: ""
-    })
-    
-    setShowPastConditionForm(false)
-    toast.success("Past medical condition added successfully!")
   }
 
-  const removePastCondition = (id: string) => {
-    dispatch(removePastMedicalCondition(id))
-    toast.success("Past medical condition removed")
-  }
-
-  // ============================================================================
-  // PAST SURGERIES
-  // ============================================================================
-
-  const addSurgery = () => {
-    if (!newSurgery.surgeryType.trim()) {
-      toast.error("Type of surgery is required")
-      return
+  // Refresh specific sections for better performance
+  const refreshCurrentConditions = async () => {
+    console.log('refreshCurrentConditions called')
+    try {
+      const allConditions = await MedicalConditionApiService.getAllMedicalConditions()
+      const currentProblems = allConditions.filter(condition =>
+        condition.status === 'uncontrolled' ||
+        condition.status === 'controlled' ||
+        condition.status === 'partiallyControlled'
+      )
+      setCurrentHealthProblems(currentProblems)
+    } catch (err) {
+      console.error('Failed to refresh current conditions:', err)
     }
-
-    dispatch(addPastSurgery(newSurgery))
-    dispatch(validatePastSurgery(`past-surgery-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`))
-    
-    setNewSurgery({
-      surgeryType: "",
-      year: "",
-      location: "",
-      existingConditions: "",
-      comments: ""
-    })
-    
-    setShowSurgeryForm(false)
-    toast.success("Past surgery added successfully!")
   }
 
-  const removeSurgery = (id: string) => {
-    dispatch(removePastSurgery(id))
-    toast.success("Past surgery removed")
+  const refreshPastConditions = async () => {
+    console.log('refreshPastConditions called')
+    try {
+      const allConditions = await MedicalConditionApiService.getAllMedicalConditions()
+      const pastConditions = allConditions.filter(condition =>
+        condition.status === 'resolved'
+      )
+      setPastMedicalConditions(pastConditions)
+    } catch (err) {
+      console.error('Failed to refresh past conditions:', err)
+    }
+  }
+
+  const refreshSurgeries = async () => {
+    console.log('refreshSurgeries called')
+    try {
+      const surgeries = await MedicalConditionApiService.getPastSurgeries()
+      setPastSurgeries(surgeries)
+    } catch (err) {
+      console.error('Failed to refresh surgeries:', err)
+    }
+  }
+
+  const refreshMedications = async () => {
+    console.log('refreshMedications called')
+    try {
+      const medicationsData = await medicationsApiService.getMedications()
+      // Map backend fields to frontend fields for display
+      const mappedMedications = await Promise.all(medicationsData.map(async (medication: any) => {
+        // Fetch reminder data for each medication
+        let hasReminder = false
+        let reminderTime = null
+        let reminderDays = null
+        
+        try {
+          console.log(`Fetching reminders for medication ${medication.id} (${medication.medication_name})`)
+          const reminders = await medicationRemindersApiService.getReminders(medication.id)
+          console.log(`Reminders for medication ${medication.id}:`, reminders)
+          if (reminders && reminders.length > 0) {
+            hasReminder = true
+            reminderTime = reminders[0]?.reminder_time
+            reminderDays = reminders[0]?.days_of_week || reminders[0]?.reminder_days
+            console.log(`Reminder data for ${medication.medication_name}:`, { reminderTime, reminderDays })
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch reminders for medication ${medication.id}:`, error)
+        }
+        
+        return {
+          ...medication,
+          drugName: medication.medication_name,
+          drug_name: medication.medication_name, // Alternative field name
+          notes: medication.instructions,
+          has_reminder: hasReminder,
+          reminder_time: reminderTime,
+          reminder_days: reminderDays
+        }
+      }))
+      setMedications(mappedMedications)
+    } catch (err) {
+      console.error('Failed to refresh medications:', err)
+    }
+  }
+
+  // Load data on component mount
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  // Save handlers for dialogs
+  const handleMedicationSave = async (medication: any) => {
+    try {
+      console.log('Saving medication:', medication)
+      
+      // Map frontend fields to backend API fields
+      const backendMedication = {
+        medication_name: medication.drugName,
+        medication_type: 'prescription' as const, // Default to prescription for onboarding
+        dosage: medication.dosage,
+        frequency: medication.frequency,
+        purpose: medication.purpose,
+        instructions: medication.notes || medication.instructions,
+        start_date: new Date().toISOString().split('T')[0], // Current date as start date
+        // Prescription fields (optional)
+        rx_number: medication.rxNumber,
+        pharmacy: medication.pharmacy,
+        original_quantity: medication.originalQuantity,
+        refills_remaining: medication.refillsRemaining,
+        last_filled_date: medication.lastFilledDate
+      }
+      
+      console.log('Mapped medication for backend:', backendMedication)
+      
+      let savedMedication
+      if (selectedMedication) {
+        // Update existing medication
+        savedMedication = await medicationsApiService.updateMedication(medication.id, backendMedication)
+      } else {
+        // Create new medication
+        savedMedication = await medicationsApiService.createMedication(backendMedication)
+      }
+      
+      // Handle reminder creation/update
+      if (medication.hasReminder && savedMedication?.id) {
+        try {
+          const reminderData = {
+            medication_id: savedMedication.id,
+            reminder_time: formatTimeForBackend(medication.reminderTime),
+            days_of_week: medication.reminderDays || []
+          }
+          
+          if (selectedMedication && medication.hasReminder) {
+            // Update existing reminder (you might need to get the reminder ID first)
+            console.log('Updating reminder for medication:', savedMedication.id)
+            // TODO: Implement reminder update logic
+          } else if (medication.hasReminder) {
+            // Create new reminder
+            console.log('Creating new reminder:', reminderData)
+            await medicationRemindersApiService.createReminder(reminderData)
+          }
+        } catch (error) {
+          console.error('Failed to save reminder:', error)
+          // Don't fail the whole operation if reminder fails
+        }
+      }
+      
+      setShowMedicationsDialog(false)
+      setSelectedMedication(null)
+      refreshMedications() // Refresh medications data
+    } catch (error) {
+      console.error('Failed to save medication:', error)
+      // Keep dialog open on error so user can retry
+    }
+  }
+
+  // ============================================================================
+  // DIALOG HANDLERS
+  // ============================================================================
+
+  const openCurrentConditionsDialog = (condition?: any) => {
+    setSelectedCurrentCondition(condition || null)
+    setShowCurrentConditionsDialog(true)
+  }
+
+  const openMedicationsDialog = (medication?: any) => {
+    if (medication) {
+      // Map backend fields to dialog fields
+      const mappedMedication = {
+        ...medication,
+        drugName: medication.drugName || medication.drug_name || medication.medication_name,
+        hasReminder: medication.has_reminder || false,
+        reminderTime: medication.reminder_time ? formatTimeForDialog(medication.reminder_time) : '',
+        reminderDays: medication.reminder_days || []
+      }
+      
+      console.log('Original reminder time from backend:', medication.reminder_time)
+      console.log('Formatted reminder time for dialog:', mappedMedication.reminderTime)
+      setSelectedMedication(mappedMedication)
+    } else {
+      setSelectedMedication(null)
+    }
+    setShowMedicationsDialog(true)
+  }
+
+  // Helper function to format time for dialog (convert "08:00:00" to "08:00")
+  const formatTimeForDialog = (timeString: string): string => {
+    if (!timeString) return ''
+    
+    // Handle different time formats
+    if (timeString.includes(':')) {
+      const parts = timeString.split(':')
+      if (parts.length >= 2) {
+        return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
+      }
+    }
+    
+    return timeString
+  }
+
+  // Helper function to format time for backend (convert "08:00" to "08:00:00")
+  const formatTimeForBackend = (timeString: string): string => {
+    if (!timeString) return ''
+    
+    // If already has seconds, return as is
+    if (timeString.split(':').length === 3) {
+      return timeString
+    }
+    
+    // Add seconds if missing
+    if (timeString.split(':').length === 2) {
+      return `${timeString}:00`
+    }
+    
+    return timeString
+  }
+
+  const openPastConditionsDialog = (condition?: any) => {
+    setSelectedPastCondition(condition || null)
+    setShowPastConditionsDialog(true)
+  }
+
+  const openSurgeriesDialog = (surgery?: any) => {
+    setSelectedSurgery(surgery || null)
+    setShowSurgeriesDialog(true)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-8">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading medical conditions...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-8">
+        <div className="text-center py-8">
+          <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-4" />
+          <p className="text-red-600 mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()} variant="outline">
+            Retry
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -267,200 +455,99 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
       {/* Current Health Problems and Chronic Diseases */}
       <Card>
         <CardHeader>
+          <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
-            Current Health Problems and Chronic Diseases
+              Current Medical Conditions
             <span className="text-sm font-normal text-gray-500">
-              ({medicalConditions.currentHealthProblems.length} entries)
+                ({currentHealthProblems.length} entries)
             </span>
           </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openCurrentConditionsDialog()}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Existing Health Problems */}
-          {medicalConditions.currentHealthProblems.map((problem) => (
-            <Card key={problem.id} className={`p-4 border-l-4 ${problem.isValid ? 'border-l-green-500' : 'border-l-red-500'}`}>
-              <div className="flex justify-between items-start mb-3">
+          {currentHealthProblems.map((problem) => (
+            <div
+              key={problem.id}
+              onClick={() => openCurrentConditionsDialog(problem)}
+              className="cursor-pointer hover:shadow-md hover:border-blue-300 transition-all duration-200 group"
+            >
+              <Card className="p-4 border-l-4 border-l-blue-500 bg-blue-50 group-hover:border-blue-300">
+                <div className="flex items-start mb-3">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-medium text-gray-900">{problem.condition}</h4>
-                  {problem.isValid ? (
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-red-600" />
-                  )}
+                    <h4 className="font-medium text-gray-900">{problem.condition_name || problem.condition}</h4>
+                    <Info className="w-4 h-4 text-blue-600" />
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => removeHealthProblem(problem.id)}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                  <div className="ml-auto">
+                    {getStatusBadge(problem.status)}
               </div>
-              
-              {problem.errors.length > 0 && (
-                <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded">
-                  <ul className="text-sm text-red-600">
-                    {problem.errors.map((error, index) => (
-                      <li key={index}>• {error}</li>
-                    ))}
-                  </ul>
                 </div>
-              )}
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div className="space-y-3 text-sm">
                 <div>
-                  <span className="font-medium">Year of Diagnosis:</span> {problem.yearOfDiagnosis}
+                    <span className="font-medium">Diagnosed Date:</span> {problem.diagnosed_date ? formatDate(problem.diagnosed_date) : 'Not specified'}
                 </div>
                 <div>
-                  <span className="font-medium">Diagnostic Provider:</span> {problem.diagnosticProvider}
-                </div>
-                <div className="md:col-span-2">
-                  <span className="font-medium">Treatment:</span> {problem.treatment}
-                </div>
-                {problem.comments && (
-                  <div className="md:col-span-2">
-                    <span className="font-medium">Comments:</span> {problem.comments}
+                    <span className="font-medium">Treatment Plan:</span> {problem.treatment_plan || problem.treatment || 'Not specified'}
+                  </div>
+                  {(problem.description || problem.comments) && (
+                    <div>
+                      <span className="font-medium">Description:</span> {problem.description || problem.comments}
                   </div>
                 )}
               </div>
             </Card>
+            </div>
           ))}
 
-          {/* Add New Health Problem */}
-          {!showHealthProblemForm ? (
-            <Card className="p-4 border-dashed">
-              <Button 
-                onClick={() => setShowHealthProblemForm(true)}
-                className="w-full"
-                variant="outline"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add New Health Problem
-              </Button>
-            </Card>
-          ) : (
-            <Card className="p-4 border-dashed">
-              <h4 className="font-medium mb-4">Add New Health Problem</h4>
-              <div className="space-y-4">
-              <div>
-                <Label htmlFor="condition">Condition *</Label>
-                <Select value={newHealthProblem.condition} onValueChange={(value) => setNewHealthProblem(prev => ({ ...prev, condition: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select or type condition" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {commonHealthProblems.map((condition) => (
-                      <SelectItem key={condition} value={condition}>{condition}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="yearOfDiagnosis">Year of Diagnosis</Label>
-                  <Input
-                    id="yearOfDiagnosis"
-                    type="number"
-                    value={newHealthProblem.yearOfDiagnosis}
-                    onChange={(e) => setNewHealthProblem(prev => ({ ...prev, yearOfDiagnosis: e.target.value }))}
-                    placeholder="e.g., 2020"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="diagnosticProvider">Who Made the Diagnostic</Label>
-                  <Input
-                    id="diagnosticProvider"
-                    value={newHealthProblem.diagnosticProvider}
-                    onChange={(e) => setNewHealthProblem(prev => ({ ...prev, diagnosticProvider: e.target.value }))}
-                    placeholder="e.g., Dr. Smith"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="treatment">Treatment</Label>
-                <Textarea
-                  id="treatment"
-                  value={newHealthProblem.treatment}
-                  onChange={(e) => setNewHealthProblem(prev => ({ ...prev, treatment: e.target.value }))}
-                  placeholder="Describe current treatment"
-                  rows={2}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="comments">Comments</Label>
-                <Textarea
-                  id="comments"
-                  value={newHealthProblem.comments}
-                  onChange={(e) => setNewHealthProblem(prev => ({ ...prev, comments: e.target.value }))}
-                  placeholder="Additional comments"
-                  rows={2}
-                />
-              </div>
-
-                <div className="flex gap-2">
-                  <Button onClick={addHealthProblem} className="flex-1">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Health Problem
-                  </Button>
-                  <Button 
-                    onClick={() => setShowHealthProblemForm(false)}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          )}
         </CardContent>
       </Card>
 
       {/* Medications */}
       <Card>
         <CardHeader>
+          <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
-            Current Medications
+              Medications
             <span className="text-sm font-normal text-gray-500">
-              ({medicalConditions.medications.length} entries)
+                ({medications.length} entries)
             </span>
           </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openMedicationsDialog}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Existing Medications */}
-          {medicalConditions.medications.map((medication) => (
-            <Card key={medication.id} className={`p-4 border-l-4 ${medication.isValid ? 'border-l-green-500' : 'border-l-red-500'}`}>
-              <div className="flex justify-between items-start mb-3">
+          {medications.map((medication) => (
+            <div
+              key={medication.id}
+              onClick={() => openMedicationsDialog(medication)}
+              className="cursor-pointer hover:shadow-md hover:border-blue-300 transition-all duration-200 group"
+            >
+              <Card className="p-4 border-l-4 border-l-purple-500 bg-purple-50 group-hover:border-blue-300">
+                <div className="flex items-start mb-3">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-medium text-gray-900">{medication.drugName}</h4>
-                  {medication.isValid ? (
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-red-600" />
-                  )}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => removeMedicationEntry(medication.id)}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                    <h4 className="font-medium text-gray-900">{medication.drugName || medication.drug_name}</h4>
+                    <CheckCircle className="w-4 h-4 text-purple-600" />
               </div>
-              
-              {medication.errors.length > 0 && (
-                <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded">
-                  <ul className="text-sm text-red-600">
-                    {medication.errors.map((error, index) => (
-                      <li key={index}>• {error}</li>
-                    ))}
-                  </ul>
                 </div>
-              )}
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <div>
@@ -470,508 +557,196 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
                   <span className="font-medium">Dosage:</span> {medication.dosage}
                 </div>
                 <div>
-                  <span className="font-medium">Frequency:</span> {medication.frequency}
+                  <span className="font-medium">Frequency:</span> {formatFrequency(medication.frequency)}
                 </div>
-                {medication.hasReminder && (
+                {medication.has_reminder && formatReminderDisplay(medication) && (
                   <div>
-                    <span className="font-medium">Reminder:</span> {medication.reminderTime} on {medication.reminderDays?.join(", ")}
+                    <span className="font-medium">Reminder:</span> {formatReminderDisplay(medication)}
+                    {formatReminderDaysDisplay(medication) && (
+                      <span className="text-gray-600 ml-2">({formatReminderDaysDisplay(medication)})</span>
+                    )}
                   </div>
                 )}
-              </div>
-              {medication.schedule.length > 0 && (
-                <div className="mt-3">
-                  <span className="font-medium">Schedule:</span>
-                  <div className="mt-1 space-y-1">
-                    {medication.schedule.map((entry, i) => (
-                      <div key={i} className="text-sm text-gray-600">
-                        {entry.time} - {entry.days.join(", ")}
-                      </div>
-                    ))}
-                  </div>
                 </div>
-              )}
-            </Card>
+              </Card>
+              </div>
           ))}
-
-          {/* Add New Medication */}
-          {!showMedicationForm ? (
-            <Card className="p-4 border-dashed">
-              <Button 
-                onClick={() => setShowMedicationForm(true)}
-                className="w-full"
-                variant="outline"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add New Medication
-              </Button>
-            </Card>
-          ) : (
-            <Card className="p-4 border-dashed">
-              <h4 className="font-medium mb-4">Add New Medication</h4>
-              <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="drugName">Name of Drug *</Label>
-                  <Input
-                    id="drugName"
-                    value={newMedication.drugName}
-                    onChange={(e) => setNewMedication(prev => ({ ...prev, drugName: e.target.value }))}
-                    placeholder="e.g., Metformin"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="purpose">Purpose</Label>
-                  <Input
-                    id="purpose"
-                    value={newMedication.purpose}
-                    onChange={(e) => setNewMedication(prev => ({ ...prev, purpose: e.target.value }))}
-                    placeholder="e.g., Diabetes management"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="dosage">Dosage</Label>
-                  <Input
-                    id="dosage"
-                    value={newMedication.dosage}
-                    onChange={(e) => setNewMedication(prev => ({ ...prev, dosage: e.target.value }))}
-                    placeholder="e.g., 500mg"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="frequency">Frequency</Label>
-                  <Select value={newMedication.frequency} onValueChange={(value) => setNewMedication(prev => ({ ...prev, frequency: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select frequency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Once daily">Once daily</SelectItem>
-                      <SelectItem value="Twice daily">Twice daily</SelectItem>
-                      <SelectItem value="Three times daily">Three times daily</SelectItem>
-                      <SelectItem value="Four times daily">Four times daily</SelectItem>
-                      <SelectItem value="As needed">As needed</SelectItem>
-                      <SelectItem value="Weekly">Weekly</SelectItem>
-                      <SelectItem value="Monthly">Monthly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Schedule */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label>Schedule</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={addScheduleEntry}>
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add Time
-                  </Button>
-                </div>
-                {newMedication.schedule.map((entry, index) => (
-                  <div key={index} className="flex gap-2 mb-2">
-                    <Input
-                      type="time"
-                      value={entry.time}
-                      onChange={(e) => updateScheduleEntry(index, "time", e.target.value)}
-                      className="w-32"
-                    />
-                    <div className="flex-1 flex gap-1">
-                      {daysOfWeek.map((day) => (
-                        <Button
-                          key={day}
-                          type="button"
-                          variant={entry.days.includes(day) ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => {
-                            const updatedDays = entry.days.includes(day)
-                              ? entry.days.filter(d => d !== day)
-                              : [...entry.days, day]
-                            updateScheduleEntry(index, "days", updatedDays)
-                          }}
-                          className="text-xs px-2 py-1"
-                        >
-                          {day.slice(0, 3)}
-                        </Button>
-                      ))}
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeScheduleEntry(index)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Reminder Settings */}
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="hasReminder"
-                    checked={newMedication.hasReminder}
-                    onCheckedChange={(checked) => setNewMedication(prev => ({ ...prev, hasReminder: checked as boolean }))}
-                  />
-                  <Label htmlFor="hasReminder">Set medication reminder</Label>
-                </div>
-
-                {newMedication.hasReminder && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="reminderTime">Reminder Time</Label>
-                      <Input
-                        id="reminderTime"
-                        type="time"
-                        value={newMedication.reminderTime}
-                        onChange={(e) => setNewMedication(prev => ({ ...prev, reminderTime: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <Label>Reminder Days</Label>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {daysOfWeek.map((day) => (
-                          <Button
-                            key={day}
-                            type="button"
-                            variant={newMedication.reminderDays.includes(day) ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => toggleDay(day)}
-                            className="text-xs px-2 py-1"
-                          >
-                            {day.slice(0, 3)}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-                <div className="flex gap-2">
-                  <Button onClick={addMedicationEntry} className="flex-1">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Medication
-                  </Button>
-                  <Button 
-                    onClick={() => setShowMedicationForm(false)}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          )}
         </CardContent>
       </Card>
 
       {/* Past Medical Conditions */}
       <Card>
         <CardHeader>
+          <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             Past Medical Conditions
             <span className="text-sm font-normal text-gray-500">
-              ({medicalConditions.pastMedicalConditions.length} entries)
+                ({pastMedicalConditions.length} entries)
             </span>
           </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openPastConditionsDialog()}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Existing Past Conditions */}
-          {medicalConditions.pastMedicalConditions.map((condition) => (
-            <Card key={condition.id} className={`p-4 border-l-4 ${condition.isValid ? 'border-l-green-500' : 'border-l-red-500'}`}>
-              <div className="flex justify-between items-start mb-3">
+          {pastMedicalConditions.map((condition) => (
+            <div
+              key={condition.id}
+              onClick={() => openPastConditionsDialog(condition)}
+              className="cursor-pointer hover:shadow-md hover:border-blue-300 transition-all duration-200 group"
+            >
+              <Card className="p-4 border-l-4 border-l-green-500 bg-green-50 group-hover:border-blue-300">
+                <div className="flex items-start mb-3">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-medium text-gray-900">{condition.condition}</h4>
-                  {condition.isValid ? (
+                    <h4 className="font-medium text-gray-900">{condition.condition_name || condition.condition}</h4>
                     <CheckCircle className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-red-600" />
-                  )}
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => removePastCondition(condition.id)}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                  <div className="ml-auto">
+                    {getStatusBadge(condition.status || 'resolved')}
               </div>
-              
-              {condition.errors.length > 0 && (
-                <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded">
-                  <ul className="text-sm text-red-600">
-                    {condition.errors.map((error, index) => (
-                      <li key={index}>• {error}</li>
-                    ))}
-                  </ul>
                 </div>
-              )}
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div className="space-y-3 text-sm">
                 <div>
-                  <span className="font-medium">Year of Diagnosis:</span> {condition.yearOfDiagnosis}
+                    <span className="font-medium">Diagnosed Date:</span> {condition.diagnosed_date ? formatDate(condition.diagnosed_date) : 'Not specified'}
                 </div>
                 <div>
-                  <span className="font-medium">Year Resolved:</span> {condition.yearResolved}
+                    <span className="font-medium">Resolved Date:</span> {condition.resolved_date ? formatDate(condition.resolved_date) : 'Not specified'}
                 </div>
-                <div className="md:col-span-2">
-                  <span className="font-medium">Treatment:</span> {condition.treatment}
-                </div>
-                {condition.comments && (
-                  <div className="md:col-span-2">
-                    <span className="font-medium">Comments:</span> {condition.comments}
+                  <div>
+                    <span className="font-medium">Treatment Plan:</span> {condition.treatment_plan || condition.treatment || 'Not specified'}
+                  </div>
+                  {(condition.description || condition.comments) && (
+                    <div>
+                      <span className="font-medium">Description:</span> {condition.description || condition.comments}
                   </div>
                 )}
               </div>
             </Card>
+            </div>
           ))}
 
-          {/* Add New Past Condition */}
-          {!showPastConditionForm ? (
-            <Card className="p-4 border-dashed">
-              <Button 
-                onClick={() => setShowPastConditionForm(true)}
-                className="w-full"
-                variant="outline"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Past Medical Condition
-              </Button>
-            </Card>
-          ) : (
-            <Card className="p-4 border-dashed">
-              <h4 className="font-medium mb-4">Add Past Medical Condition</h4>
-              <div className="space-y-4">
-              <div>
-                <Label htmlFor="pastCondition">Condition *</Label>
-                <Input
-                  id="pastCondition"
-                  value={newPastCondition.condition}
-                  onChange={(e) => setNewPastCondition(prev => ({ ...prev, condition: e.target.value }))}
-                  placeholder="e.g., Pneumonia"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="pastYearOfDiagnosis">Year of Diagnosis</Label>
-                  <Input
-                    id="pastYearOfDiagnosis"
-                    type="number"
-                    value={newPastCondition.yearOfDiagnosis}
-                    onChange={(e) => setNewPastCondition(prev => ({ ...prev, yearOfDiagnosis: e.target.value }))}
-                    placeholder="e.g., 2018"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="yearResolved">Year Resolved</Label>
-                  <Input
-                    id="yearResolved"
-                    type="number"
-                    value={newPastCondition.yearResolved}
-                    onChange={(e) => setNewPastCondition(prev => ({ ...prev, yearResolved: e.target.value }))}
-                    placeholder="e.g., 2019"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="pastTreatment">Treatment</Label>
-                <Textarea
-                  id="pastTreatment"
-                  value={newPastCondition.treatment}
-                  onChange={(e) => setNewPastCondition(prev => ({ ...prev, treatment: e.target.value }))}
-                  placeholder="Describe treatment received"
-                  rows={2}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="pastComments">Comments</Label>
-                <Textarea
-                  id="pastComments"
-                  value={newPastCondition.comments}
-                  onChange={(e) => setNewPastCondition(prev => ({ ...prev, comments: e.target.value }))}
-                  placeholder="Additional comments"
-                  rows={2}
-                />
-              </div>
-
-                <div className="flex gap-2">
-                  <Button onClick={addPastCondition} className="flex-1">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Past Condition
-                  </Button>
-                  <Button 
-                    onClick={() => setShowPastConditionForm(false)}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          )}
         </CardContent>
       </Card>
 
       {/* Past Surgeries */}
       <Card>
         <CardHeader>
+          <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             Past Surgeries
             <span className="text-sm font-normal text-gray-500">
-              ({medicalConditions.pastSurgeries.length} entries)
+                ({pastSurgeries.length} entries)
             </span>
           </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openSurgeriesDialog()}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Existing Surgeries */}
-          {medicalConditions.pastSurgeries.map((surgery) => (
-            <Card key={surgery.id} className={`p-4 border-l-4 ${surgery.isValid ? 'border-l-green-500' : 'border-l-red-500'}`}>
-              <div className="flex justify-between items-start mb-3">
+          {pastSurgeries.map((surgery) => (
+            <div
+              key={surgery.id}
+              onClick={() => openSurgeriesDialog(surgery)}
+              className="cursor-pointer hover:shadow-md hover:border-blue-300 transition-all duration-200 group"
+            >
+              <Card className="p-4 border-l-4 border-l-gray-400 bg-gray-50 group-hover:border-blue-300">
+                <div className="flex items-start mb-3">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-medium text-gray-900">{surgery.surgeryType}</h4>
-                  {surgery.isValid ? (
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-red-600" />
-                  )}
+                    <h4 className="font-medium text-gray-900">{surgery.condition_name?.replace('Surgery: ', '') || 'Surgery'}</h4>
+                    <Calendar className="w-4 h-4 text-gray-600" />
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => removeSurgery(surgery.id)}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                  <div className="ml-auto">
+                    {getStatusBadge(surgery.outcome || 'resolved')}
               </div>
-              
-              {surgery.errors.length > 0 && (
-                <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded">
-                  <ul className="text-sm text-red-600">
-                    {surgery.errors.map((error, index) => (
-                      <li key={index}>• {error}</li>
-                    ))}
-                  </ul>
                 </div>
-              )}
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div className="space-y-3 text-sm">
                 <div>
-                  <span className="font-medium">Year:</span> {surgery.year}
+                    <span className="font-medium">Type:</span> Surgery
                 </div>
                 <div>
-                  <span className="font-medium">Location:</span> {surgery.location}
+                    <span className="font-medium">Date:</span> {surgery.diagnosed_date ? formatDate(surgery.diagnosed_date) : 'Not specified'}
                 </div>
-                <div className="md:col-span-2">
-                  <span className="font-medium">Existing Conditions from Surgery:</span> {surgery.existingConditions}
-                </div>
-                {surgery.comments && (
-                  <div className="md:col-span-2">
-                    <span className="font-medium">Comments:</span> {surgery.comments}
+                  <div>
+                    <span className="font-medium">Treatment:</span> {surgery.treatment_plan || 'Not specified'}
+                  </div>
+                  {surgery.description && (
+                    <div>
+                      <span className="font-medium">Notes:</span> {surgery.description}
                   </div>
                 )}
               </div>
             </Card>
+            </div>
           ))}
 
-          {/* Add New Surgery */}
-          {!showSurgeryForm ? (
-            <Card className="p-4 border-dashed">
-              <Button 
-                onClick={() => setShowSurgeryForm(true)}
-                className="w-full"
-                variant="outline"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Past Surgery
-              </Button>
-            </Card>
-          ) : (
-            <Card className="p-4 border-dashed">
-              <h4 className="font-medium mb-4">Add Past Surgery</h4>
-              <div className="space-y-4">
-              <div>
-                <Label htmlFor="surgeryType">Type of Surgery *</Label>
-                <Input
-                  id="surgeryType"
-                  value={newSurgery.surgeryType}
-                  onChange={(e) => setNewSurgery(prev => ({ ...prev, surgeryType: e.target.value }))}
-                  placeholder="e.g., Appendectomy"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="surgeryYear">Year</Label>
-                  <Input
-                    id="surgeryYear"
-                    type="number"
-                    value={newSurgery.year}
-                    onChange={(e) => setNewSurgery(prev => ({ ...prev, year: e.target.value }))}
-                    placeholder="e.g., 2020"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="surgeryLocation">Location of Surgery</Label>
-                  <Input
-                    id="surgeryLocation"
-                    value={newSurgery.location}
-                    onChange={(e) => setNewSurgery(prev => ({ ...prev, location: e.target.value }))}
-                    placeholder="e.g., General Hospital"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="existingConditions">Any Existing Conditions from Surgery</Label>
-                <Textarea
-                  id="existingConditions"
-                  value={newSurgery.existingConditions}
-                  onChange={(e) => setNewSurgery(prev => ({ ...prev, existingConditions: e.target.value }))}
-                  placeholder="Describe any ongoing conditions or complications"
-                  rows={2}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="surgeryComments">Comments</Label>
-                <Textarea
-                  id="surgeryComments"
-                  value={newSurgery.comments}
-                  onChange={(e) => setNewSurgery(prev => ({ ...prev, comments: e.target.value }))}
-                  placeholder="Additional comments"
-                  rows={2}
-                />
-              </div>
-
-                <div className="flex gap-2">
-                  <Button onClick={addSurgery} className="flex-1">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Surgery
-                  </Button>
-                  <Button 
-                    onClick={() => setShowSurgeryForm(false)}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          )}
         </CardContent>
       </Card>
+
+      {/* Dialogs */}
+      <CurrentConditionsDialog
+        open={showCurrentConditionsDialog}
+        onOpenChange={(open: boolean) => {
+          setShowCurrentConditionsDialog(open)
+          if (!open) {
+            setSelectedCurrentCondition(null)
+          }
+        }}
+        selectedCondition={selectedCurrentCondition}
+        onRefresh={refreshCurrentConditions}
+      />
+
+      <MedicationsDialog
+        isOpen={showMedicationsDialog}
+        onClose={() => {
+          setShowMedicationsDialog(false)
+          setSelectedMedication(null)
+        }}
+        onSave={handleMedicationSave}
+        editingMedication={selectedMedication}
+      />
+
+      <PastConditionsDialog
+        open={showPastConditionsDialog}
+        onOpenChange={(open: boolean) => {
+          setShowPastConditionsDialog(open)
+          if (!open) {
+            setSelectedPastCondition(null)
+          }
+        }}
+        selectedCondition={selectedPastCondition}
+        onRefresh={refreshPastConditions}
+      />
+
+      <PastSurgeriesDialog
+        open={showSurgeriesDialog}
+        onOpenChange={(open: boolean) => {
+          setShowSurgeriesDialog(open)
+          if (!open) {
+            setSelectedSurgery(null)
+          }
+        }}
+        selectedSurgery={selectedSurgery}
+        onRefresh={refreshSurgeries}
+      />
+
     </div>
   )
 }

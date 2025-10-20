@@ -12,6 +12,8 @@ interface WebSocketContextType {
   markAsRead: (notificationId: number) => Promise<void>
   dismissNotification: (notificationId: number) => Promise<void>
   markAllAsRead: () => Promise<void>
+  // User status change handler
+  onUserStatusChange?: (callback: (userId: number, status: 'online' | 'offline') => void) => () => void
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined)
@@ -43,6 +45,8 @@ export function WebSocketProvider({ children, userId }: { children: React.ReactN
     }
   }, [])
 
+  const [userStatusCallbacks, setUserStatusCallbacks] = useState<Set<(userId: number, status: 'online' | 'offline') => void>>(new Set())
+
   const handleWebSocketMessage = useCallback((message: any) => {
     console.log('📩 Received WebSocket message:', message)
     
@@ -61,8 +65,15 @@ export function WebSocketProvider({ children, userId }: { children: React.ReactN
       
       // Update notification count
       updateNotificationCount()
+    } else if (message.type === 'user_status_change') {
+      console.log('👤 User status changed:', message.data)
+      
+      // Notify all registered callbacks
+      userStatusCallbacks.forEach(callback => {
+        callback(message.data.user_id, message.data.status)
+      })
     }
-  }, [markAsTaken, snoozeReminder])
+  }, [markAsTaken, snoozeReminder, userStatusCallbacks])
 
   const handleWebSocketConnect = useCallback(() => {
     console.log('✅ WebSocket connected for notifications')
@@ -178,6 +189,19 @@ export function WebSocketProvider({ children, userId }: { children: React.ReactN
     }
   }, [])
 
+  const onUserStatusChange = useCallback((callback: (userId: number, status: 'online' | 'offline') => void) => {
+    setUserStatusCallbacks(prev => new Set(prev).add(callback))
+    
+    // Return cleanup function
+    return () => {
+      setUserStatusCallbacks(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(callback)
+        return newSet
+      })
+    }
+  }, [])
+
   const value = {
     isConnected,
     connectionId,
@@ -186,7 +210,8 @@ export function WebSocketProvider({ children, userId }: { children: React.ReactN
     unreadCount,
     markAsRead,
     dismissNotification,
-    markAllAsRead
+    markAllAsRead,
+    onUserStatusChange
   }
 
   return (

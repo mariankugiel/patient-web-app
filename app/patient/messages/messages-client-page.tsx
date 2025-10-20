@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { 
   PlusCircle, Send, Filter, Search, Bell, MessageSquare, 
   Mic, Paperclip, Smile, MoreVertical,
@@ -13,9 +13,14 @@ import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -34,14 +39,17 @@ import {
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { useLanguage } from "@/contexts/language-context"
+import { useWebSocketContext } from "@/contexts/websocket-context"
 import { useMessages } from "@/hooks/use-messages"
 import { useRealtimeMessages } from "@/hooks/use-realtime-messages"
 import { ConversationList } from "@/components/messages/conversation-list"
 import { MessageItem } from "@/components/messages/message-item"
 import { EnhancedMessageInput } from "@/components/messages/enhanced-message-input"
 import { UserInfoPanel } from "@/components/messages/user-info-panel"
+import { RecipientAutocomplete, type Contact } from "@/components/messages/recipient-autocomplete"
 import { GlobalHeader } from "@/components/layout/global-header"
 import type { MessageFilters, MessageType } from "@/types/messages"
+import { messagesApiService } from "@/lib/api/messages-api"
 
 // Sample conversation data
 const conversations = [
@@ -300,13 +308,24 @@ const conversations = [
 export default function MessagesClientPage() {
   const { t } = useLanguage()
   const [newMessage, setNewMessage] = useState("")
-  const [activeTab, setActiveTab] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [showFilters, setShowFilters] = useState(false)
-  const [newMessageRecipient, setNewMessageRecipient] = useState("")
-  const [newMessageSubject, setNewMessageSubject] = useState("")
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [selectedFilters, setSelectedFilters] = useState<string[]>([])
+  const [selectedRecipient, setSelectedRecipient] = useState<Contact | null>(null)
   const [newMessageContent, setNewMessageContent] = useState("")
   const [showUserInfo, setShowUserInfo] = useState(false)
+  const [newMessageDialogOpen, setNewMessageDialogOpen] = useState(false)
+  const [availableContacts, setAvailableContacts] = useState<Contact[]>([])
+  const [loadingContacts, setLoadingContacts] = useState(false)
+  const [loadingMoreContacts, setLoadingMoreContacts] = useState(false)
+  const [hasMoreContacts, setHasMoreContacts] = useState(false)
+  const [contactsOffset, setContactsOffset] = useState(0)
+  const [currentSearchQuery, setCurrentSearchQuery] = useState("")
+  const contactsLimit = 20 // Load 20 contacts at a time
+
+  // Get WebSocket context for real-time updates
+  const { onUserStatusChange } = useWebSocketContext()
 
   // Use the messages hook
   const {
@@ -346,23 +365,52 @@ export default function MessagesClientPage() {
     isUserOnline
   } = useRealtimeMessages()
 
-  // Filter conversations based on active tab
+  // Toggle filter
+  const toggleFilter = (filter: string) => {
+    setSelectedFilters(prev => 
+      prev.includes(filter) 
+        ? prev.filter(f => f !== filter)
+        : [...prev, filter]
+    )
+  }
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setSelectedFilters([])
+  }
+
+  // Filter conversations based on selected filters
   const filteredConversations = conversations.filter((conv) => {
-    if (activeTab === "all") return true
-    if (activeTab === "doctors") {
-      return conv.contact.role.includes("Physician") ||
-                conv.contact.role.includes("Cardiologist") ||
-             conv.contact.role.includes("Endocrinologist") ||
-             conv.contact.role.includes("Doctor")
+    // If no filters selected, show all
+    if (selectedFilters.length === 0) return true
+    
+    // Check if conversation matches any selected filter
+    if (selectedFilters.includes("doctors")) {
+      if (conv.contact.role.includes("Physician") ||
+          conv.contact.role.includes("Cardiologist") ||
+          conv.contact.role.includes("Endocrinologist") ||
+          conv.contact.role.includes("Doctor")) {
+        return true
+      }
     }
-    if (activeTab === "system") {
-      return conv.contact.role.includes("System") ||
-                conv.contact.role.includes("Team") ||
-             conv.contact.role.includes("Support") ||
-             conv.contact.role.includes("Admin")
+    
+    if (selectedFilters.includes("system")) {
+      if (conv.contact.role.includes("System") ||
+          conv.contact.role.includes("Team") ||
+          conv.contact.role.includes("Support") ||
+          conv.contact.role.includes("Admin")) {
+        return true
+      }
     }
-            return true
-          })
+    
+    if (selectedFilters.includes("unread")) {
+      if (conv.unreadCount > 0) {
+        return true
+      }
+    }
+    
+    return false
+  })
 
   // Handle message action clicks
   const handleMessageAction = async (messageId: string, action: string) => {
@@ -396,23 +444,127 @@ export default function MessagesClientPage() {
   }
 
 
-  const handleCreateNewMessage = () => {
-    // In a real app, you would create a new conversation and send the message
-    console.log("Creating new message:", {
-      recipient: newMessageRecipient,
-      subject: newMessageSubject,
-      content: newMessageContent,
-    })
+  const loadAvailableContacts = useCallback(async (reset = false, searchQuery = "") => {
+    try {
+      const isInitialLoad = reset || contactsOffset === 0
+      if (isInitialLoad) {
+        setLoadingContacts(true)
+        setContactsOffset(0)
+      } else {
+        setLoadingMoreContacts(true)
+      }
+      
+      const offset = reset ? 0 : contactsOffset
+      const contacts = await messagesApiService.getAvailableContacts({
+        search: searchQuery || undefined,
+        offset,
+        limit: contactsLimit
+      })
+      
+      // Check if there are more contacts to load
+      const hasMore = contacts.length >= contactsLimit
+      setHasMoreContacts(hasMore)
+      
+      if (isInitialLoad) {
+        setAvailableContacts(contacts)
+        setContactsOffset(contacts.length)
+      } else {
+        setAvailableContacts(prev => [...prev, ...contacts])
+        setContactsOffset(prev => prev + contacts.length)
+      }
+    } catch (error) {
+      console.error("Failed to load contacts:", error)
+      // Show empty list on error
+      if (reset || contactsOffset === 0) {
+        setAvailableContacts([])
+      }
+      setHasMoreContacts(false)
+    } finally {
+      setLoadingContacts(false)
+      setLoadingMoreContacts(false)
+    }
+  }, [contactsOffset, contactsLimit])
 
-    // Clear the inputs
-    setNewMessageRecipient("")
-    setNewMessageSubject("")
-    setNewMessageContent("")
+  const handleSearchContacts = useCallback((query: string) => {
+    setCurrentSearchQuery(query)
+    // Reset and load with search query
+    loadAvailableContacts(true, query)
+  }, [loadAvailableContacts])
+
+  const loadMoreContacts = useCallback(async () => {
+    if (loadingMoreContacts || !hasMoreContacts) return
+    await loadAvailableContacts(false, currentSearchQuery)
+  }, [loadingMoreContacts, hasMoreContacts, currentSearchQuery, loadAvailableContacts])
+
+  const handleNewMessageDialogOpenChange = (open: boolean) => {
+    setNewMessageDialogOpen(open)
+    if (open) {
+      // Reset and load initial contacts
+      setCurrentSearchQuery("")
+      loadAvailableContacts(true, "")
+    } else {
+      // Clear inputs when closing
+      setSelectedRecipient(null)
+      setNewMessageContent("")
+      setCurrentSearchQuery("")
+    }
+  }
+
+  // Listen for WebSocket status changes to update contacts in real-time
+  useEffect(() => {
+    if (!newMessageDialogOpen) return
+
+    const handleUserStatusChange = (userId: number, status: 'online' | 'offline') => {
+      console.log(`👤 User ${userId} is now ${status}`)
+      
+      // Update contacts list
+      setAvailableContacts(prev => 
+        prev.map(contact => 
+          contact.id === userId.toString() 
+            ? { ...contact, isOnline: status === 'online' }
+            : contact
+        )
+      )
+    }
+
+    // Register callback with WebSocket context
+    const cleanup = onUserStatusChange?.(handleUserStatusChange)
+    
+    return cleanup
+  }, [newMessageDialogOpen, onUserStatusChange])
+
+  const handleCreateNewMessage = async () => {
+    if (!selectedRecipient || !newMessageContent.trim()) {
+      return
+    }
+
+    try {
+      // Create a new conversation and send the first message
+      const conversation = await messagesApiService.createConversation(
+        selectedRecipient.id,
+        newMessageContent.trim()
+      )
+
+      // Clear the inputs and close dialog
+      setSelectedRecipient(null)
+      setNewMessageContent("")
+      setNewMessageDialogOpen(false)
+      
+      // Refresh conversations to show the new one
+      await refreshConversations()
+      
+      // Optionally select the new conversation
+      if (conversation) {
+        selectConversation(conversation.id)
+      }
+    } catch (error) {
+      console.error("Failed to create new message:", error)
+    }
   }
 
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
       {/* Global Header */}
       <GlobalHeader
         title="Messages"
@@ -424,115 +576,189 @@ export default function MessagesClientPage() {
       />
 
       {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-w-0">
         {/* Left Panel - User List */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
-          {/* Search */}
+        <div className="w-80 min-w-80 max-w-80 bg-white border-r border-gray-200 flex flex-col shrink-0">
+          {/* Search with Filter Button */}
           <div className="p-4 border-b border-gray-200">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search conversations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search conversations..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              
+              {/* Filter Button */}
+              <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+                <PopoverTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    className={selectedFilters.length > 0 ? "bg-blue-50 border-blue-300" : ""}
+                  >
+                    <Filter className="h-4 w-4" />
+                    {selectedFilters.length > 0 && (
+                      <Badge 
+                        variant="default" 
+                        className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs bg-blue-600"
+                      >
+                        {selectedFilters.length}
+                      </Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56" align="end" sideOffset={5}>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-sm">Filters</h4>
+                      {selectedFilters.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-0 text-xs text-blue-600 hover:text-blue-700"
+                          onClick={clearAllFilters}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {/* Doctors Filter */}
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="filter-doctors"
+                          checked={selectedFilters.includes("doctors")}
+                          onCheckedChange={() => toggleFilter("doctors")}
+                        />
+                        <label
+                          htmlFor="filter-doctors"
+                          className="text-sm leading-none cursor-pointer flex-1"
+                        >
+                          Doctors
+                        </label>
+                        <span className="text-xs text-gray-500">
+                          {conversations.filter(c => c.contact.role.includes("Doctor") || c.contact.role.includes("Physician")).length}
+                        </span>
+                      </div>
+                      
+                      {/* System Filter */}
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="filter-system"
+                          checked={selectedFilters.includes("system")}
+                          onCheckedChange={() => toggleFilter("system")}
+                        />
+                        <label
+                          htmlFor="filter-system"
+                          className="text-sm leading-none cursor-pointer flex-1"
+                        >
+                          System
+                        </label>
+                        <span className="text-xs text-gray-500">
+                          {conversations.filter(c => c.contact.role.includes("System") || c.contact.role.includes("Support")).length}
+                        </span>
+                      </div>
+                      
+                      {/* Unread Filter */}
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="filter-unread"
+                          checked={selectedFilters.includes("unread")}
+                          onCheckedChange={() => toggleFilter("unread")}
+                        />
+                        <label
+                          htmlFor="filter-unread"
+                          className="text-sm leading-none cursor-pointer flex-1"
+                        >
+                          Unread
+                        </label>
+                        <span className="text-xs text-gray-500">
+                          {conversations.filter(c => c.unreadCount > 0).length}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 
-          {/* Tabs */}
-          <Tabs defaultValue="all" className="w-full flex flex-col" onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3 mx-4 mt-4">
-              <TabsTrigger value="all" className="flex items-center gap-2">
-                All
-                <Badge variant="secondary" className="text-xs">
-                  {conversations.length}
-                </Badge>
-              </TabsTrigger>
-              <TabsTrigger value="doctors" className="flex items-center gap-2">
-                Doctors
-                <Badge variant="secondary" className="text-xs">
-                  {conversations.filter(c => c.contact.role.includes("Doctor") || c.contact.role.includes("Physician")).length}
-                </Badge>
-              </TabsTrigger>
-              <TabsTrigger value="system" className="flex items-center gap-2">
-                System
-                <Badge variant="secondary" className="text-xs">
-                  {conversations.filter(c => c.contact.role.includes("System") || c.contact.role.includes("Support")).length}
-                </Badge>
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Conversation List */}
-            <ScrollArea className="flex-1">
-              <div className="p-2">
-                <ConversationList
-                  conversations={filteredConversations}
-                  selectedConversationId={selectedConversation?.id || null}
-                  onSelectConversation={selectConversation}
-                  onArchiveConversation={archiveConversation}
-                  onTogglePin={togglePin}
-                  onMarkAsRead={markConversationAsRead}
-                />
-              </div>
-            </ScrollArea>
-          </Tabs>
+          {/* Conversation List */}
+          <ScrollArea className="flex-1">
+            <div className="p-2">
+              <ConversationList
+                conversations={filteredConversations}
+                selectedConversationId={selectedConversation?.id || null}
+                onSelectConversation={selectConversation}
+                onArchiveConversation={archiveConversation}
+                onTogglePin={togglePin}
+                onMarkAsRead={markConversationAsRead}
+              />
+            </div>
+          </ScrollArea>
 
           {/* New Message Button */}
           <div className="p-4 border-t border-gray-200">
-            <Dialog>
+            <Dialog open={newMessageDialogOpen} onOpenChange={handleNewMessageDialogOpenChange}>
               <DialogTrigger asChild>
                 <Button className="w-full bg-blue-600 hover:bg-blue-700">
                   <PlusCircle className="mr-2 h-4 w-4" />
                   New Message
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
+              <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                   <DialogTitle>New Message</DialogTitle>
                   <DialogDescription>Start a new conversation</DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="recipient" className="text-right">
-                      To
-                    </Label>
-                    <Input
-                      id="recipient"
-                      value={newMessageRecipient}
-                      onChange={(e) => setNewMessageRecipient(e.target.value)}
-                      className="col-span-3"
+                <div className="space-y-4 py-4">
+                  {/* Recipient Autocomplete */}
+                  <div className="space-y-2">
+                    <Label htmlFor="recipient">To</Label>
+                    <RecipientAutocomplete
+                      selectedRecipient={selectedRecipient}
+                      onSelectRecipient={setSelectedRecipient}
+                      onSearch={handleSearchContacts}
+                      contacts={availableContacts}
+                      loading={loadingContacts}
+                      loadingMore={loadingMoreContacts}
+                      hasMore={hasMoreContacts}
+                      onLoadMore={loadMoreContacts}
+                      placeholder="Search for a doctor or team member..."
                     />
                   </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="subject" className="text-right">
-                      Subject
-                    </Label>
-                    <Input
-                      id="subject"
-                      value={newMessageSubject}
-                      onChange={(e) => setNewMessageSubject(e.target.value)}
-                      className="col-span-3"
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="message" className="text-right">
-                      Message
-                    </Label>
+                  
+                  {/* Message Content */}
+                  <div className="space-y-2">
+                    <Label htmlFor="message">Message</Label>
                     <Textarea
                       id="message"
                       value={newMessageContent}
                       onChange={(e) => setNewMessageContent(e.target.value)}
-                      className="col-span-3"
-                      rows={5}
+                      placeholder="Type your message here..."
+                      rows={6}
+                      className="resize-none"
                     />
                   </div>
                 </div>
                 <DialogFooter>
                   <Button
+                    variant="outline"
+                    onClick={() => setNewMessageDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
                     onClick={handleCreateNewMessage}
+                    disabled={!selectedRecipient || !newMessageContent.trim()}
                     className="bg-blue-600 hover:bg-blue-700"
                   >
+                    <Send className="mr-2 h-4 w-4" />
                     Send Message
                   </Button>
                 </DialogFooter>

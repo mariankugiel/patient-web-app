@@ -73,7 +73,7 @@ export default function SettingsPage() {
   }
 
   const handleStepClick = (stepId: number) => {
-    if (completedSteps.has(stepId) || stepId <= 8) {
+    if (completedSteps.includes(stepId) || stepId <= 8) {
       router.push(`/onboarding/steps/${stepId}`)
     }
   }

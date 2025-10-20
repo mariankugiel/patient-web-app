@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
-import { loginSuccess } from '@/lib/features/auth/authSlice'
+import { loginSuccess, sessionRestorationStart, sessionRestorationComplete } from '@/lib/features/auth/authSlice'
 import { AuthApiService } from '@/lib/api/auth-api'
 
 export function useSessionPersistence() {
@@ -14,6 +14,7 @@ export function useSessionPersistence() {
       const storedToken = localStorage.getItem('access_token')
       
       if (storedToken && !isAuthenticated) {
+        dispatch(sessionRestorationStart())
         try {
           // Verify the token is still valid by fetching user profile
           const userProfile = await AuthApiService.getProfile(storedToken)
@@ -44,7 +45,12 @@ export function useSessionPersistence() {
           localStorage.removeItem('access_token')
           localStorage.removeItem('refresh_token')
           localStorage.removeItem('expires_in')
+        } finally {
+          dispatch(sessionRestorationComplete())
         }
+      } else {
+        // No token found, session restoration complete
+        dispatch(sessionRestorationComplete())
       }
     }
 
