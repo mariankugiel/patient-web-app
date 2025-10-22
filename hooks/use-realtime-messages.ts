@@ -41,9 +41,11 @@ export function useRealtimeMessages() {
   const handleWebSocketMessage = useCallback((event: MessageEvent) => {
     try {
       const messageData: RealtimeMessageData = JSON.parse(event.data)
+      console.log('📨 WebSocket message received in useRealtimeMessages:', messageData)
       
       switch (messageData.type) {
         case 'new_message':
+          console.log('📨 Processing new_message:', messageData.data)
           handleNewMessage(messageData.data)
           break
         case 'message_updated':
@@ -72,12 +74,18 @@ export function useRealtimeMessages() {
 
   // Handle new message
   const handleNewMessage = useCallback((message: Message) => {
+    console.log('🔄 handleNewMessage called with:', message)
+    console.log('🔄 Current selectedConversation:', selectedConversation)
+    console.log('🔄 Message conversation_id:', message.conversation_id)
+    
     // Only add message if it's for the current conversation
     if (selectedConversation && message.conversation_id === selectedConversation.id) {
+      console.log('🔄 Refreshing messages for current conversation')
       refreshMessages()
     }
     
     // Refresh conversations to update unread counts and last message
+    console.log('🔄 Refreshing conversations')
     refreshConversations()
   }, [selectedConversation, refreshMessages, refreshConversations])
 

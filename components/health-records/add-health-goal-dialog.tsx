@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { HealthRecordsApiService, HealthRecordMetric } from "@/lib/api/health-records-api"
+import { Tip } from "@/components/ui/tip"
 
 interface AddHealthGoalDialogProps {
   open: boolean
@@ -25,6 +26,7 @@ interface AddHealthGoalDialogProps {
   availableMetrics: HealthRecordMetric[]
   isLoadingMetrics: boolean
   onLoadAvailableMetrics: () => Promise<void>
+  editingGoal?: any
 }
 
 export default function AddHealthGoalDialog({
@@ -34,7 +36,8 @@ export default function AddHealthGoalDialog({
   isLoading,
   availableMetrics,
   isLoadingMetrics,
-  onLoadAvailableMetrics
+  onLoadAvailableMetrics,
+  editingGoal
 }: AddHealthGoalDialogProps) {
   const { t } = useLanguage()
   
@@ -48,6 +51,38 @@ export default function AddHealthGoalDialog({
   })
   
   const [goalFormErrors, setGoalFormErrors] = useState<{[key: string]: string}>({})
+
+  // Load metrics when dialog opens
+  useEffect(() => {
+    if (open && availableMetrics.length === 0) {
+      onLoadAvailableMetrics()
+    }
+  }, [open, availableMetrics.length, onLoadAvailableMetrics])
+
+  // Populate form when editing
+  useEffect(() => {
+    if (editingGoal) {
+      console.log("Editing goal data:", editingGoal)
+      setGoalForm({
+        name: editingGoal.name || "",
+        targetOperator: editingGoal.originalTarget?.operator || "",
+        targetValue: editingGoal.originalTarget?.value?.toString() || "",
+        startDate: editingGoal.originalStartDate || "",
+        endDate: editingGoal.originalEndDate || "",
+        metric: editingGoal.metric_id?.toString() || "none",
+      })
+    } else {
+      // Reset form for new goal
+      setGoalForm({
+        name: "",
+        targetOperator: "",
+        targetValue: "",
+        startDate: "",
+        endDate: "",
+        metric: "none",
+      })
+    }
+  }, [editingGoal, open])
 
   // Helper function to get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
@@ -112,9 +147,10 @@ export default function AddHealthGoalDialog({
     if (!goalForm.name.trim()) {
       errors.name = t("healthPlan.goalNameRequired")
     }
-    if (!goalForm.metric || goalForm.metric === "none") {
-      errors.metric = t("healthPlan.metricRequired")
-    }
+    // Metric is optional for onboarding
+    // if (!goalForm.metric || goalForm.metric === "none") {
+    //   errors.metric = t("healthPlan.metricRequired")
+    // }
     if (!goalForm.targetOperator.trim()) {
       errors.targetOperator = t("healthPlan.targetOperatorRequired")
     }
@@ -201,24 +237,21 @@ export default function AddHealthGoalDialog({
             <div className="col-span-3 space-y-1">
               <Select
                 value={goalForm.metric}
-                onOpenChange={async (open) => {
-                  if (open && availableMetrics.length === 0) {
-                    await onLoadAvailableMetrics()
-                  }
-                }}
                 onValueChange={(value) => {
                   setGoalForm({ ...goalForm, metric: value })
                   if (goalFormErrors.metric) {
                     setGoalFormErrors({ ...goalFormErrors, metric: "" })
                   }
                   
-                  // Auto-populate target from metric reference data
-                  const target = generateTargetFromMetric(value)
-                  setGoalForm(prev => ({
-                    ...prev,
-                    targetOperator: target.operator,
-                    targetValue: target.value
-                  }))
+                  // Only auto-populate target from metric reference data when NOT editing
+                  if (!editingGoal) {
+                    const target = generateTargetFromMetric(value)
+                    setGoalForm(prev => ({
+                      ...prev,
+                      targetOperator: target.operator,
+                      targetValue: target.value
+                    }))
+                  }
                 }}
               >
                 <SelectTrigger className={goalFormErrors.metric ? "border-red-500" : ""}>
@@ -258,8 +291,10 @@ export default function AddHealthGoalDialog({
           </div>
 
           <div className="grid grid-cols-4 items-start gap-4">
-            <Label className="text-right pt-2">
-              <span className="text-red-500">*</span> {t("healthPlan.goalTarget")}
+            <Label className="text-right pt-2 flex items-center gap-2">
+              <span className="text-red-500">*</span> 
+              {t("healthPlan.goalTarget")}
+              <Tip content="Set your target value for this health goal. Use 'Below' for values you want to stay under (e.g., blood pressure below 120) or 'Above' for values you want to reach (e.g., steps above 10000)." />
             </Label>
             <div className="col-span-3 space-y-1">
               <div className={`grid ${getTargetGridClasses()} gap-2 items-center`}>
@@ -372,10 +407,10 @@ export default function AddHealthGoalDialog({
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Adding...
+                {editingGoal ? "Updating..." : "Adding..."}
               </>
             ) : (
-              t("healthPlan.addNewGoal")
+              editingGoal ? t("healthPlan.updateGoal") : t("healthPlan.addNewGoal")
             )}
           </Button>
         </DialogFooter>

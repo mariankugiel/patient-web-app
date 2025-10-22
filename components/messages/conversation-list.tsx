@@ -145,15 +145,15 @@ export function ConversationList({
                 <div className="relative">
                   <Avatar className="h-12 w-12">
                     <AvatarImage
-                      src={conversation.contact.avatar || "/placeholder.svg"}
-                      alt={conversation.contact.name}
+                      src={conversation.contact?.avatar || "/placeholder.svg"}
+                      alt={conversation.contact?.name || "Unknown"}
                     />
-                    <AvatarFallback>{conversation.contact.name.charAt(0)}</AvatarFallback>
+                    <AvatarFallback>{conversation.contact?.name?.charAt(0) || "U"}</AvatarFallback>
                   </Avatar>
                   
                   {/* Online status indicator */}
                   <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-gray-900 ${
-                    conversation.contact.type === 'system' ? 'bg-gray-400' : 'bg-green-500'
+                    conversation.contact?.type === 'system' ? 'bg-gray-400' : 'bg-green-500'
                   }`} />
                 </div>
 
@@ -164,7 +164,7 @@ export function ConversationList({
                       <h3 className={`font-medium truncate ${
                         hasUnread ? 'font-semibold' : ''
                       }`}>
-                        {conversation.contact.name}
+                        {conversation.contact?.name || "Unknown"}
                       </h3>
                       
                       {/* Message type icon */}
@@ -235,7 +235,7 @@ export function ConversationList({
 
                   {/* Contact role */}
                   <div className="text-xs text-muted-foreground mb-1">
-                    {conversation.contact.role}
+                    {conversation.contact?.role || "Unknown"}
                   </div>
 
                   {/* Last message preview */}
@@ -262,18 +262,25 @@ export function ConversationList({
                   {/* Timestamp */}
                   <div className="flex items-center justify-between mt-1">
                     <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(conversation.lastMessageTime), { addSuffix: true })}
+                      {conversation.lastMessageTime ? 
+                        (() => {
+                          const date = new Date(conversation.lastMessageTime);
+                          return isNaN(date.getTime()) ? 'Unknown time' : 
+                            formatDistanceToNow(date, { addSuffix: true });
+                        })() : 
+                        'No messages'
+                      }
                     </span>
                     
                     {/* Tags */}
-                    {conversation.tags.length > 0 && (
+                    {conversation.tags && conversation.tags.length > 0 && (
                       <div className="flex gap-1">
                         {conversation.tags.slice(0, 2).map((tag) => (
                           <Badge key={tag} variant="outline" className="text-xs">
                             {tag}
                           </Badge>
                         ))}
-                        {conversation.tags.length > 2 && (
+                        {conversation.tags && conversation.tags.length > 2 && (
                           <Badge variant="outline" className="text-xs">
                             +{conversation.tags.length - 2}
                           </Badge>

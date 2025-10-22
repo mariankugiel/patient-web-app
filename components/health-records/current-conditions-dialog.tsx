@@ -62,14 +62,9 @@ export function CurrentConditionsDialog({
         setIsEditMode(true)
         const formattedCondition = {
           ...selectedCondition,
-          // Map backend fields to frontend fields
-          condition: selectedCondition.condition_name || selectedCondition.condition || '',
-          diagnosedDate: selectedCondition.diagnosed_date?.includes('T') 
-            ? selectedCondition.diagnosed_date.split('T')[0] 
-            : selectedCondition.diagnosed_date || '',
-          status: selectedCondition.status || 'uncontrolled',
-          treatedWith: selectedCondition.treatment_plan || selectedCondition.treatedWith || '',
-          notes: selectedCondition.description || selectedCondition.notes || ''
+          diagnosedDate: selectedCondition.diagnosedDate?.includes('T') 
+            ? selectedCondition.diagnosedDate.split('T')[0] 
+            : selectedCondition.diagnosedDate || ''
         }
         setEditingCondition(formattedCondition)
       } else {
@@ -379,7 +374,7 @@ export function CurrentConditionsDialog({
             </Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {isEditMode ? 'Update Condition' : 'Add Condition'}
+              {isEditMode ? 'Update Condition' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>

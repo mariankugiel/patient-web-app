@@ -1,91 +1,193 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Plus, Trash2, CalendarIcon, Target, CheckCircle } from "lucide-react"
-import { format } from "date-fns"
-import { cn } from "@/lib/utils"
+import { Label } from "@/components/ui/label"
+import { Plus, Target, CheckCircle, Edit, Trash2, Loader2 } from "lucide-react"
 import { type Language, getTranslation } from "@/lib/translations"
-
-interface HealthGoal {
-  id: string
-  goal: string
-  targetDate: Date | undefined
-}
-
-interface HealthTask {
-  id: string
-  name: string
-  frequency: string
-  comments: string
-}
+import AddHealthGoalDialog from "@/components/health-records/add-health-goal-dialog"
+import AddHealthTaskDialog from "@/components/health-records/add-health-task-dialog"
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
+import { HealthPlanApiService } from "@/lib/api/health-plan-api"
+import { HealthRecordsApiService, HealthRecordMetric } from "@/lib/api/health-records-api"
+import { useToast } from "@/hooks/use-toast"
 
 interface HealthPlanStepProps {
-  formData: {
-    wantsHealthGoals: boolean
-    healthGoals: HealthGoal[]
-    healthTasks: HealthTask[]
-  }
-  updateFormData: (field: string, value: any) => void
   language: Language
-  onValidationChange?: (isValid: boolean, errors: string[]) => void
 }
 
-export function HealthPlanStep({ formData, updateFormData, language, onValidationChange }: HealthPlanStepProps) {
-  // Ensure we have default values to prevent undefined errors
-  const safeFormData = {
-    wantsHealthGoals: formData?.wantsHealthGoals || false,
-    healthGoals: formData?.healthGoals || [],
-    healthTasks: formData?.healthTasks || []
+export function HealthPlanStep({ language }: HealthPlanStepProps) {
+  const { toast } = useToast()
+  
+  // Helper function to format date range
+  const formatDateRange = (startDate: string, endDate: string) => {
+    if (!startDate || !endDate) return 'Not specified'
+    
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    
+    const formatDate = (date: Date) => {
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+    }
+    
+    return `${formatDate(start)} - ${formatDate(end)}`
   }
 
-  const [showHealthGoals, setShowHealthGoals] = useState(safeFormData.wantsHealthGoals)
+  // State for dialogs
+  const [showHealthGoalDialog, setShowHealthGoalDialog] = useState(false)
+  const [showHealthTaskDialog, setShowHealthTaskDialog] = useState(false)
+  
+  // State for editing
+  const [editingGoal, setEditingGoal] = useState<any>(null)
+  const [editingTask, setEditingTask] = useState<any>(null)
+  
+  // State for delete confirmation
+  const [deleteGoalDialogOpen, setDeleteGoalDialogOpen] = useState(false)
+  const [deleteTaskDialogOpen, setDeleteTaskDialogOpen] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<any>(null)
+  
+  // State for checkboxes
+  const [showHealthGoals, setShowHealthGoals] = useState(false)
   const [showHealthTasks, setShowHealthTasks] = useState(false)
-  const [validationErrors, setValidationErrors] = useState<string[]>([])
-
-  // Sync state when formData changes
-  useEffect(() => {
-    setShowHealthGoals(safeFormData.wantsHealthGoals)
-  }, [safeFormData.wantsHealthGoals])
-
-  // Validation logic
-  const validateForm = () => {
-    const errors: string[] = []
-    
-    if (showHealthGoals && safeFormData.healthGoals.length === 0) {
-      errors.push("Please add at least one health goal or uncheck the 'Set health goals' option.")
+  
+  // State for data
+  const [healthGoals, setHealthGoals] = useState<any[]>([])
+  const [healthTasks, setHealthTasks] = useState<any[]>([])
+  const [availableMetrics, setAvailableMetrics] = useState<HealthRecordMetric[]>([])
+  
+  // Loading states
+  const [isLoadingGoals, setIsLoadingGoals] = useState(false)
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false)
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(false)
+  const [isSubmittingGoal, setIsSubmittingGoal] = useState(false)
+  const [isSubmittingTask, setIsSubmittingTask] = useState(false)
+  
+  const loadHealthGoals = useCallback(async () => {
+    try {
+      setIsLoadingGoals(true)
+      const goals = await HealthPlanApiService.getHealthGoals()
+      setHealthGoals(goals || [])
+      
+      // Auto-enable checkbox if there are existing goals
+      if (goals && goals.length > 0) {
+        setShowHealthGoals(true)
+      }
+    } catch (error) {
+      console.error('Failed to load health goals:', error)
+      setHealthGoals([])
+    } finally {
+      setIsLoadingGoals(false)
     }
-    
-    if (showHealthTasks && safeFormData.healthTasks.length === 0) {
-      errors.push("Please add at least one health task or uncheck the 'Set health tasks' option.")
-    }
+  }, [])
 
-    const isValid = errors.length === 0
-    setValidationErrors(errors)
-    
-    if (onValidationChange) {
-      onValidationChange(isValid, errors)
+  const loadHealthTasks = useCallback(async () => {
+    try {
+      setIsLoadingTasks(true)
+      const tasks = await HealthPlanApiService.getHealthTasks()
+      setHealthTasks(tasks || [])
+      
+      // Auto-enable checkbox if there are existing tasks
+      if (tasks && tasks.length > 0) {
+        setShowHealthTasks(true)
+      }
+    } catch (error) {
+      console.error('Failed to load health tasks:', error)
+      setHealthTasks([])
+    } finally {
+      setIsLoadingTasks(false)
     }
-    
-    return { isValid, errors }
+  }, [])
+
+  const loadAvailableMetrics = useCallback(async () => {
+    try {
+      setIsLoadingMetrics(true)
+      const metrics = await HealthRecordsApiService.getAllUserMetrics()
+      setAvailableMetrics(metrics || [])
+    } catch (error) {
+      console.error('Failed to load available metrics:', error)
+      setAvailableMetrics([])
+    } finally {
+      setIsLoadingMetrics(false)
+    }
+  }, [])
+
+  const handleGoalSubmit = async (goalData: any) => {
+    try {
+      setIsSubmittingGoal(true)
+      
+      // Transform goalData to match API expectations
+      const apiGoalData = {
+        name: goalData.name,
+        target: {
+          operator: goalData.targetOperator,
+          value: goalData.targetValue
+        },
+        start_date: goalData.startDate,
+        end_date: goalData.endDate,
+        metric_id: goalData.metric !== "none" ? parseInt(goalData.metric) : undefined
+      }
+      
+      if (editingGoal) {
+        // Update existing goal
+        await HealthPlanApiService.updateHealthGoal(editingGoal.id, apiGoalData)
+      } else {
+        // Create new goal
+        await HealthPlanApiService.createHealthGoal(apiGoalData)
+      }
+      await loadHealthGoals() // Refresh the list
+      setShowHealthGoalDialog(false)
+      setEditingGoal(null) // Clear editing state
+    } catch (error) {
+      console.error('Failed to save health goal:', error)
+    } finally {
+      setIsSubmittingGoal(false)
+    }
   }
 
-  // Run validation whenever relevant data changes
-  useEffect(() => {
-    validateForm()
-  }, [showHealthGoals, showHealthTasks, safeFormData.healthGoals.length, safeFormData.healthTasks.length])
+  const handleTaskSubmit = async (taskData: any) => {
+    try {
+      setIsSubmittingTask(true)
+      
+      // Transform taskData to match API expectations
+      const selectedMetric = availableMetrics.find(m => m.id.toString() === taskData.metric)
+      const targetUnit = selectedMetric?.default_unit || (taskData.frequency === "daily" ? "times" : "days")
+
+      const apiTaskData = {
+        name: taskData.name,
+        goal_id: taskData.healthGoals.length > 0 ? parseInt(taskData.healthGoals[0]) : null,
+        frequency: taskData.frequency,
+        time_of_day: taskData.time, // Transform 'time' to 'time_of_day'
+        target_operator: taskData.targetOperator,
+        target_value: taskData.targetValue,
+        target_unit: targetUnit,
+        metric_id: taskData.metric !== "none" ? parseInt(taskData.metric) : undefined
+      }
+      
+      if (editingTask) {
+        // Update existing task
+        await HealthPlanApiService.updateHealthTask(editingTask.id, apiTaskData)
+      } else {
+        // Create new task
+        await HealthPlanApiService.createHealthTask(apiTaskData)
+      }
+      await loadHealthTasks() // Refresh the list
+      setShowHealthTaskDialog(false)
+      setEditingTask(null) // Clear editing state
+    } catch (error) {
+      console.error('Failed to save health task:', error)
+    } finally {
+      setIsSubmittingTask(false)
+    }
+  }
 
   const handleWantsHealthGoalsChange = (checked: boolean) => {
-    updateFormData("wantsHealthGoals", checked)
     setShowHealthGoals(checked)
   }
 
@@ -93,55 +195,110 @@ export function HealthPlanStep({ formData, updateFormData, language, onValidatio
     setShowHealthTasks(checked)
   }
 
-  const addHealthGoal = () => {
-    const newGoal = { id: `goal-${Date.now()}`, goal: "", targetDate: undefined }
-    updateFormData("healthGoals", [...safeFormData.healthGoals, newGoal])
+  // Edit and delete handlers
+  const handleEditGoal = (goal: any) => {
+    // Map goal data to the format expected by the dialog
+    const mappedGoal = {
+      ...goal,
+      originalTarget: {
+        operator: goal.target?.operator || '',
+        value: goal.target?.value || '',
+        unit: goal.target?.unit || ''
+      },
+      originalStartDate: goal.start_date,
+      originalEndDate: goal.end_date,
+      metric_id: goal.metric_id
+    }
+    setEditingGoal(mappedGoal)
+    setShowHealthGoalDialog(true)
   }
 
-  const updateHealthGoal = (index: number, field: string, value: any) => {
-    const updatedGoals = [...safeFormData.healthGoals]
-    updatedGoals[index] = { ...updatedGoals[index], [field]: value }
-    updateFormData("healthGoals", updatedGoals)
+  const handleDeleteGoal = (goal: any) => {
+    setItemToDelete(goal)
+    setDeleteGoalDialogOpen(true)
   }
 
-  const removeHealthGoal = (index: number) => {
-    const updatedGoals = safeFormData.healthGoals.filter((_, i) => i !== index)
-    updateFormData("healthGoals", updatedGoals)
+  const confirmDeleteGoal = async () => {
+    if (!itemToDelete) return
+    try {
+      await HealthPlanApiService.deleteHealthGoal(itemToDelete.id)
+      await loadHealthGoals() // Refresh the list
+      
+      // Show success notification
+      toast({
+        title: "Success",
+        description: "Health goal deleted successfully",
+        variant: "default",
+      })
+    } catch (error) {
+      console.error('Failed to delete health goal:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete health goal. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setDeleteGoalDialogOpen(false)
+      setItemToDelete(null)
+    }
   }
 
-  const addHealthTask = () => {
-    const newTask = { id: `task-${Date.now()}`, name: "", frequency: "", comments: "" }
-    updateFormData("healthTasks", [...safeFormData.healthTasks, newTask])
+  const handleEditTask = (task: any) => {
+    // Map task data to the format expected by the dialog
+    const mappedTask = {
+      ...task,
+      originalHealthGoals: task.goal_id ? [task.goal_id.toString()] : [],
+      originalMetricId: task.metric_id,
+      originalFrequency: task.frequency,
+      originalTimeOfDay: task.time_of_day,
+      originalTargetOperator: task.target_operator,
+      originalTargetValue: task.target_value,
+      originalTargetUnit: task.target_unit,
+      originalTargetDays: task.target_days
+    }
+    setEditingTask(mappedTask)
+    setShowHealthTaskDialog(true)
   }
 
-  const updateHealthTask = (index: number, field: string, value: any) => {
-    const updatedTasks = [...safeFormData.healthTasks]
-    updatedTasks[index] = { ...updatedTasks[index], [field]: value }
-    updateFormData("healthTasks", updatedTasks)
+  const handleDeleteTask = (task: any) => {
+    setItemToDelete(task)
+    setDeleteTaskDialogOpen(true)
   }
 
-  const removeHealthTask = (index: number) => {
-    const updatedTasks = safeFormData.healthTasks.filter((_, i) => i !== index)
-    updateFormData("healthTasks", updatedTasks)
+  const confirmDeleteTask = async () => {
+    if (!itemToDelete) return
+    try {
+      await HealthPlanApiService.deleteHealthTask(itemToDelete.id)
+      await loadHealthTasks() // Refresh the list
+      
+      // Show success notification
+      toast({
+        title: "Success",
+        description: "Health task deleted successfully",
+        variant: "default",
+      })
+    } catch (error) {
+      console.error('Failed to delete health task:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete health task. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setDeleteTaskDialogOpen(false)
+      setItemToDelete(null)
+    }
   }
+
+  // Load data on component mount
+  useEffect(() => {
+    loadHealthGoals()
+    loadHealthTasks()
+    loadAvailableMetrics()
+  }, [loadHealthGoals, loadHealthTasks, loadAvailableMetrics])
 
   return (
     <div className="space-y-8">
-      {/* Validation Errors */}
-      {validationErrors.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <h4 className="text-red-800 font-medium mb-2">Please complete the following:</h4>
-          <ul className="text-red-700 text-sm space-y-1">
-            {validationErrors.map((error, index) => (
-              <li key={index} className="flex items-center gap-2">
-                <span className="text-red-500">•</span>
-                {error}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {/* Health Goals Section */}
       <Card>
         <CardHeader>
@@ -150,7 +307,7 @@ export function HealthPlanStep({ formData, updateFormData, language, onValidatio
               <Target className="h-5 w-5" />
               Health Goals
               <Badge variant="secondary">
-                {safeFormData.healthGoals.length} goals
+                {healthGoals.length} goals
               </Badge>
             </CardTitle>
             <div className="flex items-center space-x-2">
@@ -168,59 +325,64 @@ export function HealthPlanStep({ formData, updateFormData, language, onValidatio
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <Label className="text-base font-medium">My Health Goals</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addHealthGoal}>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowHealthGoalDialog(true)}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Add Goal
                 </Button>
               </div>
 
-              {safeFormData.healthGoals.length > 0 ? (
-                safeFormData.healthGoals.map((goal, index) => (
-                <Card key={goal.id} className="border-2 border-gray-300">
-                  <CardContent className="pt-4">
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <Label>Goal</Label>
-                        <Input
-                          value={goal.goal}
-                          onChange={(e) => updateHealthGoal(index, "goal", e.target.value)}
-                          placeholder="e.g., Lose weight, Exercise more"
-                          className="border-2 border-gray-300"
-                        />
-                      </div>
-                      <div>
-                        <Label>Target Date</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant={"outline"}
-                              className={cn(
-                                "w-[240px] justify-start text-left font-normal",
-                                !goal.targetDate && "text-muted-foreground",
-                              )}
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {goal.targetDate ? format(goal.targetDate, "PPP") : <span>Pick a date</span>}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="center" side="bottom">
-                            <Calendar
-                              mode="single"
-                              selected={goal.targetDate}
-                              onSelect={(date) => updateHealthGoal(index, "targetDate", date)}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
+              {isLoadingGoals ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <span className="ml-2">Loading health goals...</span>
+                </div>
+              ) : healthGoals.length > 0 ? (
+                <div className="space-y-3">
+                  {healthGoals.map((goal) => (
+                    <div key={goal.id} className="p-4 border rounded-lg bg-white hover:shadow-md transition-all duration-200">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900 mb-2">{goal.name}</h4>
+                          <div className="space-y-2 text-sm text-gray-600">
+                            <div>
+                              <span className="font-medium">Target:</span> {goal.target?.operator || 'Not set'} {goal.target?.value || 'Not set'} {goal.target?.unit || ''}
+                            </div>
+                            <div>
+                              <span className="font-medium">Period:</span> {formatDateRange(goal.start_date, goal.end_date)}
+                            </div>
+                            {goal.metric && (
+                              <div>
+                                <span className="font-medium">Metric:</span> {typeof goal.metric === 'string' ? goal.metric : goal.metric.display_name || goal.metric.name || 'Unknown'}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleEditGoal(goal)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleDeleteGoal(goal)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                    <Button type="button" variant="destructive" size="sm" onClick={() => removeHealthGoal(index)}>
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Remove
-                    </Button>
-                  </CardContent>
-                </Card>
-                ))
+                  ))}
+                </div>
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <Target className="h-12 w-12 mx-auto mb-4 text-gray-300" />
@@ -247,7 +409,7 @@ export function HealthPlanStep({ formData, updateFormData, language, onValidatio
               <CheckCircle className="h-5 w-5" />
               Health Tasks
               <Badge variant="secondary">
-                {safeFormData.healthTasks.length} tasks
+                {healthTasks.length} tasks
               </Badge>
             </CardTitle>
             <div className="flex items-center space-x-2">
@@ -265,60 +427,93 @@ export function HealthPlanStep({ formData, updateFormData, language, onValidatio
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <Label className="text-base font-medium">My Health Tasks</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addHealthTask}>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowHealthTaskDialog(true)}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Add Task
                 </Button>
               </div>
 
-              {safeFormData.healthTasks.length > 0 ? (
-                safeFormData.healthTasks.map((task, index) => (
-                <Card key={task.id} className="border-2 border-gray-300">
-                  <CardContent className="pt-4">
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <Label>Task Name</Label>
-                        <Input
-                          value={task.name}
-                          onChange={(e) => updateHealthTask(index, "name", e.target.value)}
-                          placeholder="e.g., Take medication, Exercise"
-                          className="border-2 border-gray-300"
-                        />
-                      </div>
-                      <div>
-                        <Label>Frequency</Label>
-                        <Select
-                          value={task.frequency}
-                          onValueChange={(value) => updateHealthTask(index, "frequency", value)}
-                        >
-                          <SelectTrigger className="border-2 border-gray-300">
-                            <SelectValue placeholder="Select frequency" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="daily">Daily</SelectItem>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                            <SelectItem value="monthly">Monthly</SelectItem>
-                            <SelectItem value="as-needed">As Needed</SelectItem>
-                          </SelectContent>
-                        </Select>
+              {isLoadingTasks ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <span className="ml-2">Loading health tasks...</span>
+                </div>
+              ) : healthTasks.length > 0 ? (
+                <div className="space-y-3">
+                  {healthTasks.map((task) => (
+                    <div key={task.id} className="p-4 border rounded-lg bg-white hover:shadow-md transition-all duration-200">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-medium text-gray-900">{task.name}</h4>
+                            <Badge variant="outline" className="text-xs">
+                              {task.frequency}
+                            </Badge>
+                            <Badge variant="secondary" className="text-xs">
+                              {task.time_of_day || task.time || 'Not specified'}
+                            </Badge>
+                          </div>
+                          <div className="space-y-2 text-sm text-gray-600">
+                            {/* Target Information */}
+                            {task.target_operator && task.target_value && (
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">Target:</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {task.target_operator} {task.target_value} {task.frequency === 'daily' ? 'times' : 'days'}
+                                </Badge>
+                              </div>
+                            )}
+                            {/* Metric Information */}
+                            {task.metric && (
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">Metric:</span>
+                                <span className="text-blue-600">
+                                  {typeof task.metric === 'string' ? task.metric : task.metric.display_name || task.metric.name || 'Unknown'}
+                                </span>
+                              </div>
+                            )}
+                            {/* Goal Information */}
+                            {task.goal_id && (
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">Linked Goal:</span>
+                                <span className="text-green-600">Goal #{task.goal_id}</span>
+                              </div>
+                            )}
+                            {/* Target Days for Weekly/Monthly */}
+                            {task.target_days && (
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">Target Days:</span>
+                                <span className="text-purple-600">{task.target_days} days</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleEditTask(task)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleDeleteTask(task)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                    <div className="mb-4">
-                      <Label>Comments</Label>
-                      <Textarea
-                        value={task.comments}
-                        onChange={(e) => updateHealthTask(index, "comments", e.target.value)}
-                        placeholder="Additional notes"
-                        className="border-2 border-gray-300"
-                      />
-                    </div>
-                    <Button type="button" variant="destructive" size="sm" onClick={() => removeHealthTask(index)}>
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Remove
-                    </Button>
-                  </CardContent>
-                </Card>
-                ))
+                  ))}
+                </div>
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <CheckCircle className="h-12 w-12 mx-auto mb-4 text-gray-300" />
@@ -336,6 +531,59 @@ export function HealthPlanStep({ formData, updateFormData, language, onValidatio
           )}
         </CardContent>
       </Card>
+
+      {/* Dialogs */}
+      <AddHealthGoalDialog
+        open={showHealthGoalDialog}
+        onOpenChange={(open) => {
+          setShowHealthGoalDialog(open)
+          if (!open) {
+            setEditingGoal(null)
+          }
+        }}
+        onSubmit={handleGoalSubmit}
+        isLoading={isSubmittingGoal}
+        availableMetrics={availableMetrics}
+        isLoadingMetrics={isLoadingMetrics}
+        onLoadAvailableMetrics={loadAvailableMetrics}
+        editingGoal={editingGoal}
+      />
+
+      <AddHealthTaskDialog
+        open={showHealthTaskDialog}
+        onOpenChange={(open) => {
+          setShowHealthTaskDialog(open)
+          if (!open) {
+            setEditingTask(null)
+          }
+        }}
+        onSubmit={handleTaskSubmit}
+        isLoading={isSubmittingTask}
+        healthGoals={healthGoals}
+        availableMetrics={availableMetrics}
+        isLoadingGoals={isLoadingGoals}
+        isLoadingMetrics={isLoadingMetrics}
+        onLoadHealthGoals={loadHealthGoals}
+        onLoadAvailableMetrics={loadAvailableMetrics}
+        editingTask={editingTask}
+      />
+
+      {/* Delete Confirmation Dialogs */}
+      <DeleteConfirmationDialog
+        open={deleteGoalDialogOpen}
+        onOpenChange={setDeleteGoalDialogOpen}
+        onConfirm={confirmDeleteGoal}
+        title="Delete Health Goal"
+        itemName={itemToDelete?.name}
+      />
+
+      <DeleteConfirmationDialog
+        open={deleteTaskDialogOpen}
+        onOpenChange={setDeleteTaskDialogOpen}
+        onConfirm={confirmDeleteTask}
+        title="Delete Health Task"
+        itemName={itemToDelete?.name}
+      />
     </div>
   )
 }

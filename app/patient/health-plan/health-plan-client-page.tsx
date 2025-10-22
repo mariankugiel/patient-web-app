@@ -41,6 +41,7 @@ import { HealthRecordsApiService, HealthRecordMetric } from "@/lib/api/health-re
 import { HealthPlanApiService } from "@/lib/api/health-plan-api"
 import AddHealthGoalDialog from "@/components/health-records/add-health-goal-dialog"
 import AddHealthTaskDialog from "@/components/health-records/add-health-task-dialog"
+import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { CircleDateButton } from "@/components/ui/circle-date-button"
 import { TaskItem } from "@/components/health-records/task-item"
 
@@ -72,6 +73,11 @@ export default function HealthPlanClientPage() {
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
+  
+  // Delete confirmation states
+  const [deleteGoalDialogOpen, setDeleteGoalDialogOpen] = useState(false)
+  const [deleteTaskDialogOpen, setDeleteTaskDialogOpen] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<any>(null)
 
   // Loading states
   const [isAddingGoal, setIsAddingGoal] = useState(false)
@@ -127,10 +133,13 @@ export default function HealthPlanClientPage() {
 
   // Error states for form validation
   const [goalFormErrors, setGoalFormErrors] = useState<{ [key: string]: string }>({})
-  const [editFormErrors, setEditFormErrors] = useState<{ [key: string]: string }>({})
 
   // State for tracking completed days for each task
   const [taskCompletedDays, setTaskCompletedDays] = useState<{ [taskId: string]: boolean[] }>({})
+  
+  // State for daily task values (for number mode)
+  const [dailyTaskValues, setDailyTaskValues] = useState<{ [taskId: string]: number[] }>({})
+  
 
   // State for weekly tasks (tracking days of the week)
   const [weeklyTaskCompletedDays, setWeeklyTaskCompletedDays] = useState<{ [taskId: string]: boolean[] }>({})
@@ -147,7 +156,7 @@ export default function HealthPlanClientPage() {
   })
 
   // Load available metrics from health records (only when dialog opens)
-  const loadAvailableMetrics = async () => {
+  const loadAvailableMetrics = useCallback(async () => {
     if (isLoadingMetrics) return // Prevent multiple simultaneous requests
 
     setIsLoadingMetrics(true)
@@ -178,7 +187,7 @@ export default function HealthPlanClientPage() {
     } finally {
       setIsLoadingMetrics(false)
     }
-  }
+  }, [isLoadingMetrics])
 
   // Filter tasks by frequency from real data
   const dailyTasks = healthTasks.filter(task => task.frequency === "daily")
@@ -214,10 +223,31 @@ export default function HealthPlanClientPage() {
 
   // Helper function to calculate completed and total for a task
   const getTaskStats = (taskId: string) => {
-    const completedDays = taskCompletedDays[taskId] || [false, false, false, false, false, false, false]
-    const completed = completedDays.filter(Boolean).length
-    const total = 7
-    return { completed, total }
+    // Find the task to get its frequency
+    const task = healthTasks.find(t => t.id === taskId)
+    
+    if (task?.frequency === "daily") {
+      // For daily tasks: use the sum of all daily values
+      const dailyValues = dailyTaskValues[taskId] || [0, 0, 0, 0, 0, 0, 0]
+      const completed = dailyValues.reduce((sum, value) => sum + value, 0)
+      // For daily tasks, total should be target_value × 7 (weekly target)
+      const targetValue = parseFloat(task.target_value || "0")
+      const total = targetValue * 7
+      return { completed, total }
+    } else {
+      // For weekly/monthly tasks: use boolean completion
+      const completedDays = taskCompletedDays[taskId] || [false, false, false, false, false, false, false]
+      const completed = completedDays.filter(Boolean).length
+      
+      let total = 7 // Default fallback
+      if (task) {
+        // For weekly/monthly tasks: target value is the number of days
+        const targetValue = parseFloat(task.target_value || "0")
+        total = Math.round(targetValue)
+      }
+      
+      return { completed, total }
+    }
   }
 
   // Helper function to calculate completed and total for weekly tasks
@@ -225,7 +255,14 @@ export default function HealthPlanClientPage() {
     const completedDays = weeklyTaskCompletedDays[taskId] || [false, false, false, false, false, false, false]
     const completed = completedDays.filter(Boolean).length
     const task = weeklyTasks.find((t) => t.id === taskId)
-    const total = task ? task.targetDays : 7
+    
+    let total = 7 // Default fallback
+    if (task) {
+      // For weekly tasks: target value is the number of days
+      const targetValue = parseFloat(task.target_value || "0")
+      total = Math.round(targetValue)
+    }
+    
     return { completed, total }
   }
 
@@ -234,17 +271,69 @@ export default function HealthPlanClientPage() {
     const completedDays = monthlyTaskCompletedDays[taskId] || [false, false, false, false, false, false, false]
     const completed = completedDays.filter(Boolean).length
     const task = monthlyTasks.find((t) => t.id === taskId)
-    const total = task ? task.targetDays : 7
+    
+    let total = 7 // Default fallback
+    if (task) {
+      // For monthly tasks: target value is the number of days
+      const targetValue = parseFloat(task.target_value || "0")
+      total = Math.round(targetValue)
+    }
+    
     return { completed, total }
   }
 
   // Helper function to toggle day completion
-  const toggleDayCompletion = async (taskId: string, dayIndex: number) => {
+  const toggleDayCompletion = async (taskId: string, dayIndex: number, decrease = false) => {
     try {
       const weekDates = getWeekDates(currentWeekStart)
       const targetDate = weekDates[dayIndex]
       const dateString = targetDate.toISOString().split('T')[0]
 
+      // Find the task to determine its frequency
+      const task = healthTasks.find(t => t.id === taskId)
+      const isDailyTask = task?.frequency === "daily"
+
+      if (isDailyTask) {
+        // For daily tasks, handle number mode
+        const currentValue = dailyTaskValues[taskId]?.[dayIndex] || 0
+        const targetValue = parseFloat(task?.target_value || "1")
+        let newValue = currentValue
+
+        if (decrease) {
+          // Double click: decrease by 1 (minimum 0)
+          newValue = Math.max(0, currentValue - 1)
+        } else {
+          // Single click: increase by 1 (no maximum limit for daily tasks)
+          newValue = currentValue + 1
+        }
+
+
+        // Update local state immediately for UI responsiveness
+        setDailyTaskValues((prev) => {
+          const currentDays = prev[taskId] || [0, 0, 0, 0, 0, 0, 0]
+          return {
+            ...prev,
+            [taskId]: currentDays.map((value, index) => (index === dayIndex ? newValue : value)),
+          }
+        })
+        
+        // Also update the boolean state for consistency
+        setTaskCompletedDays((prev) => {
+          const currentDays = prev[taskId] || [false, false, false, false, false, false, false]
+          return {
+            ...prev,
+            [taskId]: currentDays.map((completed, index) => (index === dayIndex ? newValue > 0 : completed)),
+          }
+        })
+
+        // Save to backend
+        await HealthPlanApiService.createTaskCompletion(parseInt(taskId), {
+          completion_date: dateString,
+          completed: newValue > 0,
+          progress_count: newValue
+        })
+      } else {
+        // For weekly/monthly tasks, handle check mode
       const currentState = taskCompletedDays[taskId]?.[dayIndex] || false
       const newState = !currentState
 
@@ -262,6 +351,7 @@ export default function HealthPlanClientPage() {
         completion_date: dateString,
         completed: newState
       })
+      }
     } catch (error) {
       console.error("Failed to update task completion:", error)
       // Revert local state on error
@@ -276,25 +366,77 @@ export default function HealthPlanClientPage() {
   }
 
   // Helper function to toggle weekly task day completion
-  const toggleWeeklyDayCompletion = (taskId: string, dayIndex: number) => {
-    setWeeklyTaskCompletedDays((prev) => {
-      const currentDays = prev[taskId] || [false, false, false, false, false, false, false]
-      return {
-        ...prev,
-        [taskId]: currentDays.map((completed, index) => (index === dayIndex ? !completed : completed)),
-      }
-    })
+  const toggleWeeklyDayCompletion = async (taskId: string, dayIndex: number) => {
+    try {
+      const weekDates = getWeekDates(currentWeekStart)
+      const targetDate = weekDates[dayIndex]
+      const dateString = targetDate.toISOString().split('T')[0]
+
+      const currentState = weeklyTaskCompletedDays[taskId]?.[dayIndex] || false
+      const newState = !currentState
+
+      // Update local state immediately for UI responsiveness
+      setWeeklyTaskCompletedDays((prev) => {
+        const currentDays = prev[taskId] || [false, false, false, false, false, false, false]
+        return {
+          ...prev,
+          [taskId]: currentDays.map((completed, index) => (index === dayIndex ? newState : completed)),
+        }
+      })
+
+      // Save to backend
+      await HealthPlanApiService.createTaskCompletion(parseInt(taskId), {
+        completion_date: dateString,
+        completed: newState
+      })
+    } catch (error) {
+      console.error("Error toggling weekly task completion:", error)
+      // Revert the state change on error
+      setWeeklyTaskCompletedDays((prev) => {
+        const currentDays = prev[taskId] || [false, false, false, false, false, false, false]
+        return {
+          ...prev,
+          [taskId]: currentDays.map((completed, index) => (index === dayIndex ? !completed : completed)),
+        }
+      })
+    }
   }
 
   // Helper function to toggle monthly task day completion
-  const toggleMonthlyDayCompletion = (taskId: string, dayIndex: number) => {
-    setMonthlyTaskCompletedDays((prev) => {
-      const currentDays = prev[taskId] || [false, false, false, false, false, false, false]
-      return {
-        ...prev,
-        [taskId]: currentDays.map((completed, index) => (index === dayIndex ? !completed : completed)),
-      }
-    })
+  const toggleMonthlyDayCompletion = async (taskId: string, dayIndex: number) => {
+    try {
+      const weekDates = getWeekDates(currentWeekStart)
+      const targetDate = weekDates[dayIndex]
+      const dateString = targetDate.toISOString().split('T')[0]
+
+      const currentState = monthlyTaskCompletedDays[taskId]?.[dayIndex] || false
+      const newState = !currentState
+
+      // Update local state immediately for UI responsiveness
+      setMonthlyTaskCompletedDays((prev) => {
+        const currentDays = prev[taskId] || [false, false, false, false, false, false, false]
+        return {
+          ...prev,
+          [taskId]: currentDays.map((completed, index) => (index === dayIndex ? newState : completed)),
+        }
+      })
+
+      // Save to backend
+      await HealthPlanApiService.createTaskCompletion(parseInt(taskId), {
+        completion_date: dateString,
+        completed: newState
+      })
+    } catch (error) {
+      console.error("Error toggling monthly task completion:", error)
+      // Revert the state change on error
+      setMonthlyTaskCompletedDays((prev) => {
+        const currentDays = prev[taskId] || [false, false, false, false, false, false, false]
+        return {
+          ...prev,
+          [taskId]: currentDays.map((completed, index) => (index === dayIndex ? !completed : completed)),
+        }
+      })
+    }
   }
 
   // Helper function to navigate weeks
@@ -398,41 +540,6 @@ export default function HealthPlanClientPage() {
 
 
 
-  const validateEditForm = () => {
-    if (!editingItem) return false
-
-    const errors: { [key: string]: string } = {}
-
-    if (editingItem.type === "goal") {
-      if (!editingItem.name?.trim()) {
-        errors.name = t("healthPlan.goalNameRequired")
-      }
-      if (!editingItem.metric || editingItem.metric === "none") {
-        errors.metric = t("healthPlan.metricRequired")
-      }
-      if (!editingItem.targetOperator?.trim()) {
-        errors.targetOperator = t("healthPlan.targetOperatorRequired")
-      }
-      if (!editingItem.targetValue?.trim()) {
-        errors.targetValue = t("healthPlan.targetValueRequired")
-      } else if (isNaN(Number(editingItem.targetValue))) {
-        errors.targetValue = t("healthPlan.targetValueInvalid")
-      }
-      if (!editingItem.startDate) {
-        errors.startDate = t("healthPlan.startDateRequired")
-      }
-      if (!editingItem.endDate) {
-        errors.endDate = t("healthPlan.endDateRequired")
-      }
-      // Check if end date is after start date
-      if (editingItem.startDate && editingItem.endDate && new Date(editingItem.endDate) <= new Date(editingItem.startDate)) {
-        errors.endDate = t("healthPlan.endDateMustBeAfterStartDate")
-      }
-    }
-
-    setEditFormErrors(errors)
-    return Object.keys(errors).length === 0
-  }
 
   // Comprehensive progress calculation system
   interface ProgressCalculationConfig {
@@ -674,7 +781,7 @@ export default function HealthPlanClientPage() {
   }, [currentWeekStart, healthTasks])
 
   // Load health goals from API
-  const loadHealthGoals = async () => {
+  const loadHealthGoals = useCallback(async () => {
     setIsLoadingGoals(true)
     setGoalsLoadError(false)
     try {
@@ -682,14 +789,16 @@ export default function HealthPlanClientPage() {
       // Map backend data to frontend format and calculate progress
       const mappedGoals = goals.map((goal: any) => {
 
-        // Ensure target is always a string with proper capitalization
+        // Ensure target is always a string with proper capitalization and unit
         let targetString: string
         if (typeof goal.target === 'object' && goal.target !== null) {
           const operator = goal.target.operator || ''
           const value = goal.target.value || ''
+          const unit = goal.target.unit || ''
           // Capitalize first letter of operator
           const capitalizedOperator = operator.charAt(0).toUpperCase() + operator.slice(1)
-          targetString = `${capitalizedOperator} ${value}`.trim() || "No target set"
+          const valueWithUnit = unit ? `${value} ${unit}` : value
+          targetString = `${capitalizedOperator} ${valueWithUnit}`.trim() || "No target set"
         } else {
           targetString = goal.target ? String(goal.target) : "No target set"
         }
@@ -706,7 +815,11 @@ export default function HealthPlanClientPage() {
           startDate: String(goal.startDate || goal.start_date || ""),
           endDate: String(goal.endDate || goal.end_date || "Ongoing"),
           created_at: goal.created_at || goal.createdAt,
-          metric_id: goal.metric_id
+          metric_id: goal.metric_id,
+          // Preserve original data for editing
+          originalTarget: goal.target, // Keep original target object
+          originalStartDate: goal.start_date, // Keep original start_date
+          originalEndDate: goal.end_date, // Keep original end_date
         }
       })
       setHealthGoals(mappedGoals)
@@ -717,7 +830,7 @@ export default function HealthPlanClientPage() {
     } finally {
       setIsLoadingGoals(false)
     }
-  }
+  }, [])
 
   const loadHealthTasks = async () => {
     setIsLoadingTasks(true)
@@ -725,8 +838,11 @@ export default function HealthPlanClientPage() {
     try {
       const tasks = await HealthPlanApiService.getHealthTasks()
       
+      
       // Map backend data to frontend format
-      const mappedTasks = tasks.map((task: any) => ({
+      const mappedTasks = tasks.map((task: any) => {
+        
+        const mappedTask = {
         id: task.id.toString(),
         name: String(task.name || "Unnamed Task"),
         description: String(task.description || ""),
@@ -736,9 +852,26 @@ export default function HealthPlanClientPage() {
         goal_id: task.goal_id || null,
         metric_id: task.metric_id || null,
         created_at: task.created_at,
+        // Add target data for UI display
+        target_operator: task.target_operator,
+        target_value: task.target_value,
+        target_unit: task.target_unit,
         // Add metric name if available
-        metric: task.metric ? task.metric.display_name || task.metric.name : "none"
-      }))
+        metric: task.metric ? task.metric.display_name || task.metric.name : "none",
+        // Preserve original data for editing
+        originalTargetOperator: task.target_operator,
+        originalTargetValue: task.target_value,
+        originalTargetUnit: task.target_unit,
+        originalHealthGoals: task.health_goals,
+        originalMetricId: task.metric_id,
+        originalFrequency: task.frequency,
+        originalTimeOfDay: task.time_of_day,
+        originalTargetDays: task.target_days,
+        }
+        
+        
+        return mappedTask
+      })
       setHealthTasks(mappedTasks)
 
       // Load task completion data for each task
@@ -757,10 +890,20 @@ export default function HealthPlanClientPage() {
     try {
       const weekDates = getWeekDates(currentWeekStart)
       const completions: { [taskId: string]: boolean[] } = {}
+      const dailyValues: { [taskId: string]: number[] } = {}
+      const weeklyCompletions: { [taskId: string]: boolean[] } = {}
+      const monthlyCompletions: { [taskId: string]: boolean[] } = {}
 
       // Initialize all tasks with empty completion arrays
       tasks.forEach(task => {
-        completions[task.id] = [false, false, false, false, false, false, false]
+        if (task.frequency === "daily") {
+          completions[task.id] = [false, false, false, false, false, false, false]
+          dailyValues[task.id] = [0, 0, 0, 0, 0, 0, 0]
+        } else if (task.frequency === "weekly") {
+          weeklyCompletions[task.id] = [false, false, false, false, false, false, false]
+        } else if (task.frequency === "monthly") {
+          monthlyCompletions[task.id] = [false, false, false, false, false, false, false]
+        }
       })
 
       // Load completion data for each task
@@ -772,7 +915,6 @@ export default function HealthPlanClientPage() {
           const completionData = await HealthPlanApiService.getTaskCompletions(parseInt(task.id), startDate, endDate)
 
           // Map completion data to week days
-          
           completionData.forEach((completion: any) => {
             const completionDate = new Date(completion.completion_date)
             // Use YYYY-MM-DD format for reliable comparison
@@ -784,7 +926,17 @@ export default function HealthPlanClientPage() {
             })
             
             if (dayIndex >= 0 && dayIndex < 7) {
-              completions[task.id][dayIndex] = completion.completed || false
+              if (task.frequency === "daily") {
+                // For daily tasks, store the progress count and update boolean state
+                dailyValues[task.id][dayIndex] = completion.progress_count || 0
+                completions[task.id][dayIndex] = (completion.progress_count || 0) > 0
+              } else if (task.frequency === "weekly") {
+                // For weekly tasks, use boolean completion
+                weeklyCompletions[task.id][dayIndex] = completion.completed || false
+              } else if (task.frequency === "monthly") {
+                // For monthly tasks, use boolean completion
+                monthlyCompletions[task.id][dayIndex] = completion.completed || false
+              }
             }
           })
         } catch (error) {
@@ -792,7 +944,12 @@ export default function HealthPlanClientPage() {
         }
       }
 
+      
+      // Update all state variables
       setTaskCompletedDays(completions)
+      setDailyTaskValues(dailyValues)
+      setWeeklyTaskCompletedDays(weeklyCompletions)
+      setMonthlyTaskCompletedDays(monthlyCompletions)
     } catch (error) {
       console.error("Failed to load task completions:", error)
     } finally {
@@ -801,25 +958,32 @@ export default function HealthPlanClientPage() {
   }
 
   // Handle task deletion
-  const handleDeleteTask = async (taskId: string) => {
+  const handleDeleteTask = (task: any) => {
+    setItemToDelete(task)
+    setDeleteTaskDialogOpen(true)
+  }
+
+  const confirmDeleteTask = async () => {
+    if (!itemToDelete) return
+    
     try {
-      await HealthPlanApiService.deleteHealthTask(parseInt(taskId))
+      await HealthPlanApiService.deleteHealthTask(parseInt(itemToDelete.id))
       // Remove the task from the local state
-      setHealthTasks(prev => prev.filter(task => task.id !== taskId))
+      setHealthTasks(prev => prev.filter(task => task.id !== itemToDelete.id))
       // Remove task completion data
       setTaskCompletedDays(prev => {
         const newState = { ...prev }
-        delete newState[taskId]
+        delete newState[itemToDelete.id]
         return newState
       })
       setWeeklyTaskCompletedDays(prev => {
         const newState = { ...prev }
-        delete newState[taskId]
+        delete newState[itemToDelete.id]
         return newState
       })
       setMonthlyTaskCompletedDays(prev => {
         const newState = { ...prev }
-        delete newState[taskId]
+        delete newState[itemToDelete.id]
         return newState
       })
       
@@ -837,6 +1001,9 @@ export default function HealthPlanClientPage() {
         description: t("common.errorDeletingTask"),
         variant: "destructive",
       })
+    } finally {
+      setDeleteTaskDialogOpen(false)
+      setItemToDelete(null)
     }
   }
 
@@ -853,7 +1020,7 @@ export default function HealthPlanClientPage() {
     try {
       const apiGoalData = {
         name: goalData.name,
-        target_value: {
+        target: {
           operator: goalData.targetOperator,
           value: goalData.targetValue
         },
@@ -883,22 +1050,23 @@ export default function HealthPlanClientPage() {
     metric: string
     frequency: string
     time: string
-    targetDays: number
     targetOperator: string
     targetValue: string
-    targetUnit: string
   }) => {
     setIsAddingTask(true)
     try {
+      // Get the selected metric to determine the target unit
+      const selectedMetric = availableMetrics.find(m => m.id.toString() === taskData.metric)
+      const targetUnit = selectedMetric?.default_unit || (taskData.frequency === "daily" ? "times" : "days")
+
       const apiTaskData = {
         name: taskData.name,
-        health_goals: taskData.healthGoals,
+        goal_id: taskData.healthGoals.length > 0 ? parseInt(taskData.healthGoals[0]) : null,
         frequency: taskData.frequency,
-        target_days: taskData.frequency === "weekly" || taskData.frequency === "monthly" ? taskData.targetDays : undefined,
         time_of_day: taskData.time,
         target_operator: taskData.targetOperator,
         target_value: taskData.targetValue,
-        target_unit: taskData.targetUnit,
+        target_unit: targetUnit,
         metric_id: taskData.metric !== "none" ? parseInt(taskData.metric) : undefined
       }
 
@@ -918,138 +1086,146 @@ export default function HealthPlanClientPage() {
   }
 
   const handleEdit = (item: any, type: string) => {
+    console.log("Edit item data:", item)
     if (type === "goal") {
-      // Parse target object to extract operator and value
-      let targetOperator = ""
-      let targetValue = ""
-      let metricId = item.metric_id ? item.metric_id.toString() : "none"
-
-      // If target is an object (from backend), extract operator and value
-      if (typeof item.target === 'object' && item.target !== null) {
-        targetOperator = item.target.operator || ""
-        targetValue = item.target.value || ""
-      } else if (typeof item.target === 'string') {
-        // If target is a string (from frontend display), try to parse it
-        if (item.target.toLowerCase().includes('below')) {
-          targetOperator = "below"
-          const match = item.target.match(/\d+(?:\.\d+)?/)
-          targetValue = match ? match[0] : ""
-        } else if (item.target.toLowerCase().includes('above')) {
-          targetOperator = "above"
-          const match = item.target.match(/\d+(?:\.\d+)?/)
-          targetValue = match ? match[0] : ""
-        }
-      }
-
-      // Format dates for date inputs (YYYY-MM-DD format)
-      let formattedStartDate = ""
-      let formattedEndDate = ""
-
-      if (item.startDate || item.start_date) {
-        const startDateObj = new Date(item.startDate || item.start_date)
-        if (!isNaN(startDateObj.getTime())) {
-          formattedStartDate = startDateObj.toISOString().split('T')[0]
-        }
-      }
-
-      if (item.endDate || item.end_date) {
-        const endDateObj = new Date(item.endDate || item.end_date)
-        if (!isNaN(endDateObj.getTime())) {
-          formattedEndDate = endDateObj.toISOString().split('T')[0]
-        }
-      }
-
-      setEditingItem({
-        ...item,
-        type,
-        targetOperator,
-        targetValue,
-        metric: metricId,
-        startDate: formattedStartDate,
-        endDate: formattedEndDate
-      })
+      setEditingItem({ ...item, type })
+      setIsEditOpen(true)
     } else {
-    setEditingItem({ ...item, type })
+      // Map task data to the format expected by the dialog
+      const mappedTask = {
+        ...item,
+        originalHealthGoals: item.goal_id ? [item.goal_id.toString()] : [],
+        originalMetricId: item.metric_id,
+        originalFrequency: item.frequency,
+        originalTimeOfDay: item.time_of_day,
+        originalTargetOperator: item.target_operator,
+        originalTargetValue: item.target_value,
+        originalTargetUnit: item.target_unit,
+        originalTargetDays: item.target_days
+      }
+      setEditingItem({ ...mappedTask, type })
+      setIsEditOpen(true)
     }
-    setEditFormErrors({})
-    setIsEditOpen(true)
   }
 
-  const handleSaveEdit = async () => {
+  const handleEditGoal = async (goalData: any) => {
     if (!editingItem) return
 
-    // Validate form first
-    if (!validateEditForm()) {
-      return // Errors are already set in state
-    }
-
     try {
       setIsEditingGoal(true)
 
-      if (editingItem.type === "goal") {
         // Prepare goal data for update
-        const goalData = {
-          name: editingItem.name,
-          target_value: {
-            operator: editingItem.targetOperator,
-            value: editingItem.targetValue
-          },
-          start_date: editingItem.startDate,
-          end_date: editingItem.endDate,
-          metric_id: editingItem.metric !== "none" ? parseInt(editingItem.metric) : null
-        }
+      const updateData = {
+        name: goalData.name,
+        target: {
+          operator: goalData.targetOperator,
+          value: goalData.targetValue
+        },
+        start_date: goalData.startDate,
+        end_date: goalData.endDate,
+        metric_id: goalData.metric !== "none" ? parseInt(goalData.metric) : null
+      }
 
-        await HealthRecordsApiService.updateHealthGoal(parseInt(editingItem.id), goalData)
-
-        // Reload goals to show updated data
+      await HealthPlanApiService.updateHealthGoal(editingItem.id, updateData)
+      
+      // Refresh goals list
         await loadHealthGoals()
 
-        // Show success notification
+      // Close dialog and reset state
+      setIsAddGoalOpen(false)
+      setEditingItem(null)
+      
         toast({
-          title: t("common.success"),
-          description: t("healthPlan.goalUpdatedSuccessfully"),
-          variant: "default",
-        })
-
-    setEditingItem(null)
-    setIsEditOpen(false)
-        setEditFormErrors({})
-      }
+        title: t("healthPlan.goalUpdated"),
+        description: t("healthPlan.goalUpdatedDescription")
+      })
     } catch (error) {
-        console.error("Failed to save edit:", error)
-        // Show error notification
-        toast({
-          title: t("common.error"),
-          description: t("common.errorUpdatingGoal"),
-          variant: "destructive",
-        })
-        // Keep dialog open on error
-      } finally {
-        setIsEditingGoal(false)
-      }
+      console.error('Failed to update health goal:', error)
+      toast({
+        title: t("healthPlan.error"),
+        description: t("healthPlan.goalUpdateError")
+      })
+    } finally {
+      setIsEditingGoal(false)
+    }
   }
 
-  const handleDeleteGoal = async (goalId: string) => {
-    if (!confirm(t("healthPlan.confirmDeleteGoal") || "Are you sure you want to delete this goal?")) {
-      return
+  const handleEditTask = async (taskData: any) => {
+    if (!editingItem) return
+
+    try {
+      setIsAddingTask(true)
+      
+      // Get the selected metric to determine the target unit
+      const selectedMetric = availableMetrics.find(m => m.id.toString() === taskData.metric)
+      const targetUnit = selectedMetric?.default_unit || (taskData.frequency === "daily" ? "times" : "days")
+
+      // Prepare task data for update
+      const updateData = {
+        name: taskData.name,
+        goal_id: taskData.healthGoals.length > 0 ? parseInt(taskData.healthGoals[0]) : null,
+        metric_id: taskData.metric !== "none" ? parseInt(taskData.metric) : null,
+        frequency: taskData.frequency,
+        time_of_day: taskData.time,
+        target_operator: taskData.targetOperator,
+        target_value: taskData.targetValue,
+        target_unit: targetUnit
+      }
+
+      await HealthPlanApiService.updateHealthTask(editingItem.id, updateData)
+      
+      // Refresh tasks list
+      await loadHealthTasks()
+      
+      // Close dialog and reset state
+      setIsAddTaskOpen(false)
+      setEditingItem(null)
+      
+      toast({
+        title: t("healthPlan.taskUpdated"),
+        description: t("healthPlan.taskUpdatedDescription")
+      })
+    } catch (error) {
+      console.error('Failed to update health task:', error)
+        toast({
+        title: t("healthPlan.error"),
+        description: t("healthPlan.taskUpdateError")
+        })
+      } finally {
+      setIsAddingTask(false)
     }
+  }
+
+
+  const handleDeleteGoal = (goal: any) => {
+    setItemToDelete(goal)
+    setDeleteGoalDialogOpen(true)
+  }
+
+  const confirmDeleteGoal = async () => {
+    if (!itemToDelete) return
 
     try {
       setIsEditingGoal(true)
-      await HealthRecordsApiService.deleteHealthGoal(parseInt(goalId))
+      await HealthPlanApiService.deleteHealthGoal(parseInt(itemToDelete.id))
 
       // Reload goals to reflect the deletion
       await loadHealthGoals()
 
-      // Only close dialog if it's currently open (in case delete was called from dialog)
-      if (isEditOpen) {
-        setEditingItem(null)
-        setIsEditOpen(false)
-      }
+      toast({
+        title: t("healthPlan.goalDeleted"),
+        description: t("healthPlan.goalDeletedDescription")
+      })
     } catch (error) {
-      console.error("Failed to delete goal:", error)
+      console.error('Failed to delete health goal:', error)
+      toast({
+        title: t("healthPlan.error"),
+        description: t("healthPlan.goalDeleteError")
+      })
     } finally {
       setIsEditingGoal(false)
+      setDeleteGoalDialogOpen(false)
+      setItemToDelete(null)
     }
   }
 
@@ -1218,7 +1394,7 @@ export default function HealthPlanClientPage() {
                         <div>
                               <p className="font-medium">{String(goal.name || "Unnamed Goal")}</p>
                           <p className="text-sm text-muted-foreground">
-                                {t("dashboard.target")}: {formatValueWithUnit(String(goal.target || "No target set"), getUnitForMetric(goal.metric_id))} | {t("health.current")}: {formatValueWithUnit(currentValue, getUnitForMetric(goal.metric_id))}
+                                {t("dashboard.target")}: {goal.target || "No target set"} | {t("health.current")}: {formatValueWithUnit(currentValue, getUnitForMetric(goal.metric_id))}
                           </p>
                               {currentValue === t("health.noCurrentValue") && (
                                 <p className="text-xs text-muted-foreground italic">
@@ -1284,7 +1460,7 @@ export default function HealthPlanClientPage() {
                 ) : (
                   dailyTasks.map((task) => {
                   const weekDates = getWeekDates(currentWeekStart)
-                  const completedDays = taskCompletedDays[task.id] || [false, false, false, false, false, false, false]
+                  const completedDays = (dailyTaskValues[task.id] || [0, 0, 0, 0, 0, 0, 0]).map(value => value > 0)
                   const { completed, total } = getTaskStats(task.id)
 
                   return (
@@ -1311,10 +1487,16 @@ export default function HealthPlanClientPage() {
                               <div key={index} className="flex flex-col items-center space-y-1">
                                 <span className="text-xs text-muted-foreground">{formatDate(date)}</span>
                                 <CircleDateButton
-                                  isCompleted={completedDays[index]}
+                                  isCompleted={task.frequency === "daily" ? false : completedDays[index]}
                                   isLoading={isLoadingTaskCompletions}
                                   onClick={() => toggleDayCompletion(task.id, index)}
+                                  onDoubleClick={() => toggleDayCompletion(task.id, index, true)} // Decrease on double click
                                   dateLabel={formatDate(date)}
+                                  mode={task.frequency === "daily" ? "number" : "check"}
+                                  currentValue={task.frequency === "daily" ? (dailyTaskValues[task.id]?.[index] || 0) : 0}
+                                  maxValue={task.frequency === "daily" ? Infinity : 1}
+                                  targetOperator={task.frequency === "daily" ? task.target_operator : undefined}
+                                  targetValue={task.frequency === "daily" ? parseFloat(task.target_value || "0") : undefined}
                                 />
                   </div>
                 ))}
@@ -1382,7 +1564,7 @@ export default function HealthPlanClientPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleDeleteGoal(goal.id)}
+                              onClick={() => handleDeleteGoal(goal)}
                               disabled={isEditingGoal}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             >
@@ -1395,17 +1577,12 @@ export default function HealthPlanClientPage() {
                           </div>
                       </div>
                       <CardDescription>
-                          {t("dashboard.target")}: {formatValueWithUnit(String(goal.target || "No target set"), getUnitForMetric(goal.metric_id))} | {t("health.current")}: {formatValueWithUnit(String(goal.current || "No current value"), getUnitForMetric(goal.metric_id))}
-                      </CardDescription>
-                      <div className="mt-2">
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">
                             {formatDisplayDate(goal.startDate)} - {formatDisplayDate(goal.endDate)}
                           </span>
-                          <Badge variant="outline">{Number(goal.progress || 0)}%</Badge>
                         </div>
-                        <Progress value={Number(goal.progress || 0)} className="mt-2" />
-                      </div>
+                      </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
@@ -1413,7 +1590,7 @@ export default function HealthPlanClientPage() {
                           <div>
                             <p className="text-sm font-medium text-muted-foreground">{t("dashboard.target")}</p>
                               <p className="text-lg font-medium">
-                                {formatValueWithUnit(String(goal.target || "No target set"), getUnitForMetric(goal.metric_id))}
+                                {goal.target || "No target set"}
                               </p>
                           </div>
                           <div>
@@ -1499,8 +1676,9 @@ export default function HealthPlanClientPage() {
               </div>
                 ) : (
                   dailyTasks.map((task) => {
+                    
                     const weekDates = getWeekDates(currentWeekStart)
-                    const completedDays = taskCompletedDays[task.id] || [false, false, false, false, false, false, false]
+                    const completedDays = (dailyTaskValues[task.id] || [0, 0, 0, 0, 0, 0, 0]).map(value => value > 0)
                     const { completed, total } = getTaskStats(task.id)
 
                     return (
@@ -1526,10 +1704,16 @@ export default function HealthPlanClientPage() {
                               <div key={index} className="flex flex-col items-center space-y-1">
                                 <span className="text-xs text-muted-foreground">{formatDate(date)}</span>
                                 <CircleDateButton
-                                  isCompleted={completedDays[index]}
+                                  isCompleted={task.frequency === "daily" ? false : completedDays[index]}
                                   isLoading={isLoadingTaskCompletions}
                                   onClick={() => toggleDayCompletion(task.id, index)}
+                                  onDoubleClick={() => toggleDayCompletion(task.id, index, true)} // Decrease on double click
                                   dateLabel={formatDate(date)}
+                                  mode={task.frequency === "daily" ? "number" : "check"}
+                                  currentValue={task.frequency === "daily" ? (dailyTaskValues[task.id]?.[index] || 0) : 0}
+                                  maxValue={task.frequency === "daily" ? Infinity : 1}
+                                  targetOperator={task.frequency === "daily" ? task.target_operator : undefined}
+                                  targetValue={task.frequency === "daily" ? parseFloat(task.target_value || "0") : undefined}
                         />
                       </div>
                             ))}
@@ -1609,7 +1793,7 @@ export default function HealthPlanClientPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleDeleteTask(task.id)}
+                                onClick={() => handleDeleteTask(task)}
                                 className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
                               >
                                 <Trash2 className="h-3 w-3" />
@@ -1660,6 +1844,10 @@ export default function HealthPlanClientPage() {
                                 isLoading={isLoadingTaskCompletions}
                                 onClick={() => toggleWeeklyDayCompletion(task.id, index)}
                                 dateLabel={formatDate(date)}
+                                mode="check"
+                                currentValue={completed}
+                                targetOperator={task.target_operator}
+                                targetValue={parseFloat(task.target_value || "0")}
                               />
                   </div>
                 ))}
@@ -1748,6 +1936,10 @@ export default function HealthPlanClientPage() {
                                 isLoading={isLoadingTaskCompletions}
                                 onClick={() => toggleMonthlyDayCompletion(task.id, index)}
                                 dateLabel={formatDate(date)}
+                                mode="check"
+                                currentValue={completed}
+                                targetOperator={task.target_operator}
+                                targetValue={parseFloat(task.target_value || "0")}
                               />
                   </div>
                 ))}
@@ -1767,397 +1959,43 @@ export default function HealthPlanClientPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Edit Dialog */}
-      <Dialog open={isEditOpen} onOpenChange={(open) => {
-        setIsEditOpen(open)
-        if (!open) {
-          // Reset edit form when dialog closes
-          setEditingItem(null)
-          setEditFormErrors({})
-        }
-      }}>
-        <DialogContent className="sm:max-w-[600px]">
-                    <DialogHeader>
-            <DialogTitle>Edit {editingItem?.type}</DialogTitle>
-            <DialogDescription>Make changes to your {editingItem?.type} here.</DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-            {editingItem?.type === "goal" && (
-              <>
-                {/* Name Field */}
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label htmlFor="edit-goal-name" className="text-right pt-2">
-                    <span className="text-red-500">*</span> {t("healthPlan.goalName")}
-                        </Label>
-                  <div className="col-span-3 space-y-1">
-                        <Input
-                      id="edit-goal-name"
-                      value={editingItem?.name || ""}
-                      onChange={(e) => {
-                        setEditingItem({ ...editingItem, name: e.target.value })
-                        if (editFormErrors.name) {
-                          setEditFormErrors({ ...editFormErrors, name: "" })
-                        }
-                      }}
-                      className={editFormErrors.name ? "border-red-500" : ""}
-                      placeholder="e.g., Lower Blood Pressure"
-                      required
-                    />
-                    {editFormErrors.name && (
-                      <p className="text-sm text-red-500">{editFormErrors.name}</p>
-                    )}
-                      </div>
-                </div>
 
-                {/* Metric Field */}
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label htmlFor="edit-goal-metric" className="text-right pt-2">
-                    <span className="text-red-500">*</span> {t("healthPlan.goalMetric")}
-                        </Label>
-                  <div className="col-span-3 space-y-1">
-                    <Select
-                      value={editingItem?.metric || "none"}
-                      onOpenChange={async (open) => {
-                        if (open && availableMetrics.length === 0) {
-                          await loadAvailableMetrics()
-                        }
-                      }}
-                      onValueChange={(value) => {
-                        const { operator, value: targetValue } = generateTargetFromMetric(value)
-                        setEditingItem({
-                          ...editingItem,
-                          metric: value,
-                          targetOperator: operator,
-                          targetValue: targetValue
-                        })
-                        if (editFormErrors.metric) {
-                          setEditFormErrors({ ...editFormErrors, metric: "" })
-                        }
-                      }}
-                    >
-                      <SelectTrigger className={editFormErrors.metric ? "border-red-500" : ""}>
-                        {isLoadingMetrics ? (
-                          <div className="flex items-center">
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Loading metrics...
-                      </div>
-                        ) : (
-                          <SelectValue placeholder={t("healthPlan.selectMetricOptional")} />
-                        )}
-                      </SelectTrigger>
-                      <SelectContent>
-                        {isLoadingMetrics ? (
-                          <SelectItem value="loading" disabled>
-                            <div className="flex items-center">
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Loading metrics...
-                            </div>
-                          </SelectItem>
-                        ) : (
-                          <>
-                            <SelectItem value="none">{t("healthPlan.noMetric")}</SelectItem>
-                            {availableMetrics.map((metric) => (
-                              <SelectItem key={metric.id} value={metric.id.toString()}>
-                                {metric.display_name}
-                              </SelectItem>
-                            ))}
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
-                    {editFormErrors.metric && (
-                      <p className="text-sm text-red-500">{editFormErrors.metric}</p>
-                    )}
-                  </div>
-                </div>
 
-                {/* Target Field */}
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right pt-2">
-                    <span className="text-red-500">*</span> {t("healthPlan.goalTarget")}
-                        </Label>
-                  <div className="col-span-3 space-y-1">
-                    <div className={`grid ${getTargetGridClasses()} gap-2 items-center`}>
-                      {/* Target Operator Select */}
-                      <div>
-                        <Select
-                          value={editingItem?.targetOperator || ""}
-                          onValueChange={(value) => {
-                            setEditingItem({ ...editingItem, targetOperator: value })
-                            if (editFormErrors.targetOperator) {
-                              setEditFormErrors({ ...editFormErrors, targetOperator: "" })
-                            }
-                          }}
-                        >
-                          <SelectTrigger className={editFormErrors.targetOperator ? "border-red-500" : ""}>
-                            <SelectValue placeholder={t("healthPlan.selectTargetOperator")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="below">{t("healthPlan.targetOperatorBelow")}</SelectItem>
-                            <SelectItem value="above">{t("healthPlan.targetOperatorAbove")}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
 
-                      {/* Target Value Input */}
-                      <div>
-                        <Input
-                          id="edit-goal-target-value"
-                          type="number"
-                          step="any"
-                          value={editingItem?.targetValue || ""}
-                          onChange={(e) => {
-                            setEditingItem({ ...editingItem, targetValue: e.target.value })
-                            if (editFormErrors.targetValue) {
-                              setEditFormErrors({ ...editFormErrors, targetValue: "" })
-                            }
-                          }}
-                          className={editFormErrors.targetValue ? "border-red-500" : ""}
-                          placeholder="e.g., 120"
-                        />
-                    </div>
 
-                      {/* Unit Display */}
-                      <div className="flex items-center h-10 px-2 text-sm text-muted-foreground whitespace-nowrap">
-                        {(() => {
-                          const selectedMetric = availableMetrics.find(m => m.id.toString() === editingItem?.metric)
-                          return selectedMetric?.default_unit || selectedMetric?.unit || "Unit"
-                        })()}
-              </div>
-                      </div>
-                    {(editFormErrors.targetOperator || editFormErrors.targetValue) && (
-                      <div className="space-y-1">
-                        {editFormErrors.targetOperator && (
-                          <p className="text-sm text-red-500">{editFormErrors.targetOperator}</p>
-                        )}
-                        {editFormErrors.targetValue && (
-                          <p className="text-sm text-red-500">{editFormErrors.targetValue}</p>
-                        )}
-              </div>
-                    )}
-                  </div>
-                </div>
 
-                {/* Start Date Field */}
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label htmlFor="edit-goal-start" className="text-right pt-2">
-                    <span className="text-red-500">*</span> {t("healthPlan.goalStartDate")}
-                  </Label>
-                  <div className="col-span-3 space-y-1">
-                  <Input
-                      id="edit-goal-start"
-                      type="date"
-                      value={editingItem?.startDate || ""}
-                      onChange={(e) => {
-                        setEditingItem({ ...editingItem, startDate: e.target.value })
-                        if (editFormErrors.startDate) {
-                          setEditFormErrors({ ...editFormErrors, startDate: "" })
-                        }
-                      }}
-                      className={editFormErrors.startDate ? "border-red-500" : ""}
-                      required
-                    />
-                    {editFormErrors.startDate && (
-                      <p className="text-sm text-red-500">{editFormErrors.startDate}</p>
-                    )}
-                </div>
-                </div>
-
-                {/* End Date Field */}
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label htmlFor="edit-goal-end" className="text-right pt-2">
-                    <span className="text-red-500">*</span> {t("healthPlan.goalEndDate")}
-                  </Label>
-                  <div className="col-span-3 space-y-1">
-                  <Input
-                      id="edit-goal-end"
-                      type="date"
-                      value={editingItem?.endDate || ""}
-                      onChange={(e) => {
-                        setEditingItem({ ...editingItem, endDate: e.target.value })
-                        if (editFormErrors.endDate) {
-                          setEditFormErrors({ ...editFormErrors, endDate: "" })
-                        }
-                      }}
-                      className={editFormErrors.endDate ? "border-red-500" : ""}
-                      required
-                    />
-                    {editFormErrors.endDate && (
-                      <p className="text-sm text-red-500">{editFormErrors.endDate}</p>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-            {editingItem?.type === "task" && (
-              <>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="edit-task-name" className="text-right">
-                    Name
-                  </Label>
-                  <Input
-                    id="edit-task-name"
-                    value={editingItem?.name || ""}
-                    onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
-                    className="col-span-3"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="edit-task-health-goals" className="text-right">
-                    Health Goals
-                  </Label>
-                  <Select
-                    value={editingItem?.healthGoals?.join(",") || ""}
-                    onValueChange={(value) =>
-                      setEditingItem({
-                        ...editingItem,
-                        healthGoals: value ? value.split(",") : [],
-                      })
-                    }
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select health goals (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {healthGoals.map((goal) => (
-                        <SelectItem key={goal.id} value={goal.id}>
-                          {String(goal.name || "Unnamed Goal")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="edit-task-metric" className="text-right">
-                    Metric
-                  </Label>
-                  <Select
-                    value={editingItem?.metric || "none"}
-                    onOpenChange={async (open) => {
-                      if (open && availableMetrics.length === 0) {
-                        // Load metrics only when dropdown opens and metrics are not already loaded
-                        await loadAvailableMetrics()
-                      }
-                    }}
-                    onValueChange={(value) => setEditingItem({ ...editingItem, metric: value })}
-                  >
-                    <SelectTrigger className="col-span-3">
-                      {isLoadingMetrics ? (
-                        <div className="flex items-center">
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Loading metrics...
-                        </div>
-                      ) : (
-                        <SelectValue placeholder="Select metric (optional)" />
-                      )}
-                    </SelectTrigger>
-                    <SelectContent>
-                      {isLoadingMetrics ? (
-                        <SelectItem value="loading" disabled>
-                          <div className="flex items-center">
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Loading metrics...
-                          </div>
-                        </SelectItem>
-                      ) : (
-                        <>
-                          <SelectItem value="none">No metric</SelectItem>
-                          {availableMetrics.map((metric) => (
-                            <SelectItem key={metric.id} value={metric.id.toString()}>
-                              {metric.display_name}
-                            </SelectItem>
-                          ))}
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="edit-task-frequency" className="text-right">
-                    Frequency
-                  </Label>
-                  <Select
-                    value={editingItem?.frequency || ""}
-                    onValueChange={(value) => setEditingItem({ ...editingItem, frequency: value })}
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select frequency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily">Daily</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {(editingItem?.frequency === "weekly" || editingItem?.frequency === "monthly") && (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="edit-task-target-days" className="text-right">
-                      Target Days
-                  </Label>
-                  <Input
-                      id="edit-task-target-days"
-                      type="number"
-                      min="1"
-                      max={editingItem?.frequency === "weekly" ? "7" : "31"}
-                      value={editingItem?.targetDays || 1}
-                      onChange={(e) =>
-                        setEditingItem({ ...editingItem, targetDays: Number.parseInt(e.target.value) || 1 })
-                      }
-                    className="col-span-3"
-                      placeholder={
-                        editingItem?.frequency === "weekly" ? "Days per week (1-7)" : "Days per month (1-31)"
-                      }
-                  />
-                </div>
-                )}
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="edit-task-time" className="text-right">
-                    Time
-                  </Label>
-                  <Input
-                    id="edit-task-time"
-                    value={editingItem?.time || ""}
-                    onChange={(e) => setEditingItem({ ...editingItem, time: e.target.value })}
-                    className="col-span-3"
-                    placeholder="e.g., Morning"
-                  />
-                </div>
-              </>
-            )}
-          </div>
-          <DialogFooter className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsEditOpen(false)}>
-              {t("action.cancel")}
-            </Button>
-            <Button
-              type="submit"
-              onClick={handleSaveEdit}
-              disabled={isEditingGoal}
-            >
-              {isEditingGoal && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {editingItem?.type === "goal" ? t("action.saveChanges") : t("action.saveChanges")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Health Goal Dialog */}
+      {/* Add/Edit Health Goal Dialog */}
       <AddHealthGoalDialog
-        open={isAddGoalOpen}
-        onOpenChange={setIsAddGoalOpen}
-        onSubmit={handleAddGoal}
-        isLoading={isAddingGoal}
+        open={isAddGoalOpen || (isEditOpen && editingItem?.type === 'goal')}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsAddGoalOpen(false)
+            setIsEditOpen(false)
+            setEditingItem(null)
+          }
+        }}
+        onSubmit={isEditOpen && editingItem?.type === 'goal' ? handleEditGoal : handleAddGoal}
+        isLoading={isAddingGoal || isEditingGoal}
         availableMetrics={availableMetrics}
         isLoadingMetrics={isLoadingMetrics}
         onLoadAvailableMetrics={loadAvailableMetrics}
+        editingGoal={isEditOpen && editingItem?.type === 'goal' ? (() => {
+          console.log("Passing editingGoal to dialog:", editingItem)
+          return editingItem
+        })() : null}
       />
 
-      {/* Add Health Task Dialog */}
+      {/* Add/Edit Health Task Dialog */}
       <AddHealthTaskDialog
-        open={isAddTaskOpen}
-        onOpenChange={setIsAddTaskOpen}
-        onSubmit={handleAddTask}
+        open={isAddTaskOpen || (isEditOpen && editingItem?.type === 'task')}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsAddTaskOpen(false)
+            setIsEditOpen(false)
+            setEditingItem(null)
+          }
+        }}
+        onSubmit={isEditOpen && editingItem?.type === 'task' ? handleEditTask : handleAddTask}
         isLoading={isAddingTask}
         healthGoals={healthGoals}
         availableMetrics={availableMetrics}
@@ -2165,6 +2003,25 @@ export default function HealthPlanClientPage() {
         isLoadingMetrics={isLoadingMetrics}
         onLoadHealthGoals={loadHealthGoals}
         onLoadAvailableMetrics={loadAvailableMetrics}
+        editingTask={isEditOpen && editingItem?.type === 'task' ? editingItem : null}
+      />
+
+      {/* Delete Confirmation Dialogs */}
+      <DeleteConfirmationDialog
+        open={deleteGoalDialogOpen}
+        onOpenChange={setDeleteGoalDialogOpen}
+        onConfirm={confirmDeleteGoal}
+        title="Delete Health Goal"
+        itemName={itemToDelete?.name}
+        loading={isEditingGoal}
+      />
+
+      <DeleteConfirmationDialog
+        open={deleteTaskDialogOpen}
+        onOpenChange={setDeleteTaskDialogOpen}
+        onConfirm={confirmDeleteTask}
+        title="Delete Health Task"
+        itemName={itemToDelete?.name}
       />
     </div>
   )

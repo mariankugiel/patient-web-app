@@ -46,16 +46,6 @@ export default function MedicalConditionPage() {
   // VALIDATION FUNCTIONS
   // ============================================================================
 
-  const hasMinimumRequiredData = () => {
-    // Check if user has provided at least some medical information
-    const hasHealthProblems = medicalConditions.currentHealthProblems.length > 0
-    const hasMedications = medicalConditions.medications.length > 0
-    const hasPastConditions = medicalConditions.pastMedicalConditions.length > 0
-    const hasSurgeries = medicalConditions.pastSurgeries.length > 0
-    
-    // User must provide at least one type of medical information
-    return hasHealthProblems || hasMedications || hasPastConditions || hasSurgeries
-  }
 
   const saveProgress = async (skipValidation = false) => {
     if (user) {
@@ -108,9 +98,6 @@ export default function MedicalConditionPage() {
           }))
         }
         
-        if (!skipValidation) {
-          toast.success("Medical information saved successfully!")
-        }
       } catch (error) {
         console.error('Error saving progress:', error)
         if (!skipValidation) {
@@ -139,11 +126,7 @@ export default function MedicalConditionPage() {
       return
     }
 
-    // Check if user has provided minimum required data
-    if (!hasMinimumRequiredData()) {
-      toast.error("Please provide at least one type of medical information (health problems, medications, past conditions, or surgeries) before proceeding.")
-      return
-    }
+    // Medical history is optional - users can proceed without any entries
 
     try {
       await saveProgress()

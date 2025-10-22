@@ -31,6 +31,7 @@ interface UseMessagesReturn {
   archiveConversation: (conversationId: string) => Promise<void>
   togglePin: (conversationId: string) => Promise<void>
   deleteMessage: (messageId: string) => Promise<void>
+  deleteConversation: (conversationId: string) => Promise<void>
   searchMessages: (params: MessageSearchParams) => Promise<Message[]>
   refreshConversations: () => Promise<void>
 
@@ -120,7 +121,7 @@ export function useMessages(): UseMessagesReturn {
     try {
       const request = {
         conversationId: selectedConversation.id,
-        recipientId: selectedConversation.contact.id,
+        recipientId: selectedConversation.contact?.id,
         content: content.trim(),
         type,
         priority: 'normal' as const
@@ -243,6 +244,22 @@ export function useMessages(): UseMessagesReturn {
       setError(err instanceof Error ? err.message : 'Failed to delete message')
     }
   }, [])
+
+  // Delete conversation
+  const deleteConversation = useCallback(async (conversationId: string) => {
+    try {
+      await messagesApiService.deleteConversation(conversationId)
+      setConversations(prev => prev.filter(conv => conv.id !== conversationId))
+      
+      // If the deleted conversation was selected, clear the selection
+      if (selectedConversation?.id === conversationId) {
+        setSelectedConversation(null)
+        setMessages([])
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete conversation')
+    }
+  }, [selectedConversation])
 
   // Search messages
   const searchMessages = useCallback(async (params: MessageSearchParams): Promise<Message[]> => {
@@ -414,6 +431,7 @@ export function useMessages(): UseMessagesReturn {
     archiveConversation,
     togglePin,
     deleteMessage,
+    deleteConversation,
     searchMessages,
     refreshConversations,
 

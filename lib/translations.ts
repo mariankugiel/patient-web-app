@@ -219,6 +219,8 @@ export const translations = {
       createNewGoal: "Create a new health goal to track your progress.",
       addNewTask: "Add a new task to your health plan.",
       addNewGoal: "Add New Goal",
+      updateGoal: "Update Goal",
+      updateTask: "Update Task",
       goalNamePlaceholder: "Enter goal name",
       // Form field translations
       goalName: "Name",
@@ -266,6 +268,8 @@ export const translations = {
       confirmDeleteTask: "Are you sure you want to delete this task? This action cannot be undone.",
       confirmDeleteTaskDesc: "This will permanently delete \"{taskName}\" and all its associated data. This action cannot be undone.",
       taskDeletedSuccessfully: "Task deleted successfully",
+      goalDeleted: "Goal deleted successfully",
+      goalDeletedDescription: "The health goal has been removed from your plan.",
       goalUpdatedSuccessfully: "Goal updated successfully",
       // Button translations
       saveChanges: "Save Changes",
@@ -585,7 +589,12 @@ export const translations = {
       edit: "Edit",
       delete: "Delete",
       confirmDelete: "Are you sure you want to delete this item?",
-      errorDeletingTask: "Failed to delete task. Please try again."
+      errorDeletingTask: "Failed to delete task. Please try again.",
+      loading: "Loading...",
+      success: "Success",
+      error: "Error",
+      errorLoadingData: "Failed to load data",
+      retry: "Retry"
     },
     // Actions
     action: {
@@ -900,6 +909,8 @@ export const translations = {
       createNewGoal: "Crear un nuevo objetivo de salud para rastrear tu progreso.",
       addNewTask: "Agregar una nueva tarea a tu plan de salud.",
       addNewGoal: "Agregar Nuevo Objetivo",
+      updateGoal: "Actualizar Objetivo",
+      updateTask: "Actualizar Tarea",
       goalNamePlaceholder: "Ingrese el nombre del objetivo",
       // Form field translations
       goalName: "Nombre",
@@ -947,6 +958,8 @@ export const translations = {
       confirmDeleteTask: "¿Estás seguro de que quieres eliminar esta tarea? Esta acción no se puede deshacer.",
       confirmDeleteTaskDesc: "Esto eliminará permanentemente \"{taskName}\" y todos sus datos asociados. Esta acción no se puede deshacer.",
       taskDeletedSuccessfully: "Tarea eliminada exitosamente",
+      goalDeleted: "Objetivo eliminado exitosamente",
+      goalDeletedDescription: "El objetivo de salud ha sido removido de tu plan.",
       goalUpdatedSuccessfully: "Objetivo actualizado exitosamente",
       // Button translations
       saveChanges: "Guardar Cambios",
@@ -1260,7 +1273,12 @@ export const translations = {
       edit: "Editar",
       delete: "Eliminar",
       confirmDelete: "¿Estás seguro de que quieres eliminar este elemento?",
-      errorDeletingTask: "Error al eliminar la tarea. Por favor, inténtalo de nuevo."
+      errorDeletingTask: "Error al eliminar la tarea. Por favor, inténtalo de nuevo.",
+      loading: "Cargando...",
+      success: "Éxito",
+      error: "Error",
+      errorLoadingData: "Error al cargar los datos",
+      retry: "Reintentar"
     },
     // Actions
     action: {
@@ -1574,6 +1592,8 @@ export const translations = {
       createNewGoal: "Criar um novo objetivo de saúde para rastrear o seu progresso.",
       addNewTask: "Adicionar uma nova tarefa ao seu plano de saúde.",
       addNewGoal: "Adicionar Novo Objetivo",
+      updateGoal: "Atualizar Objetivo",
+      updateTask: "Atualizar Tarefa",
       goalNamePlaceholder: "Digite o nome do objetivo",
       // Form field translations
       goalName: "Nome",
@@ -1621,6 +1641,8 @@ export const translations = {
       confirmDeleteTask: "Tens a certeza de que queres eliminar esta tarefa? Esta ação não pode ser desfeita.",
       confirmDeleteTaskDesc: "Isto irá eliminar permanentemente \"{taskName}\" e todos os seus dados associados. Esta ação não pode ser desfeita.",
       taskDeletedSuccessfully: "Tarefa eliminada com sucesso",
+      goalDeleted: "Objetivo eliminado com sucesso",
+      goalDeletedDescription: "O objetivo de saúde foi removido do seu plano.",
       goalUpdatedSuccessfully: "Objetivo atualizado com sucesso",
       // Button translations
       saveChanges: "Guardar Alterações",
@@ -1934,7 +1956,12 @@ export const translations = {
       edit: "Editar",
       delete: "Eliminar",
       confirmDelete: "Tem certeza de que deseja excluir este item?",
-      errorDeletingTask: "Falha ao excluir a tarefa. Por favor, tente novamente."
+      errorDeletingTask: "Falha ao excluir a tarefa. Por favor, tente novamente.",
+      loading: "A carregar...",
+      success: "Sucesso",
+      error: "Erro",
+      errorLoadingData: "Falha ao carregar os dados",
+      retry: "Tentar novamente"
     },
     // Actions
     action: {

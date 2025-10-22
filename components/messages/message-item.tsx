@@ -104,8 +104,8 @@ export function MessageItem({ message, isOwn, onActionClick }: MessageItemProps)
         {/* Avatar for received messages */}
         {!isOwn && (
           <Avatar className="h-8 w-8 flex-shrink-0">
-            <AvatarImage src={message.sender.avatar} alt={message.sender.name} />
-            <AvatarFallback>{message.sender.name.charAt(0)}</AvatarFallback>
+            <AvatarImage src={message.sender?.avatar} alt={message.sender?.name || "Unknown"} />
+            <AvatarFallback>{message.sender?.name?.charAt(0) || "U"}</AvatarFallback>
           </Avatar>
         )}
 
@@ -128,7 +128,7 @@ export function MessageItem({ message, isOwn, onActionClick }: MessageItemProps)
                   variant="secondary" 
                   className={`text-xs ${getMessageTypeColor(message.type)}`}
                 >
-                  {message.type.replace('_', ' ')}
+                  {message.type?.replace('_', ' ') || 'General'}
                 </Badge>
               </div>
               
@@ -201,15 +201,15 @@ export function MessageItem({ message, isOwn, onActionClick }: MessageItemProps)
                   </Button>
                 )}
 
-                {message.type === 'health_plan_support' && message.metadata.actionUrl && (
+                {message.type === 'health_plan_support' && message.metadata?.actionUrl && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => window.open(message.metadata.actionUrl, '_blank')}
+                    onClick={() => window.open(message.metadata?.actionUrl, '_blank')}
                     className="text-xs"
                   >
                     <Shield className="h-3 w-3 mr-1" />
-                    {message.metadata.actionText || 'View Details'}
+                    {message.metadata?.actionText || 'View Details'}
                   </Button>
                 )}
               </div>
@@ -218,25 +218,25 @@ export function MessageItem({ message, isOwn, onActionClick }: MessageItemProps)
             {/* Message metadata */}
             {message.metadata && (
               <div className="mt-2 text-xs opacity-75">
-                {message.metadata.medicationName && (
+                {message.metadata?.medicationName && (
                   <div>Medication: {message.metadata.medicationName}</div>
                 )}
-                {message.metadata.dosage && (
+                {message.metadata?.dosage && (
                   <div>Dosage: {message.metadata.dosage}</div>
                 )}
-                {message.metadata.scheduledTime && (
+                {message.metadata?.scheduledTime && (
                   <div>Scheduled: {new Date(message.metadata.scheduledTime).toLocaleString()}</div>
                 )}
-                {message.metadata.appointmentDate && (
+                {message.metadata?.appointmentDate && (
                   <div>Appointment: {new Date(message.metadata.appointmentDate).toLocaleString()}</div>
                 )}
-                {message.metadata.doctorName && (
+                {message.metadata?.doctorName && (
                   <div>Doctor: {message.metadata.doctorName}</div>
                 )}
-                {message.metadata.testName && (
+                {message.metadata?.testName && (
                   <div>Test: {message.metadata.testName}</div>
                 )}
-                {message.metadata.isAbnormal && (
+                {message.metadata?.isAbnormal && (
                   <div className="flex items-center gap-1 text-red-600">
                     <AlertCircle className="h-3 w-3" />
                     Abnormal Results
@@ -248,7 +248,16 @@ export function MessageItem({ message, isOwn, onActionClick }: MessageItemProps)
 
           {/* Message timestamp and status */}
           <div className={`flex items-center gap-1 mt-1 text-xs text-muted-foreground ${isOwn ? 'flex-row-reverse' : ''}`}>
-            <span>{formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })}</span>
+            <span>
+              {message.timestamp ? 
+                (() => {
+                  const date = new Date(message.timestamp);
+                  return isNaN(date.getTime()) ? 'Unknown time' : 
+                    formatDistanceToNow(date, { addSuffix: true });
+                })() : 
+                'Unknown time'
+              }
+            </span>
             
             {isOwn && (
               <div className="flex items-center gap-1">

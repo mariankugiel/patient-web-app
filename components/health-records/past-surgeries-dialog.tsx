@@ -55,18 +55,7 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
       if (selectedSurgery) {
         // Edit mode - edit single surgery
         setIsEditMode(true)
-        const formattedSurgery = {
-          // Map backend fields to frontend fields
-          procedure_type: selectedSurgery.procedure_type || 'surgery',
-          name: selectedSurgery.name || selectedSurgery.condition_name?.replace('Surgery: ', '') || '',
-          procedure_date: selectedSurgery.procedure_date || selectedSurgery.diagnosed_date?.split('T')[0] || '',
-          reason: selectedSurgery.reason || '',
-          treatment: selectedSurgery.treatment || selectedSurgery.treatment_plan || '',
-          body_area: selectedSurgery.body_area || '',
-          recovery_status: selectedSurgery.recovery_status || selectedSurgery.outcome || 'full_recovery',
-          notes: selectedSurgery.notes || selectedSurgery.description || ''
-        }
-        setEditingSurgery(formattedSurgery)
+        setEditingSurgery({ ...selectedSurgery })
       } else {
         // Add mode - create new single surgery
         setIsEditMode(false)

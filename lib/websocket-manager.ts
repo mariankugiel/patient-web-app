@@ -40,6 +40,9 @@ class GlobalWebSocketManager {
   }
 
   connect(url: string, token: string): void {
+    console.log('🔌 Attempting to connect to WebSocket:', url)
+    console.log('🔌 Token present:', token ? 'Yes' : 'No')
+    
     // If already connecting, don't start another connection
     if (this.isConnecting) {
       console.log('🔌 WebSocket connection already in progress, skipping...')

@@ -10,7 +10,7 @@ export class HealthPlanApiService {
 
   static async createHealthGoal(goalData: {
     name: string
-    target_value: { operator: string, value: string }
+    target: { operator: string, value: string }
     start_date: string
     end_date: string
     metric_id?: number
@@ -36,7 +36,7 @@ export class HealthPlanApiService {
 
   static async createHealthTask(taskData: {
     name: string
-    health_goals: string[]
+    goal_id?: number | null
     metric_id?: number
     frequency: string
     time_of_day: string
@@ -71,6 +71,7 @@ export class HealthPlanApiService {
   static async createTaskCompletion(taskId: number, completionData: {
     completion_date: string
     completed: boolean
+    progress_count?: number
     notes?: string
   }): Promise<any> {
     const response = await apiClient.post(`/health-plans/health-tasks/${taskId}/completions`, completionData)

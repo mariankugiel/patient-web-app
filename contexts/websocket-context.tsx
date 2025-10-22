@@ -72,12 +72,28 @@ export function WebSocketProvider({ children, userId }: { children: React.ReactN
       userStatusCallbacks.forEach(callback => {
         callback(message.data.user_id, message.data.status)
       })
+    } else if (message.type === 'new_message') {
+      console.log('💬 Received new message:', message.data)
+      
+      // Show browser notification for new messages
+      if (message.data && message.data.message) {
+        showBrowserNotification({
+          title: `New message from ${message.data.message.sender.name}`,
+          message: message.data.message.content,
+          type: 'message'
+        }, markAsTaken, snoozeReminder)
+        
+        // Play notification sound
+        playNotificationSound()
+      }
     }
   }, [markAsTaken, snoozeReminder, userStatusCallbacks])
 
   const handleWebSocketConnect = useCallback(() => {
     console.log('✅ WebSocket connected for notifications')
-  }, [])
+    console.log('✅ WebSocket connection established with URL:', websocketUrl)
+    console.log('✅ WebSocket token:', token ? 'Present' : 'Missing')
+  }, [websocketUrl, token])
 
   const handleWebSocketDisconnect = useCallback(() => {
     console.log('🔌 WebSocket disconnected for notifications')

@@ -38,7 +38,10 @@ export function UserInfoPanel({
 
   const getStatusText = (isOnline?: boolean, lastSeen?: string) => {
     if (isOnline) return "Online"
-    if (lastSeen) return `Last seen ${formatDistanceToNow(new Date(lastSeen))} ago`
+    if (lastSeen) {
+      const date = new Date(lastSeen);
+      return isNaN(date.getTime()) ? "Offline" : `Last seen ${formatDistanceToNow(date)} ago`;
+    }
     return "Offline"
   }
 
@@ -283,7 +286,14 @@ export function UserInfoPanel({
                         <div className="flex-1">
                           <p className="text-sm text-gray-900">{activity.description}</p>
                           <p className="text-xs text-gray-500 mt-1">
-                            {formatDistanceToNow(new Date(activity.timestamp))} ago
+                            {activity.timestamp ? 
+                              (() => {
+                                const date = new Date(activity.timestamp);
+                                return isNaN(date.getTime()) ? 'Unknown time' : 
+                                  `${formatDistanceToNow(date)} ago`;
+                              })() : 
+                              'Unknown time'
+                            }
                           </p>
                         </div>
                       </div>

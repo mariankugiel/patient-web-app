@@ -342,6 +342,7 @@ export default function MessagesClientPage() {
     markConversationAsRead,
     archiveConversation,
     togglePin,
+    deleteConversation,
     handleMedicationAction,
     handleAppointmentAction,
     handleLabResultAction,
@@ -386,19 +387,19 @@ export default function MessagesClientPage() {
     
     // Check if conversation matches any selected filter
     if (selectedFilters.includes("doctors")) {
-      if (conv.contact.role.includes("Physician") ||
-          conv.contact.role.includes("Cardiologist") ||
-          conv.contact.role.includes("Endocrinologist") ||
-          conv.contact.role.includes("Doctor")) {
+      if (conv.contact?.role?.includes("Physician") ||
+          conv.contact?.role?.includes("Cardiologist") ||
+          conv.contact?.role?.includes("Endocrinologist") ||
+          conv.contact?.role?.includes("Doctor")) {
         return true
       }
     }
     
     if (selectedFilters.includes("system")) {
-      if (conv.contact.role.includes("System") ||
-          conv.contact.role.includes("Team") ||
-          conv.contact.role.includes("Support") ||
-          conv.contact.role.includes("Admin")) {
+      if (conv.contact?.role?.includes("System") ||
+          conv.contact?.role?.includes("Team") ||
+          conv.contact?.role?.includes("Support") ||
+          conv.contact?.role?.includes("Admin")) {
         return true
       }
     }
@@ -542,7 +543,12 @@ export default function MessagesClientPage() {
       // Create a new conversation and send the first message
       const conversation = await messagesApiService.createConversation(
         selectedRecipient.id,
-        newMessageContent.trim()
+        newMessageContent.trim(),
+        {
+          name: selectedRecipient.name,
+          role: selectedRecipient.role,
+          avatar: selectedRecipient.avatar
+        }
       )
 
       // Clear the inputs and close dialog
@@ -642,7 +648,7 @@ export default function MessagesClientPage() {
                           Doctors
                         </label>
                         <span className="text-xs text-gray-500">
-                          {conversations.filter(c => c.contact.role.includes("Doctor") || c.contact.role.includes("Physician")).length}
+                          {conversations.filter(c => c.contact?.role?.includes("Doctor") || c.contact?.role?.includes("Physician")).length}
                         </span>
                       </div>
                       
@@ -660,7 +666,7 @@ export default function MessagesClientPage() {
                           System
                         </label>
                         <span className="text-xs text-gray-500">
-                          {conversations.filter(c => c.contact.role.includes("System") || c.contact.role.includes("Support")).length}
+                          {conversations.filter(c => c.contact?.role?.includes("System") || c.contact?.role?.includes("Support")).length}
                         </span>
                       </div>
                       
@@ -780,15 +786,15 @@ export default function MessagesClientPage() {
                       onClick={() => setShowUserInfo(!showUserInfo)}
                     >
                       <AvatarImage
-                        src={selectedConversation.contact.avatar || "/placeholder.svg"}
-                        alt={selectedConversation.contact.name}
+                        src={selectedConversation.contact?.avatar || "/placeholder.svg"}
+                        alt={selectedConversation.contact?.name || "Unknown"}
                       />
-                      <AvatarFallback>{selectedConversation.contact.name.charAt(0)}</AvatarFallback>
+                      <AvatarFallback>{selectedConversation.contact?.name?.charAt(0) || "U"}</AvatarFallback>
                     </Avatar>
                     <div>
-                      <div className="font-medium text-gray-900">{selectedConversation.contact.name}</div>
+                      <div className="font-medium text-gray-900">{selectedConversation.contact?.name || "Unknown"}</div>
                       <div className="text-sm text-gray-500 flex items-center gap-2">
-                        {selectedConversation.contact.isOnline ? (
+                        {selectedConversation.contact?.isOnline ? (
                           <span className="flex items-center gap-1">
                             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                             Online
@@ -796,8 +802,12 @@ export default function MessagesClientPage() {
                         ) : (
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            {selectedConversation.contact.lastSeen ? 
-                              `Last seen ${formatDistanceToNow(new Date(selectedConversation.contact.lastSeen))} ago` :
+                            {selectedConversation.contact?.lastSeen ? 
+                              (() => {
+                                const date = new Date(selectedConversation.contact.lastSeen);
+                                return isNaN(date.getTime()) ? 'Offline' : 
+                                  `Last seen ${formatDistanceToNow(date)} ago`;
+                              })() :
                               'Offline'
                             }
                           </span>
@@ -822,7 +832,10 @@ export default function MessagesClientPage() {
                           <Archive className="h-4 w-4 mr-2" />
                           Archive
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600">
+                        <DropdownMenuItem 
+                          className="text-red-600"
+                          onClick={() => deleteConversation(selectedConversation.id)}
+                        >
                           <Trash2 className="h-4 w-4 mr-2" />
                           Delete
                         </DropdownMenuItem>

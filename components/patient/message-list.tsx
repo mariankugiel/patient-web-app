@@ -45,7 +45,14 @@ export function MessageList({ messages, selectedId, onSelect }: MessageListProps
               <div className="flex items-start justify-between">
                 <div className="font-medium">{message.sender.name}</div>
                 <div className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(message.date), { addSuffix: true })}
+                  {message.date ? 
+                    (() => {
+                      const date = new Date(message.date);
+                      return isNaN(date.getTime()) ? 'Unknown time' : 
+                        formatDistanceToNow(date, { addSuffix: true });
+                    })() : 
+                    'Unknown time'
+                  }
                 </div>
               </div>
               <div className="mt-1 text-sm font-medium">{message.subject}</div>

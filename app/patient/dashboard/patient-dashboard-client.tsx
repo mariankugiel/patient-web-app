@@ -663,7 +663,14 @@ export default function PatientDashboardClient() {
                     <div className="text-sm font-medium">{message.subject}</div>
                     <div className="mt-1 text-xs text-muted-foreground line-clamp-1">{message.preview}</div>
                     <div className="mt-1 text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(message.date), { addSuffix: true })}
+                      {message.date ? 
+                        (() => {
+                          const date = new Date(message.date);
+                          return isNaN(date.getTime()) ? 'Unknown time' : 
+                            formatDistanceToNow(date, { addSuffix: true });
+                        })() : 
+                        'Unknown time'
+                      }
                     </div>
                   </div>
                 ))}

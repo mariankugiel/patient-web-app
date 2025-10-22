@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo } from "react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -226,75 +226,9 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
   const [phoneCountrySearch, setPhoneCountrySearch] = useState("")
   const [emergencyCountrySearch, setEmergencyCountrySearch] = useState("")
 
-  // Show only popular countries initially to improve performance
-  const POPULAR_COUNTRIES = [
-    { name: "United States", code: "US", dial: "+1" },
-    { name: "Canada", code: "CA", dial: "+1" },
-    { name: "United Kingdom", code: "GB", dial: "+44" },
-    { name: "Portugal", code: "PT", dial: "+351" },
-    { name: "Australia", code: "AU", dial: "+61" },
-    { name: "Germany", code: "DE", dial: "+49" },
-    { name: "France", code: "FR", dial: "+33" },
-    { name: "Japan", code: "JP", dial: "+81" },
-    { name: "China", code: "CN", dial: "+86" },
-    { name: "India", code: "IN", dial: "+91" },
-    { name: "Brazil", code: "BR", dial: "+55" }
-  ]
+  const filteredPhoneCountries = COUNTRY_CODES;
 
-  // Efficient filtering with debouncing
-  const filteredPhoneCountries = useMemo(() => {
-    if (!phoneCountrySearch.trim()) {
-      return POPULAR_COUNTRIES // Show only popular countries initially
-    }
-    
-    // Only search if user has typed at least 2 characters
-    if (phoneCountrySearch.length < 2) {
-      return POPULAR_COUNTRIES
-    }
-    
-    // Efficient search with early termination
-    const searchTerm = phoneCountrySearch.toLowerCase()
-    const results = []
-    
-    for (const country of COUNTRY_CODES) {
-      if (country.name.toLowerCase().includes(searchTerm) ||
-          country.code.toLowerCase().includes(searchTerm) ||
-          country.dial.includes(phoneCountrySearch)) {
-        results.push(country)
-        // Limit results to prevent UI lag
-        if (results.length >= 50) break
-      }
-    }
-    
-    return results
-  }, [phoneCountrySearch])
-
-  const filteredEmergencyCountries = useMemo(() => {
-    if (!emergencyCountrySearch.trim()) {
-      return POPULAR_COUNTRIES // Show only popular countries initially
-    }
-    
-    // Only search if user has typed at least 2 characters
-    if (emergencyCountrySearch.length < 2) {
-      return POPULAR_COUNTRIES
-    }
-    
-    // Efficient search with early termination
-    const searchTerm = emergencyCountrySearch.toLowerCase()
-    const results = []
-    
-    for (const country of COUNTRY_CODES) {
-      if (country.name.toLowerCase().includes(searchTerm) ||
-          country.code.toLowerCase().includes(searchTerm) ||
-          country.dial.includes(emergencyCountrySearch)) {
-        results.push(country)
-        // Limit results to prevent UI lag
-        if (results.length >= 50) break
-      }
-    }
-    
-    return results
-  }, [emergencyCountrySearch])
+  const filteredEmergencyCountries = COUNTRY_CODES;
 
   return (
     <div className="space-y-6">
@@ -505,12 +439,12 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
                     />
                   </div>
                   <div className="max-h-[200px] overflow-y-auto">
-                    {filteredEmergencyCountries.map((country) => (
+                    {/* {filteredEmergencyCountries.map((country) => (
                       <SelectItem key={country.code} value={country.dial}>
                         <span className="font-medium">{country.code}</span>{" "}
                         <span className="text-xs text-muted-foreground">{country.dial}</span>
                       </SelectItem>
-                    ))}
+                    ))} */}
                   </div>
                 </SelectContent>
               </Select>

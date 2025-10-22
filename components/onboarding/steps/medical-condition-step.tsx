@@ -11,8 +11,6 @@ import { PastConditionsDialog } from "@/components/health-records/past-condition
 import { PastSurgeriesDialog } from "@/components/health-records/past-surgeries-dialog"
 import { MedicationsDialog } from '@/components/onboarding/dialogs/medications-dialog'
 import { MedicalConditionApiService } from '@/lib/api/medical-condition-api'
-import { medicationsApiService } from '@/lib/api/medications-api'
-import { medicationRemindersApiService } from '@/lib/api/medication-reminders-api'
 
 interface MedicalConditionStepProps {
   language: Language
@@ -44,64 +42,6 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
       })
     } catch (error) {
       return dateString
-    }
-  }
-
-  // Helper function to format frequency in user-friendly way
-  const formatFrequency = (frequency: string): string => {
-    if (!frequency) return "Not specified"
-    
-    // Convert technical frequency values to user-friendly labels
-    const frequencyMap: Record<string, string> = {
-      'once-daily': 'Once daily',
-      'twice-daily': 'Twice daily',
-      'three-times-daily': 'Three times daily',
-      'four-times-daily': 'Four times daily',
-      'as-needed': 'As needed',
-      'weekly': 'Weekly',
-      'monthly': 'Monthly',
-      'daily': 'Daily',
-      'bid': 'Twice daily',
-      'tid': 'Three times daily',
-      'qid': 'Four times daily',
-      'qd': 'Daily',
-      'prn': 'As needed'
-    }
-    
-    return frequencyMap[frequency.toLowerCase()] || frequency
-  }
-
-  // Helper function to format reminder display
-  const formatReminderDisplay = (medication: any): string => {
-    if (!medication.has_reminder || !medication.reminder_time) return ""
-    
-    const time = medication.reminder_time
-    const days = medication.reminder_days
-    
-    // Format time to HH:MM style
-    let display = ""
-    if (time) {
-      // Handle both "08:00:00" and "08:00" formats
-      const timeOnly = time.split(' ')[0] // Remove date part if present
-      const [hours, minutes] = timeOnly.split(':')
-      display = `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`
-    }
-    
-    return display
-  }
-
-  // Helper function to format reminder days display
-  const formatReminderDaysDisplay = (medication: any): string => {
-    if (!medication.has_reminder || !medication.reminder_days) return ""
-    
-    const days = medication.reminder_days
-    
-    if (days.length === 7) {
-      return "Daily"
-    } else if (days.length === 5 && !days.includes('Saturday') && !days.includes('Sunday')) {
-      return "Weekdays"
-    } else {
-      return days.join(', ')
     }
   }
 
@@ -146,7 +86,7 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
       const [allConditions, surgeries, medicationsData] = await Promise.all([
         MedicalConditionApiService.getAllMedicalConditions(),
         MedicalConditionApiService.getPastSurgeries(),
-        medicationsApiService.getMedications()
+        MedicalConditionApiService.getMedications()
       ])
 
       // Filter conditions by status
@@ -162,39 +102,7 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
       setCurrentHealthProblems(currentProblems)
       setPastMedicalConditions(pastConditions)
       setPastSurgeries(surgeries)
-      
-      // Map backend fields to frontend fields for medications display
-      const mappedMedications = await Promise.all(medicationsData.map(async (medication: any) => {
-        // Fetch reminder data for each medication
-        let hasReminder = false
-        let reminderTime = null
-        let reminderDays = null
-        
-        try {
-          console.log(`Fetching reminders for medication ${medication.id} (${medication.medication_name})`)
-          const reminders = await medicationRemindersApiService.getReminders(medication.id)
-          console.log(`Reminders for medication ${medication.id}:`, reminders)
-          if (reminders && reminders.length > 0) {
-            hasReminder = true
-            reminderTime = reminders[0]?.reminder_time
-            reminderDays = reminders[0]?.days_of_week || reminders[0]?.reminder_days
-            console.log(`Reminder data for ${medication.medication_name}:`, { reminderTime, reminderDays })
-          }
-        } catch (error) {
-          console.warn(`Failed to fetch reminders for medication ${medication.id}:`, error)
-        }
-        
-        return {
-          ...medication,
-          drugName: medication.medication_name,
-          drug_name: medication.medication_name, // Alternative field name
-          notes: medication.instructions,
-          has_reminder: hasReminder,
-          reminder_time: reminderTime,
-          reminder_days: reminderDays
-        }
-      }))
-      setMedications(mappedMedications)
+      setMedications(medicationsData)
     } catch (err) {
       console.error('Failed to load medical conditions:', err)
       setError('Failed to load medical conditions data')
@@ -245,39 +153,8 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
   const refreshMedications = async () => {
     console.log('refreshMedications called')
     try {
-      const medicationsData = await medicationsApiService.getMedications()
-      // Map backend fields to frontend fields for display
-      const mappedMedications = await Promise.all(medicationsData.map(async (medication: any) => {
-        // Fetch reminder data for each medication
-        let hasReminder = false
-        let reminderTime = null
-        let reminderDays = null
-        
-        try {
-          console.log(`Fetching reminders for medication ${medication.id} (${medication.medication_name})`)
-          const reminders = await medicationRemindersApiService.getReminders(medication.id)
-          console.log(`Reminders for medication ${medication.id}:`, reminders)
-          if (reminders && reminders.length > 0) {
-            hasReminder = true
-            reminderTime = reminders[0]?.reminder_time
-            reminderDays = reminders[0]?.days_of_week || reminders[0]?.reminder_days
-            console.log(`Reminder data for ${medication.medication_name}:`, { reminderTime, reminderDays })
-          }
-        } catch (error) {
-          console.warn(`Failed to fetch reminders for medication ${medication.id}:`, error)
-        }
-        
-        return {
-          ...medication,
-          drugName: medication.medication_name,
-          drug_name: medication.medication_name, // Alternative field name
-          notes: medication.instructions,
-          has_reminder: hasReminder,
-          reminder_time: reminderTime,
-          reminder_days: reminderDays
-        }
-      }))
-      setMedications(mappedMedications)
+      const medicationsData = await MedicalConditionApiService.getMedications()
+      setMedications(medicationsData)
     } catch (err) {
       console.error('Failed to refresh medications:', err)
     }
@@ -288,70 +165,14 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
     loadData()
   }, [])
 
+  // Targeted update functions for better performance
+
   // Save handlers for dialogs
-  const handleMedicationSave = async (medication: any) => {
-    try {
-      console.log('Saving medication:', medication)
-      
-      // Map frontend fields to backend API fields
-      const backendMedication = {
-        medication_name: medication.drugName,
-        medication_type: 'prescription' as const, // Default to prescription for onboarding
-        dosage: medication.dosage,
-        frequency: medication.frequency,
-        purpose: medication.purpose,
-        instructions: medication.notes || medication.instructions,
-        start_date: new Date().toISOString().split('T')[0], // Current date as start date
-        // Prescription fields (optional)
-        rx_number: medication.rxNumber,
-        pharmacy: medication.pharmacy,
-        original_quantity: medication.originalQuantity,
-        refills_remaining: medication.refillsRemaining,
-        last_filled_date: medication.lastFilledDate
-      }
-      
-      console.log('Mapped medication for backend:', backendMedication)
-      
-      let savedMedication
-      if (selectedMedication) {
-        // Update existing medication
-        savedMedication = await medicationsApiService.updateMedication(medication.id, backendMedication)
-      } else {
-        // Create new medication
-        savedMedication = await medicationsApiService.createMedication(backendMedication)
-      }
-      
-      // Handle reminder creation/update
-      if (medication.hasReminder && savedMedication?.id) {
-        try {
-          const reminderData = {
-            medication_id: savedMedication.id,
-            reminder_time: formatTimeForBackend(medication.reminderTime),
-            days_of_week: medication.reminderDays || []
-          }
-          
-          if (selectedMedication && medication.hasReminder) {
-            // Update existing reminder (you might need to get the reminder ID first)
-            console.log('Updating reminder for medication:', savedMedication.id)
-            // TODO: Implement reminder update logic
-          } else if (medication.hasReminder) {
-            // Create new reminder
-            console.log('Creating new reminder:', reminderData)
-            await medicationRemindersApiService.createReminder(reminderData)
-          }
-        } catch (error) {
-          console.error('Failed to save reminder:', error)
-          // Don't fail the whole operation if reminder fails
-        }
-      }
-      
-      setShowMedicationsDialog(false)
-      setSelectedMedication(null)
-      refreshMedications() // Refresh medications data
-    } catch (error) {
-      console.error('Failed to save medication:', error)
-      // Keep dialog open on error so user can retry
-    }
+  const handleMedicationSave = (medication: any) => {
+    console.log('Medication saved:', medication)
+    setShowMedicationsDialog(false)
+    setSelectedMedication(null)
+    refreshMedications() // Refresh medications data
   }
 
   // ============================================================================
@@ -364,55 +185,8 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
   }
 
   const openMedicationsDialog = (medication?: any) => {
-    if (medication) {
-      // Map backend fields to dialog fields
-      const mappedMedication = {
-        ...medication,
-        drugName: medication.drugName || medication.drug_name || medication.medication_name,
-        hasReminder: medication.has_reminder || false,
-        reminderTime: medication.reminder_time ? formatTimeForDialog(medication.reminder_time) : '',
-        reminderDays: medication.reminder_days || []
-      }
-      
-      console.log('Original reminder time from backend:', medication.reminder_time)
-      console.log('Formatted reminder time for dialog:', mappedMedication.reminderTime)
-      setSelectedMedication(mappedMedication)
-    } else {
-      setSelectedMedication(null)
-    }
+    setSelectedMedication(medication || null)
     setShowMedicationsDialog(true)
-  }
-
-  // Helper function to format time for dialog (convert "08:00:00" to "08:00")
-  const formatTimeForDialog = (timeString: string): string => {
-    if (!timeString) return ''
-    
-    // Handle different time formats
-    if (timeString.includes(':')) {
-      const parts = timeString.split(':')
-      if (parts.length >= 2) {
-        return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
-      }
-    }
-    
-    return timeString
-  }
-
-  // Helper function to format time for backend (convert "08:00" to "08:00:00")
-  const formatTimeForBackend = (timeString: string): string => {
-    if (!timeString) return ''
-    
-    // If already has seconds, return as is
-    if (timeString.split(':').length === 3) {
-      return timeString
-    }
-    
-    // Add seconds if missing
-    if (timeString.split(':').length === 2) {
-      return `${timeString}:00`
-    }
-    
-    return timeString
   }
 
   const openPastConditionsDialog = (condition?: any) => {
@@ -557,14 +331,11 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
                   <span className="font-medium">Dosage:</span> {medication.dosage}
                 </div>
                 <div>
-                  <span className="font-medium">Frequency:</span> {formatFrequency(medication.frequency)}
+                  <span className="font-medium">Frequency:</span> {medication.frequency}
                 </div>
-                {medication.has_reminder && formatReminderDisplay(medication) && (
-                  <div>
-                    <span className="font-medium">Reminder:</span> {formatReminderDisplay(medication)}
-                    {formatReminderDaysDisplay(medication) && (
-                      <span className="text-gray-600 ml-2">({formatReminderDaysDisplay(medication)})</span>
-                    )}
+                  {medication.has_reminder && (
+                    <div>
+                      <span className="font-medium">Reminder:</span> {medication.reminder_time} ({medication.reminder_days?.join(', ') || 'Daily'})
                   </div>
                 )}
                 </div>

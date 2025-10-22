@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { HealthRecordMetric } from "@/lib/api/health-records-api"
+import { Tip } from "@/components/ui/tip"
 
 interface AddHealthTaskDialogProps {
   open: boolean
@@ -19,10 +20,8 @@ interface AddHealthTaskDialogProps {
     metric: string
     frequency: string
     time: string
-    targetDays: number
     targetOperator: string
     targetValue: string
-    targetUnit: string
   }) => Promise<void>
   isLoading: boolean
   healthGoals: any[]
@@ -31,6 +30,7 @@ interface AddHealthTaskDialogProps {
   isLoadingMetrics: boolean
   onLoadHealthGoals: () => Promise<void>
   onLoadAvailableMetrics: () => Promise<void>
+  editingTask?: any
 }
 
 export default function AddHealthTaskDialog({
@@ -43,7 +43,8 @@ export default function AddHealthTaskDialog({
   isLoadingGoals,
   isLoadingMetrics,
   onLoadHealthGoals,
-  onLoadAvailableMetrics
+  onLoadAvailableMetrics,
+  editingTask
 }: AddHealthTaskDialogProps) {
   const { t } = useLanguage()
   
@@ -53,13 +54,48 @@ export default function AddHealthTaskDialog({
     metric: "none",
     frequency: "",
     time: "morning", // Default to morning
-    targetDays: 1, // Add this field for weekly/monthly tasks
     targetOperator: "", // Target operator (below, above)
     targetValue: "", // Target value (e.g., "3")
-    targetUnit: "", // Target unit (e.g., "times per week")
   })
   
   const [taskFormErrors, setTaskFormErrors] = useState<{[key: string]: string}>({})
+
+  // Populate form when editing
+  // Load metrics when dialog opens (health goals are loaded by parent component)
+  useEffect(() => {
+    if (open) {
+      if (availableMetrics.length === 0) {
+        onLoadAvailableMetrics()
+      }
+      // Health goals are now loaded by the parent component, so we don't need to load them here
+    }
+  }, [open, availableMetrics.length, onLoadAvailableMetrics])
+
+  useEffect(() => {
+    if (editingTask) {
+      console.log("Editing task data:", editingTask)
+      setTaskForm({
+        name: editingTask.name || "",
+        healthGoals: editingTask.originalHealthGoals || [],
+        metric: editingTask.originalMetricId?.toString() || "none",
+        frequency: editingTask.originalFrequency || "",
+        time: editingTask.originalTimeOfDay || "morning",
+        targetOperator: editingTask.originalTargetOperator || "",
+        targetValue: editingTask.originalTargetValue?.toString() || "",
+      })
+    } else {
+      // Reset form for new task
+      setTaskForm({
+        name: "",
+        healthGoals: [],
+        metric: "none",
+        frequency: "",
+        time: "morning",
+        targetOperator: "",
+        targetValue: "",
+      })
+    }
+  }, [editingTask, open])
 
   // Helper function to get grid column classes - operator select is smaller, value input is wider
   const getTargetGridClasses = () => {
@@ -73,14 +109,12 @@ export default function AddHealthTaskDialog({
     if (!taskForm.name.trim()) {
       errors.name = t("healthPlan.taskNameRequired")
     }
-    if (!taskForm.metric || taskForm.metric === "none") {
-      errors.metric = t("healthPlan.metricRequired")
-    }
+    // Metric is optional for onboarding
+    // if (!taskForm.metric || taskForm.metric === "none") {
+    //   errors.metric = t("healthPlan.metricRequired")
+    // }
     if (!taskForm.frequency) {
       errors.frequency = t("healthPlan.frequencyRequired")
-    }
-    if ((taskForm.frequency === "weekly" || taskForm.frequency === "monthly") && !taskForm.targetDays) {
-      errors.targetDays = t("healthPlan.targetDaysRequired")
     }
     if (!taskForm.targetOperator.trim()) {
       errors.targetOperator = t("healthPlan.targetOperatorRequired")
@@ -89,9 +123,6 @@ export default function AddHealthTaskDialog({
       errors.targetValue = t("healthPlan.targetValueRequired")
     } else if (isNaN(Number(taskForm.targetValue))) {
       errors.targetValue = t("healthPlan.targetValueInvalid")
-    }
-    if (!taskForm.targetUnit.trim()) {
-      errors.targetUnit = t("healthPlan.targetUnitRequired")
     }
     
     setTaskFormErrors(errors)
@@ -111,7 +142,7 @@ export default function AddHealthTaskDialog({
     onOpenChange(open)
     if (!open) {
       // Reset form when dialog closes
-      setTaskForm({ name: "", healthGoals: [], metric: "none", frequency: "", time: "morning", targetDays: 1, targetOperator: "", targetValue: "", targetUnit: "" })
+      setTaskForm({ name: "", healthGoals: [], metric: "none", frequency: "", time: "morning", targetOperator: "", targetValue: "" })
       setTaskFormErrors({})
     }
   }
@@ -145,12 +176,6 @@ export default function AddHealthTaskDialog({
             </Label>
             <div className="col-span-2">
               <Select
-                onOpenChange={async (open) => {
-                  if (open && healthGoals.length === 0) {
-                    // Load health goals only when dropdown opens and goals are not already loaded
-                    await onLoadHealthGoals()
-                  }
-                }}
                 onValueChange={(value) => {
                   if (value && value !== "loading") {
                     if (value === "none") {
@@ -239,12 +264,6 @@ export default function AddHealthTaskDialog({
             </Label>
             <Select
               value={taskForm.metric}
-              onOpenChange={async (open) => {
-                if (open && availableMetrics.length === 0) {
-                  // Load metrics only when dropdown opens and metrics are not already loaded
-                  await onLoadAvailableMetrics()
-                }
-              }}
               onValueChange={(value) => {
                 setTaskForm({ ...taskForm, metric: value })
                 if (taskFormErrors.metric) {
@@ -287,14 +306,44 @@ export default function AddHealthTaskDialog({
             )}
           </div>
           
+          {/* Frequency Field - moved above target field */}
           <div className="grid grid-cols-3 items-center gap-4">
-            <Label htmlFor="task-target" className="text-right">
-              <span className="text-red-500">*</span> {t("healthPlan.goalTarget")}
+            <Label htmlFor="task-frequency" className="text-right">
+              <span className="text-red-500">*</span> {t("healthPlan.taskFrequency")}
             </Label>
+            <Select
+              value={taskForm.frequency}
+              onValueChange={(value) => setTaskForm({ ...taskForm, frequency: value })}
+            >
+              <SelectTrigger className={`col-span-2 ${taskFormErrors.frequency ? "border-red-500" : ""}`}>
+                <SelectValue placeholder="Select frequency" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+              </SelectContent>
+            </Select>
+            {taskFormErrors.frequency && (
+              <p className="col-span-2 text-sm text-red-500">{taskFormErrors.frequency}</p>
+            )}
+          </div>
+
+       <div className="grid grid-cols-3 items-center gap-4">
+         <div className="text-right flex items-center justify-end gap-2">
+           <Tip content={
+             taskForm.frequency === "daily" 
+               ? "For Daily task:\n• Set how many times you want to complete this task each day\n• The total for the week will be calculated automatically (target × 7 days)"
+               : "For Weekly/Monthly task:\n• Set how many days you want to complete this task within the period\n• This is the total number of days you need to complete"
+           } />
+           <Label htmlFor="task-target">
+             <span className="text-red-500">*</span> {t("healthPlan.goalTarget")}
+           </Label>
+         </div>
             <div className="col-span-2 space-y-1">
-              <div className="grid grid-cols-2 gap-2 items-center">
+              <div className={`grid ${getTargetGridClasses()} gap-2 items-center`}>
                 {/* Target Operator Select */}
-                <div>
+                <div className="flex items-center gap-2">
                   <Select
                     value={taskForm.targetOperator}
                     onValueChange={(value) => {
@@ -320,6 +369,7 @@ export default function AddHealthTaskDialog({
                     id="task-target-value"
                     type="number"
                     step="any"
+                    min="1"
                     value={taskForm.targetValue}
                     onChange={(e) => {
                       setTaskForm({ ...taskForm, targetValue: e.target.value })
@@ -330,6 +380,11 @@ export default function AddHealthTaskDialog({
                     className={taskFormErrors.targetValue ? "border-red-500" : ""}
                     placeholder="e.g., 3"
                   />
+                </div>
+
+                {/* Unit Display - based on frequency */}
+                <div className="flex items-center h-10 px-2 text-sm text-muted-foreground whitespace-nowrap">
+                  {taskForm.frequency === "daily" ? "times" : "days"}
                 </div>
               </div>
               {(taskFormErrors.targetOperator || taskFormErrors.targetValue) && (
@@ -344,75 +399,6 @@ export default function AddHealthTaskDialog({
               )}
             </div>
           </div>
-          
-          {/* Unit Input as separate row */}
-          <div className="grid grid-cols-3 items-center gap-4">
-            <Label htmlFor="task-target-unit" className="text-right">
-              {t("healthPlan.goalUnit")}
-            </Label>
-            <div className="col-span-2">
-              <Input
-                id="task-target-unit"
-                value={taskForm.targetUnit}
-                onChange={(e) => {
-                  setTaskForm({ ...taskForm, targetUnit: e.target.value })
-                  if (taskFormErrors.targetUnit) {
-                    setTaskFormErrors({ ...taskFormErrors, targetUnit: "" })
-                  }
-                }}
-                className={taskFormErrors.targetUnit ? "border-red-500" : ""}
-                placeholder="e.g., times per week"
-              />
-              {taskFormErrors.targetUnit && (
-                <p className="text-sm text-red-500 mt-1">{taskFormErrors.targetUnit}</p>
-              )}
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-3 items-center gap-4">
-            <Label htmlFor="task-frequency" className="text-right">
-              <span className="text-red-500">*</span> {t("healthPlan.taskFrequency")}
-            </Label>
-            <Select
-              value={taskForm.frequency}
-              onValueChange={(value) => setTaskForm({ ...taskForm, frequency: value })}
-            >
-              <SelectTrigger className={`col-span-2 ${taskFormErrors.metric ? "border-red-500" : ""}`}>
-                <SelectValue placeholder="Select frequency" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-              </SelectContent>
-            </Select>
-            {taskFormErrors.metric && (
-              <p className="col-span-2 text-sm text-red-500">{taskFormErrors.metric}</p>
-            )}
-          </div>
-          
-          {(taskForm.frequency === "weekly" || taskForm.frequency === "monthly") && (
-            <div className="grid grid-cols-3 items-center gap-4">
-              <Label htmlFor="task-target-days" className="text-right">
-                <span className="text-red-500">*</span> {t("healthPlan.taskTargetDays")}
-            </Label>
-            <Input
-                id="task-target-days"
-                type="number"
-                min="1"
-                max={taskForm.frequency === "weekly" ? "7" : "31"}
-                value={taskForm.targetDays}
-                onChange={(e) =>
-                  setTaskForm({ ...taskForm, targetDays: Number.parseInt(e.target.value) || 1 })
-                }
-                className="col-span-2"
-                placeholder={
-                  taskForm.frequency === "weekly" ? "Days per week (1-7)" : "Days per month (1-31)"
-                }
-                required
-              />
-            </div>
-          )}
           
           <div className="grid grid-cols-3 items-center gap-4">
             <Label htmlFor="task-time" className="text-right">
@@ -441,10 +427,10 @@ export default function AddHealthTaskDialog({
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Adding...
+                {editingTask ? "Updating..." : "Adding..."}
               </>
             ) : (
-              t("healthPlan.addTask")
+              editingTask ? t("healthPlan.updateTask") : t("healthPlan.addTask")
             )}
           </Button>
         </DialogFooter>

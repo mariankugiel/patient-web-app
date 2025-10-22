@@ -1,15 +1,7 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Edit, Trash2, Clock } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 
 interface TaskItemProps {
   task: {
@@ -23,7 +15,7 @@ interface TaskItemProps {
   completed: number
   total: number
   onEdit: (task: any, type: string) => void
-  onDelete: (taskId: string) => void
+  onDelete: (task: any) => void
   getHealthGoalNames: (goalIds: string[]) => string
   t: (key: string) => string
 }
@@ -37,19 +29,8 @@ export function TaskItem({
   getHealthGoalNames, 
   t 
 }: TaskItemProps) {
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-
   const handleDeleteClick = () => {
-    setShowDeleteDialog(true)
-  }
-
-  const handleConfirmDelete = () => {
-    onDelete(task.id)
-    setShowDeleteDialog(false)
-  }
-
-  const handleCancelDelete = () => {
-    setShowDeleteDialog(false)
+    onDelete(task)
   }
 
   return (
@@ -86,7 +67,7 @@ export function TaskItem({
           <span className="text-sm text-muted-foreground">{task.time_of_day}</span>
         </div>
         <Badge variant="outline">
-          {completed}/{total}
+          {`${completed}/${total}`}
         </Badge>
         <div className="flex items-center space-x-1">
           <Button
@@ -108,25 +89,6 @@ export function TaskItem({
         </div>
       </div>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>{t("healthPlan.confirmDeleteTask")}</DialogTitle>
-            <DialogDescription>
-              {t("healthPlan.confirmDeleteTaskDesc").replace("{taskName}", task.name)}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCancelDelete}>
-              {t("common.cancel")}
-            </Button>
-            <Button variant="destructive" onClick={handleConfirmDelete}>
-              {t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

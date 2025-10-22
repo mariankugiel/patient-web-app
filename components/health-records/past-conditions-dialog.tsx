@@ -61,16 +61,12 @@ export function PastConditionsDialog({
         setIsEditMode(true)
         const formattedCondition = {
           ...selectedCondition,
-          // Map backend fields to frontend fields
-          condition: selectedCondition.condition_name || selectedCondition.condition || '',
-          diagnosedDate: selectedCondition.diagnosed_date?.includes('T') 
-            ? selectedCondition.diagnosed_date.split('T')[0] 
-            : selectedCondition.diagnosed_date || '',
-          resolvedDate: selectedCondition.resolved_date?.includes('T') 
-            ? selectedCondition.resolved_date.split('T')[0] 
-            : selectedCondition.resolved_date || '',
-          treatment: selectedCondition.treatment_plan || selectedCondition.treatment || '',
-          notes: selectedCondition.description || selectedCondition.notes || ''
+          diagnosedDate: selectedCondition.diagnosedDate?.includes('T') 
+            ? selectedCondition.diagnosedDate.split('T')[0] 
+            : selectedCondition.diagnosedDate || '',
+          resolvedDate: selectedCondition.resolvedDate?.includes('T') 
+            ? selectedCondition.resolvedDate.split('T')[0] 
+            : selectedCondition.resolvedDate || ''
         }
         setEditingCondition(formattedCondition)
       } else {
