@@ -36,7 +36,6 @@ import { useLanguage } from "@/contexts/language-context"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { useTranslation } from "react-i18next"
 
 // Sample data for doctors
 const doctorsData = [
@@ -231,8 +230,7 @@ interface TimeSlot {
 
 export default function AppointmentsClientPage() {
   const { toast } = useToast()
-  const { language } = useLanguage()
-  const { t } = useTranslation()
+  const { language, t } = useLanguage()
 
   // Add cost information to appointments
   const extendedAppointments: ExtendedAppointment[] = appointments.map((apt) => ({
