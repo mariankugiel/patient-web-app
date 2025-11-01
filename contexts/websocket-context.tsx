@@ -77,8 +77,10 @@ export function WebSocketProvider({ children, userId }: { children: React.ReactN
       
       // Show browser notification for new messages
       if (message.data && message.data.message) {
+        // Use sender_id instead of sender.name since we simplified the message structure
+        const senderId = message.data.message.sender_id
         showBrowserNotification({
-          title: `New message from ${message.data.message.sender.name}`,
+          title: `New message from User ${senderId}`,
           message: message.data.message.content,
           type: 'message'
         }, markAsTaken, snoozeReminder)
@@ -102,15 +104,33 @@ export function WebSocketProvider({ children, userId }: { children: React.ReactN
 
   // Connect to global WebSocket manager
   useEffect(() => {
+    console.log('🔌 WebSocket useEffect triggered')
+    console.log('🔌 Token available:', !!token)
+    console.log('🔌 WebSocket URL:', websocketUrl)
+    
     if (token && websocketUrl) {
+      console.log('🔌 Attempting WebSocket connection...')
       globalWebSocketManager.connect(websocketUrl, token)
+    } else {
+      console.log('🔌 WebSocket connection skipped - missing token or URL')
     }
 
     // Set up event handlers
     const removeMessageHandler = globalWebSocketManager.addMessageHandler(handleWebSocketMessage)
     const removeConnectionHandler = globalWebSocketManager.addConnectionHandler(handleWebSocketConnect)
     const removeDisconnectHandler = globalWebSocketManager.addDisconnectHandler(handleWebSocketDisconnect)
-    // Note: Not registering error handler to avoid duplicate error logs
+    
+    // Add error handler for authentication errors
+    const handleWebSocketError = (error: Event) => {
+      console.error('🔐 WebSocket authentication error:', error)
+      // Check if it's an authentication error and redirect to login
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        window.location.href = '/auth/login'
+      }
+    }
+    const removeErrorHandler = globalWebSocketManager.addErrorHandler(handleWebSocketError)
 
     // Update state from global manager
     setIsConnected(globalWebSocketManager.connected)
@@ -120,6 +140,7 @@ export function WebSocketProvider({ children, userId }: { children: React.ReactN
       removeMessageHandler()
       removeConnectionHandler()
       removeDisconnectHandler()
+      removeErrorHandler()
     }
   }, [token, websocketUrl]) // Removed callback functions from dependencies
 

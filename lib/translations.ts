@@ -22,12 +22,22 @@ export const translations = {
     // Messages
     messages: {
       communicateWithTeam: "Communicate with your healthcare team",
+      subtitle: "Communicate with your healthcare team",
     },
     // Notifications
     notifications: {
       title: "Notifications",
       markAllAsRead: "Mark all as read",
       noNotifications: "No new notifications",
+    },
+    appointments: {
+      subtitle: "Manage your upcoming appointments",
+    },
+    permissions: {
+      subtitle: "Manage data sharing and access",
+    },
+    profile: {
+      subtitle: "Manage your profile and preferences",
     },
     // Navigation
     nav: {

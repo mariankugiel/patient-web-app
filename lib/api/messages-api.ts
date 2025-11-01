@@ -10,13 +10,15 @@ import type {
   MedicationReminderMessage,
   HealthPlanSupportMessage,
   AppointmentReminderMessage,
-  LabResultsMessage
+  LabResultsMessage,
+  MessageAttachment
 } from '@/types/messages'
 
 export class MessagesApiService {
   // Get all conversations with optional filtering
   async getConversations(filters?: MessageFilters): Promise<MessagesResponse> {
     try {
+      console.log('📋 API: Getting conversations with filters:', filters)
       const params = new URLSearchParams()
       
       if (filters?.type?.length) {
@@ -37,9 +39,10 @@ export class MessagesApiService {
       }
 
       const response = await apiClient.get(`/messages/conversations?${params.toString()}`)
+      console.log('📋 API: Conversations response:', response.data)
       return response.data
     } catch (error) {
-      console.error('Failed to fetch conversations:', error)
+      console.error('📋 API: Failed to fetch conversations:', error)
       throw error
     }
   }
@@ -47,12 +50,14 @@ export class MessagesApiService {
   // Get messages for a specific conversation
   async getConversationMessages(conversationId: string, page = 1, limit = 50): Promise<{ messages: Message[], hasMore: boolean }> {
     try {
+      console.log('📥 API: Getting messages for conversation:', conversationId)
       const response = await apiClient.get(`/messages/conversations/${conversationId}/messages`, {
         params: { page, limit }
       })
+      console.log('📥 API: Messages response:', response.data)
       return response.data
     } catch (error) {
-      console.error('Failed to fetch conversation messages:', error)
+      console.error('📥 API: Failed to fetch conversation messages:', error)
       throw error
     }
   }
@@ -60,10 +65,36 @@ export class MessagesApiService {
   // Send a new message
   async sendMessage(request: SendMessageRequest): Promise<SendMessageResponse> {
     try {
+      console.log('📤 API: Sending message request:', request)
       const response = await apiClient.post('/messages/send', request)
+      console.log('📤 API: Message sent successfully:', response.data)
       return response.data
     } catch (error) {
-      console.error('Failed to send message:', error)
+      console.error('📤 API: Failed to send message:', error)
+      throw error
+    }
+  }
+
+  // Upload file to S3 and return attachment data
+  async uploadFile(file: File): Promise<MessageAttachment> {
+    try {
+      console.log('📎 API: Uploading file:', file.name)
+      
+      // Create FormData for file upload
+      const formData = new FormData()
+      formData.append('file', file)
+      
+      // Upload to S3 (you'll need to implement this endpoint)
+      const response = await apiClient.post('/messages/upload-file', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+      
+      console.log('📎 API: File uploaded successfully:', response.data)
+      return response.data
+    } catch (error) {
+      console.error('📎 API: Failed to upload file:', error)
       throw error
     }
   }
@@ -224,6 +255,18 @@ export class MessagesApiService {
       return response.data
     } catch (error) {
       console.error('Failed to get available contacts:', error)
+      throw error
+    }
+  }
+
+  // Delete conversation
+  async deleteConversation(conversationId: string): Promise<void> {
+    try {
+      console.log('🗑️ API: Deleting conversation:', conversationId)
+      await apiClient.delete(`/messages/conversations/${conversationId}`)
+      console.log('🗑️ API: Conversation deleted successfully')
+    } catch (error) {
+      console.error('🗑️ API: Failed to delete conversation:', error)
       throw error
     }
   }

@@ -3,6 +3,8 @@
 import { DialogTrigger } from "@/components/ui/dialog"
 
 import { useState, useEffect } from "react"
+import { useSelector } from "react-redux"
+import { RootState } from "@/lib/store"
 import { medications as staticMedications } from "@/lib/data"
 import { medicationsApiService, Medication } from "@/lib/api/medications-api"
 import { Clock, Edit, FileText, Plus, Pill, Trash2, MessageSquare, Calendar, Send, Loader2 } from "lucide-react"
@@ -527,23 +529,15 @@ export default function MedicationsClientPage() {
     })
   }
 
+  // Get user data from Redux store
+  const { user } = useSelector((state: RootState) => state.auth)
+  const userName = user?.user_metadata?.full_name || "User"
+  const firstName = userName.split(' ')[0] || "User"
+
   return (
     <div className="container mx-auto py-4">
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-16 w-16 border-2 border-primary">
-            <AvatarImage src="/middle-aged-man-profile.png" alt="John Doe" />
-            <AvatarFallback>JD</AvatarFallback>
-          </Avatar>
-          <div>
-            <h1 className="text-2xl font-bold text-primary">
-              {language === "en" ? "Good morning, John!" : t("medications.greeting").replace("{name}", "John")}
-            </h1>
-            <p className="text-muted-foreground">
-              {language === "en" ? "Manage your medications and reminders" : t("medications.manageReminders")}
-            </p>
-          </div>
-        </div>
+        <div />
         <Dialog 
           open={openAddMedicationDialog} 
           onOpenChange={handleAddDialogClose}

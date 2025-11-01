@@ -1,11 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import { useSelector } from "react-redux"
 import { Bell, Filter } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useLanguage } from "@/contexts/language-context"
+import { RootState } from "@/lib/store"
 
 interface GlobalHeaderProps {
   title?: string
@@ -36,9 +38,10 @@ export function GlobalHeader({
     return t("greeting.evening")
   }
 
-  // Sample user data - in real app, this would come from context/API
-  const userName = "John Doe"
-  const userAvatar = "/middle-aged-man-profile.png"
+  // Get user data from Redux store
+  const { user } = useSelector((state: RootState) => state.auth)
+  const userName = user?.user_metadata?.full_name || "User"
+  const userAvatar = "/middle-aged-man-profile.png" // TODO: Get from user profile
   const defaultSubtitle = t("messages.communicateWithTeam")
 
   return (
@@ -46,7 +49,9 @@ export function GlobalHeader({
       <div className="flex items-center gap-4">
         <Avatar className="h-16 w-16 border-2 border-primary">
           <AvatarImage src={userAvatar} alt={userName} />
-          <AvatarFallback>JD</AvatarFallback>
+          <AvatarFallback>
+            {userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+          </AvatarFallback>
         </Avatar>
         <div>
           <h1 className="text-2xl font-bold text-primary">

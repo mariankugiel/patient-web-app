@@ -1,23 +1,21 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { Check, LogOut, Plus, Save, X } from "lucide-react"
+import { LogOut, Plus, Save, X, Pencil, Smartphone, Lock, CheckCircle2, Circle } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Slider } from "@/components/ui/slider"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
   DialogContent,
@@ -29,103 +27,307 @@ import {
 } from "@/components/ui/dialog"
 import { useLanguage } from "@/contexts/language-context"
 import { useToast } from "@/hooks/use-toast"
+import { ProfilePictureUpload } from "@/components/profile-picture-upload"
 import { LocationSearch } from "@/components/ui/location-search"
+import { countryCodes } from "@/lib/country-codes"
+import { timezones } from "@/lib/timezones"
 
 const profileFormSchema = z.object({
-  name: z.string().min(2, {
-    message: "Name must be at least 2 characters.",
+  firstName: z.string().min(2, {
+    message: "First name must be at least 2 characters.",
   }),
+  lastName: z.string().min(2, {
+    message: "Last name must be at least 2 characters.",
+  }),
+  dob: z.string(),
+  gender: z.string(),
+  height: z.string(),
+  bloodType: z.string(),
   email: z.string().email({
     message: "Please enter a valid email address.",
   }),
-  phone: z.string().min(10, {
-    message: "Phone number must be at least 10 digits.",
+  countryCode: z.string(),
+  countryName: z.string().optional(),
+  mobileNumber: z.string().min(5, {
+    message: "Please enter a valid mobile number.",
   }),
-  dob: z.string(),
-  address: z.string().min(5, {
-    message: "Address must be at least 5 characters.",
+  location: z.string().min(5, {
+    message: "Location must be at least 5 characters.",
   }),
-  height: z.string(),
-  weight: z.string(),
-  emergencyContact: z.string().min(5, {
-    message: "Emergency contact must be at least 5 characters.",
-  }),
-  bio: z.string().max(500, {
-    message: "Bio must not be longer than 500 characters.",
-  }),
+  timezone: z.string(),
 })
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>
 
 const defaultValues: Partial<ProfileFormValues> = {
-  name: "John Smith",
-  email: "john.smith@example.com",
-  phone: "(555) 123-4567",
+  firstName: "John",
+  lastName: "Smith",
   dob: "1985-04-12",
-  address: "123 Main St, Anytown, CA 94123",
-  height: "5'10\"",
-  weight: "175 lbs",
-  emergencyContact: "Jane Smith (Wife) - (555) 987-6543",
-  bio: "I'm a software engineer with a history of hypertension. I exercise regularly and try to maintain a balanced diet.",
+  gender: "male",
+  height: "178",
+  bloodType: "O+",
+  email: "john.smith@email.com",
+  countryCode: "+1",
+  countryName: "United States",
+  mobileNumber: "5551234567",
+  location: "San Francisco, CA",
+  timezone: "America/Los_Angeles",
 }
 
-const dataRequestSchema = z.object({
-  name: z.string().min(2, { message: "Name is required" }),
-  requestType: z.enum(["data-export", "data-deletion", "account-deletion"]),
-  reason: z.string().min(10, { message: "Please provide a reason for your request" }),
-  email: z.string().email({ message: "Please enter a valid email address" }),
+type EmergencyContact = {
+  id: number
+  name: string
+  relationship: string
+  countryCode: string
+  phone: string
+  email: string
+}
+
+const emergencyContactSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  relationship: z.string().min(2, "Relationship must be at least 2 characters"),
+  countryCode: z.string(),
+  phone: z.string().min(5, "Phone number must be at least 5 digits"),
+  email: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
 })
+
+type EmergencyContactFormValues = z.infer<typeof emergencyContactSchema>
+
+const emergencyInfoSchema = z.object({
+  allergies: z.string(),
+  pregnancy: z.string(),
+  medications: z.string(),
+  healthProblems: z.string(),
+  organDonor: z.boolean(),
+})
+
+type EmergencyInfoFormValues = z.infer<typeof emergencyInfoSchema>
+
+const passwordChangeSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required"),
+    newPassword: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+      .regex(/[0-9]/, "Password must contain at least one number")
+      .regex(/[^a-zA-Z0-9]/, "Password must contain at least one special character"),
+    confirmPassword: z.string().min(1, "Please confirm your password"),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+})
+
+type PasswordChangeFormValues = z.infer<typeof passwordChangeSchema>
 
 export default function ProfileClientPage() {
   const { t, language, setLanguage } = useLanguage()
   const [selectedLanguage, setSelectedLanguage] = useState(language)
+  const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">("light")
   const { toast } = useToast()
-  const [locationDetails, setLocationDetails] = useState<any>(null)
+  const [profileImage, setProfileImage] = useState("/middle-aged-man-profile.png")
+
+  useEffect(() => {
+    if (selectedTheme === "dark") {
+      document.documentElement.classList.add("dark")
+    } else {
+      document.documentElement.classList.remove("dark")
+    }
+  }, [selectedTheme])
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null
+    if (savedTheme) {
+      setSelectedTheme(savedTheme)
+    }
+  }, [])
 
   const [accountSettings, setAccountSettings] = useState({
     twoFactorAuth: true,
-    emailNotifications: true,
-    smsNotifications: false,
-    marketingEmails: false,
-    dataSharing: true,
-    appleHealth: false,
+    emailAppointments: true,
+    emailMedications: true,
+    emailTasks: false,
+    emailNewsletter: false,
+    smsAppointments: false,
+    smsMedications: false,
+    smsTasks: false,
+    whatsappAppointments: true,
+    whatsappMedications: false,
+    whatsappTasks: true,
+    pushAppointments: true,
+    pushMedications: true,
+    pushTasks: false,
+    appointmentHoursBefore: "24",
+    medicationMinutesBefore: "15",
+    tasksReminderTime: "09:00",
     googleFit: true,
-    withings: false,
     fitbit: false,
     garmin: false,
-    oura: false,
+    shareAnonymizedData: true,
+    shareAnalytics: false,
   })
 
-  const [textSize, setTextSize] = useState(100)
-  const [reduceMotion, setReduceMotion] = useState(false)
-  const [highContrast, setHighContrast] = useState(false)
   const [newIntegrationOpen, setNewIntegrationOpen] = useState(false)
-  const [dataRequestOpen, setDataRequestOpen] = useState(false)
+  const [dataExportOpen, setDataExportOpen] = useState(false)
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues,
   })
 
-  const dataRequestForm = useForm({
-    resolver: zodResolver(dataRequestSchema),
+  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([
+    {
+      id: 1,
+      name: "Jane Smith",
+      relationship: "Wife",
+      countryCode: "+1",
+      phone: "5559876543",
+      email: "jane.smith@email.com",
+    },
+    {
+      id: 2,
+      name: "Robert Smith",
+      relationship: "Brother",
+      countryCode: "+1",
+      phone: "5554567890",
+      email: "robert.smith@email.com",
+    },
+  ])
+
+  const [emergencyContactDialogOpen, setEmergencyContactDialogOpen] = useState(false)
+  const [editingContactId, setEditingContactId] = useState<number | null>(null)
+  const [mobileSyncDialogOpen, setMobileSyncDialogOpen] = useState(false)
+
+  const emergencyContactForm = useForm<EmergencyContactFormValues>({
+    resolver: zodResolver(emergencyContactSchema),
     defaultValues: {
-      name: "John Smith",
-      requestType: "data-export",
-      reason: "",
-      email: "john.smith@example.com",
+      name: "",
+      relationship: "",
+      countryCode: "+1",
+      phone: "",
+      email: "",
     },
   })
 
-  function onSubmit(data: ProfileFormValues) {
-    console.log(data)
-    // In a real app, you would update the user's profile here
+  const emergencyInfoForm = useForm<EmergencyInfoFormValues>({
+    resolver: zodResolver(emergencyInfoSchema),
+    defaultValues: {
+      allergies: "Penicillin, Peanuts",
+      pregnancy: "no",
+      medications: "Lisinopril 10mg daily, Metformin 500mg twice daily",
+      healthProblems: "Type 2 Diabetes, Hypertension",
+      organDonor: true,
+    },
+  })
+
+  const passwordForm = useForm<PasswordChangeFormValues>({
+    resolver: zodResolver(passwordChangeSchema),
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    },
+  })
+
+  const [newPasswordValue, setNewPasswordValue] = useState("")
+
+  const passwordChecks = {
+    minLength: newPasswordValue.length >= 8,
+    hasLowercase: /[a-z]/.test(newPasswordValue),
+    hasUppercase: /[A-Z]/.test(newPasswordValue),
+    hasNumber: /[0-9]/.test(newPasswordValue),
+    hasSpecial: /[^a-zA-Z0-9]/.test(newPasswordValue),
+    passwordsMatch: newPasswordValue === passwordForm.watch("confirmPassword") && newPasswordValue.length > 0,
   }
 
-  function onDataRequestSubmit(data: any) {
+  const handleAddContact = () => {
+    setEditingContactId(null)
+    emergencyContactForm.reset({
+      name: "",
+      relationship: "",
+      countryCode: "+1",
+      phone: "",
+      email: "",
+    })
+    setEmergencyContactDialogOpen(true)
+  }
+
+  const handleEditContact = (contact: EmergencyContact) => {
+    setEditingContactId(contact.id)
+    emergencyContactForm.reset({
+      name: contact.name,
+      relationship: contact.relationship,
+      countryCode: contact.countryCode,
+      phone: contact.phone,
+      email: contact.email,
+    })
+    setEmergencyContactDialogOpen(true)
+  }
+
+  const handleRemoveContact = (id: number) => {
+    setEmergencyContacts((prev) => prev.filter((contact) => contact.id !== id))
+    toast({
+      title: "Contact removed",
+      description: "Emergency contact has been removed successfully.",
+      duration: 3000,
+  })
+  }
+
+  const onSubmitEmergencyContact = (data: EmergencyContactFormValues) => {
+    if (editingContactId) {
+      setEmergencyContacts((prev) =>
+        prev.map((contact) =>
+          contact.id === editingContactId ? { ...contact, ...data, email: data.email || "" } : contact,
+        ),
+      )
+      toast({
+        title: "Contact updated",
+        description: "Emergency contact has been updated successfully.",
+        duration: 3000,
+      })
+    } else {
+      const newContact: EmergencyContact = {
+        id: Math.max(...emergencyContacts.map((c) => c.id), 0) + 1,
+        ...data,
+        email: data.email || "",
+      }
+      setEmergencyContacts((prev) => [...prev, newContact])
+      toast({
+        title: "Contact added",
+        description: "Emergency contact has been added successfully.",
+        duration: 3000,
+      })
+    }
+    setEmergencyContactDialogOpen(false)
+  }
+
+  const onSubmitEmergencyInfo = (data: EmergencyInfoFormValues) => {
     console.log(data)
-    setDataRequestOpen(false)
-    // In a real app, you would submit the data request here
+    toast({
+      title: "Emergency information updated",
+      description: "Your emergency information has been saved successfully.",
+      duration: 3000,
+    })
+  }
+
+  const handleMobileSync = (platform: "ios" | "android") => {
+    toast({
+      title: "Syncing to mobile",
+      description: `Your emergency information is being synced to your ${platform === "ios" ? "iOS" : "Android"} device.`,
+      duration: 3000,
+    })
+    setMobileSyncDialogOpen(false)
+  }
+
+  function onSubmit(data: ProfileFormValues) {
+    console.log(data)
+    toast({
+      title: t("profile.updateSuccess") || "Profile updated",
+      description: t("profile.updateSuccessDesc") || "Your profile has been updated successfully.",
+      duration: 3000,
+    })
   }
 
   const handleToggle = (key: keyof typeof accountSettings) => {
@@ -136,70 +338,72 @@ export default function ProfileClientPage() {
   }
 
   const savePreferences = () => {
-    // Update the language if it has changed
     if (selectedLanguage !== language) {
       setLanguage(selectedLanguage as "en" | "es" | "pt")
     }
 
-    // In a real app, this would save to a database or API
-    console.log("Saving preferences:", {
-      language: selectedLanguage,
-      textSize,
-      reduceMotion,
-      highContrast,
-      timezone:
-        document.getElementById("timezone")?.querySelector("[data-value]")?.getAttribute("data-value") ||
-        "america-los_angeles",
-      units: document.querySelector('input[name="units"]:checked')?.value || "imperial",
-    })
+    localStorage.setItem("theme", selectedTheme)
 
-    // Show success message using toast instead of alert
     toast({
-      title: t("preferences.savedSuccessfully"),
-      description: t("preferences.savedSuccessfullyDesc"),
+      title: t("preferences.savedSuccessfully") || "Preferences saved",
+      description: t("preferences.savedSuccessfullyDesc") || "Your preferences have been saved successfully.",
       duration: 3000,
     })
   }
 
+  const handleDataExport = () => {
+    toast({
+      title: "Data export requested",
+      description: "You will receive an email with your data within 24 hours.",
+      duration: 3000,
+    })
+    setDataExportOpen(false)
+  }
+
+  const onSubmitPasswordChange = (data: PasswordChangeFormValues) => {
+    console.log("[v0] Password change data:", data)
+    toast({
+      title: "Password updated",
+      description: "Your password has been changed successfully.",
+      duration: 3000,
+    })
+    passwordForm.reset()
+    setNewPasswordValue("")
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center space-x-4">
+    <div className="space-y-6 pb-16">
+      <div className="flex flex-col sm:flex-row items-center gap-4">
         <Avatar className="h-16 w-16 border-2 border-primary">
-          <AvatarImage src="/middle-aged-man-profile.png" alt="John Smith" />
+          <AvatarImage src={profileImage || "/placeholder.svg"} alt="John Smith" />
           <AvatarFallback>JS</AvatarFallback>
         </Avatar>
-        <div>
+        <div className="text-center sm:text-left">
           <h1 className="text-2xl font-bold tracking-tight text-primary">{t("greeting.morning")}, John!</h1>
           <p className="text-muted-foreground">{t("profile.manageProfile")}</p>
         </div>
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <div className="overflow-x-auto pb-2">
-          <TabsList className="w-full md:w-auto inline-flex">
-            <TabsTrigger value="profile" className="min-w-[100px]">
+        <div className="overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+          <TabsList className="w-full sm:w-auto inline-flex min-w-full sm:min-w-0">
+            <TabsTrigger value="profile" className="flex-1 sm:flex-none sm:min-w-[100px]">
               {t("tabs.profile")}
             </TabsTrigger>
-            <TabsTrigger value="emergency" className="min-w-[100px]">
+            <TabsTrigger value="emergency" className="flex-1 sm:flex-none sm:min-w-[140px]">
               {t("tabs.emergency")}
             </TabsTrigger>
-            <TabsTrigger value="insurance" className="min-w-[100px]">
-              {t("tabs.insurance")}
-            </TabsTrigger>
-            <TabsTrigger value="security" className="min-w-[100px]">
+            <TabsTrigger value="security" className="flex-1 sm:flex-none sm:min-w-[100px]">
               {t("tabs.security")}
             </TabsTrigger>
-            <TabsTrigger value="notifications" className="min-w-[100px]">
+            <TabsTrigger value="notifications" className="flex-1 sm:flex-none sm:min-w-[120px]">
               {t("tabs.notifications")}
             </TabsTrigger>
-            <TabsTrigger value="integrations" className="min-w-[100px]">
+            <TabsTrigger value="integrations" className="flex-1 sm:flex-none sm:min-w-[120px]">
               {t("tabs.integrations")}
             </TabsTrigger>
-            <TabsTrigger value="preferences" className="min-w-[100px]">
-              {t("tabs.preferences")}
-            </TabsTrigger>
-            <TabsTrigger value="privacy" className="min-w-[100px]">
-              {t("tabs.privacy")}
+            <TabsTrigger value="privacy" className="flex-1 sm:flex-none sm:min-w-[100px]">
+              Privacy
             </TabsTrigger>
           </TabsList>
         </div>
@@ -208,16 +412,18 @@ export default function ProfileClientPage() {
           <Card>
             <CardContent className="pt-6">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <div className="flex flex-col lg:flex-row gap-6">
+                    <div className="flex-1 space-y-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
-                      name="name"
+                          name="firstName"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t("profile.fullName")}</FormLabel>
+                              <FormLabel>First Name</FormLabel>
                           <FormControl>
-                            <Input placeholder="Your full name" {...field} />
+                                <Input placeholder="Your first name" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -226,12 +432,28 @@ export default function ProfileClientPage() {
 
                     <FormField
                       control={form.control}
-                      name="email"
+                          name="lastName"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t("profile.email")}</FormLabel>
+                              <FormLabel>Last Name</FormLabel>
                           <FormControl>
-                            <Input placeholder="Your email address" {...field} />
+                                <Input placeholder="Your last name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <FormField
+                      control={form.control}
+                          name="dob"
+                      render={({ field }) => (
+                        <FormItem>
+                              <FormLabel>Date of Birth</FormLabel>
+                          <FormControl>
+                                <Input type="date" {...field} className="w-full" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -240,27 +462,23 @@ export default function ProfileClientPage() {
 
                     <FormField
                       control={form.control}
-                      name="phone"
+                          name="gender"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t("profile.phone")}</FormLabel>
+                              <FormLabel>Gender</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
-                            <Input placeholder="Your phone number" {...field} />
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select" />
+                                  </SelectTrigger>
                           </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="dob"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("profile.dob")}</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="male">Male</SelectItem>
+                                  <SelectItem value="female">Female</SelectItem>
+                                  <SelectItem value="other">Other</SelectItem>
+                                  <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
+                                </SelectContent>
+                              </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -271,9 +489,14 @@ export default function ProfileClientPage() {
                       name="height"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t("profile.height")}</FormLabel>
+                              <FormLabel>Height</FormLabel>
                           <FormControl>
-                            <Input placeholder="Your height" {...field} />
+                                <div className="relative">
+                                  <Input type="number" placeholder="178" {...field} className="pr-10 w-full" />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                                    cm
+                                  </span>
+                                </div>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -282,72 +505,202 @@ export default function ProfileClientPage() {
 
                     <FormField
                       control={form.control}
-                      name="weight"
+                          name="bloodType"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t("profile.weight")}</FormLabel>
+                              <FormLabel>Blood Type</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
-                            <Input placeholder="Your weight" {...field} />
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select" />
+                                  </SelectTrigger>
                           </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="A+">A+</SelectItem>
+                                  <SelectItem value="A-">A-</SelectItem>
+                                  <SelectItem value="B+">B+</SelectItem>
+                                  <SelectItem value="B-">B-</SelectItem>
+                                  <SelectItem value="AB+">AB+</SelectItem>
+                                  <SelectItem value="AB-">AB-</SelectItem>
+                                  <SelectItem value="O+">O+</SelectItem>
+                                  <SelectItem value="O-">O-</SelectItem>
+                                </SelectContent>
+                              </Select>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
+                      </div>
 
-                    <div className="md:col-span-2">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
-                        name="address"
+                          name="email"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t("profile.address")}</FormLabel>
+                              <FormLabel>Email</FormLabel>
                             <FormControl>
-                              <LocationSearch
-                                value={field.value}
-                                onChange={(location, details) => {
-                                  console.log("Profile onChange - location:", location, "current field value:", field.value)
-                                  field.onChange(location)
-                                  console.log("Field onChange called, new value should be:", location)
-                                  if (details) {
-                                    setLocationDetails(details)
-                                  }
-                                }}
-                                placeholder="Search for your address..."
-                                label=""
-                                error={form.formState.errors.address?.message}
+                                <Input type="email" placeholder="your.email@example.com" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div>
+                          <Label>Mobile Number</Label>
+                          <div className="flex gap-2 mt-2">
+                            <FormField
+                              control={form.control}
+                              name="countryCode"
+                              render={({ field }) => (
+                                <FormItem className="w-40">
+                                  <Select
+                                    onValueChange={(value) => {
+                                      const [code, ...countryParts] = value.split("|")
+                                      const country = countryParts.join("|")
+                                      field.onChange(code)
+                                      form.setValue("countryName", country)
+                                    }}
+                                    value={`${field.value}|${form.getValues("countryName") || ""}`}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue>
+                                          {(() => {
+                                            const selectedCountry = countryCodes.find(
+                                              (c) =>
+                                                c.code === field.value && c.country === form.getValues("countryName"),
+                                            )
+                                            return selectedCountry
+                                              ? `${selectedCountry.flag} ${selectedCountry.code}`
+                                              : "Code"
+                                          })()}
+                                        </SelectValue>
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent className="max-h-[300px]">
+                                      {countryCodes.map((country) => (
+                                        <SelectItem
+                                          key={`${country.code}-${country.country}`}
+                                          value={`${country.code}|${country.country}`}
+                                        >
+                                          {country.flag} {country.code} {country.country}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="mobileNumber"
+                              render={({ field }) => (
+                                <FormItem className="flex-1">
+                                  <FormControl>
+                                    <Input type="tel" placeholder="555 123 4567" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                          </div>
+                        </div>
+                    </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                          name="location"
+                        render={({ field }) => (
+                          <FormItem>
+                              <FormLabel>Location</FormLabel>
+                            <FormControl>
+                                <LocationSearch
+                                  value={field.value}
+                                  onChange={(location) => field.onChange(location)}
+                                  placeholder="City, State/Country"
                               />
                             </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="timezone"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Time Zone</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select timezone" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent className="max-h-[300px]">
+                                  {timezones.map((tz) => (
+                                    <SelectItem key={tz.value} value={tz.value}>
+                                      {tz.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
 
-                    <div className="md:col-span-2">
-                      <FormField
-                        control={form.control}
-                        name="bio"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t("profile.medicalNotes")}</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Brief medical history, allergies, or other important information"
-                                className="resize-none"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormDescription>{t("profile.medicalNotesDesc")}</FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                      <Separator />
+
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-medium">Preferences</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
+                          <div className="space-y-2">
+                            <Label htmlFor="language">Language</Label>
+                            <Select value={selectedLanguage} onValueChange={(v) => setSelectedLanguage(v as "en" | "es" | "pt")}>
+                              <SelectTrigger id="language">
+                                <SelectValue placeholder="Select language" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="en">English</SelectItem>
+                                <SelectItem value="es">Español</SelectItem>
+                                <SelectItem value="pt">Português</SelectItem>
+                              </SelectContent>
+                            </Select>
                   </div>
-                  <Button type="submit" className="bg-teal-600 hover:bg-teal-700">
+
+                          <div className="space-y-2">
+                            <Label htmlFor="theme">Theme</Label>
+                            <Select value={selectedTheme} onValueChange={(value: any) => setSelectedTheme(value)}>
+                              <SelectTrigger id="theme">
+                                <SelectValue placeholder="Select theme" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="light">Light</SelectItem>
+                                <SelectItem value="dark">Dark</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button type="submit" className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700">
                     <Save className="mr-2 h-4 w-4" />
                     {t("profile.updateProfile")}
                   </Button>
+                    </div>
+
+                    <div className="lg:w-64 flex justify-center lg:justify-start">
+                      <div className="sticky top-6">
+                        <ProfilePictureUpload currentImage={profileImage} onImageChange={setProfileImage} />
+                      </div>
+                    </div>
+                  </div>
                 </form>
               </Form>
             </CardContent>
@@ -356,175 +709,518 @@ export default function ProfileClientPage() {
 
         <TabsContent value="emergency" className="space-y-4 mt-6">
           <Card>
-            <CardContent className="pt-6 space-y-6">
+            <CardContent className="pt-6 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
-                <h3 className="text-lg font-medium mb-4">{t("emergency.contacts")}</h3>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="primary-contact">{t("emergency.primaryContact")}</Label>
-                      <Input id="primary-contact" defaultValue="Jane Smith (Wife)" />
+                  <h3 className="text-base font-semibold">Emergency Contacts</h3>
+                  <p className="text-xs text-muted-foreground">People to contact in case of emergency</p>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="primary-phone">{t("emergency.phoneNumber")}</Label>
-                      <Input id="primary-phone" defaultValue="(555) 987-6543" />
+                <Button className="bg-teal-600 hover:bg-teal-700 w-full sm:w-auto h-9" onClick={handleAddContact}>
+                  <Plus className="mr-2 h-3.5 w-3.5" />
+                  Add Contact
+                </Button>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="secondary-contact">{t("emergency.secondaryContact")}</Label>
-                      <Input id="secondary-contact" defaultValue="Robert Smith (Brother)" />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {emergencyContacts.map((contact) => (
+                  <div key={contact.id} className="rounded-md border p-2.5 hover:bg-muted/50 transition-colors">
+                    <div className="flex justify-between items-start gap-2 mb-1.5">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-sm truncate">{contact.name}</h4>
+                        <p className="text-xs text-muted-foreground">{contact.relationship}</p>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="secondary-phone">{t("emergency.phoneNumber")}</Label>
-                      <Input id="secondary-phone" defaultValue="(555) 456-7890" />
+                      <div className="flex gap-0.5 flex-shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 hover:bg-muted"
+                          onClick={() => handleEditContact(contact)}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => handleRemoveContact(contact.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
                     </div>
                   </div>
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">
+                        {contact.countryCode} {contact.phone}
+                      </p>
+                      {contact.email && <p className="text-xs text-muted-foreground truncate">{contact.email}</p>}
                 </div>
+                  </div>
+                ))}
               </div>
 
-              <Separator />
+              <Dialog open={emergencyContactDialogOpen} onOpenChange={setEmergencyContactDialogOpen}>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>{editingContactId ? "Edit Emergency Contact" : "Add Emergency Contact"}</DialogTitle>
+                    <DialogDescription>
+                      {editingContactId
+                        ? "Update the emergency contact information."
+                        : "Add a new emergency contact who can be reached in case of emergency."}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <Form {...emergencyContactForm}>
+                    <form onSubmit={emergencyContactForm.handleSubmit(onSubmitEmergencyContact)} className="space-y-4">
+                      <FormField
+                        control={emergencyContactForm.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Full name" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-              <div>
-                <h3 className="text-lg font-medium mb-4">{t("emergency.medicalInfo")}</h3>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="blood-type">{t("emergency.bloodType")}</Label>
-                      <Select defaultValue="O+">
-                        <SelectTrigger id="blood-type">
-                          <SelectValue placeholder="Select blood type" />
+                      <FormField
+                        control={emergencyContactForm.control}
+                        name="relationship"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Relationship</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select relationship" />
                         </SelectTrigger>
+                              </FormControl>
                         <SelectContent>
-                          <SelectItem value="A+">A+</SelectItem>
-                          <SelectItem value="A-">A-</SelectItem>
-                          <SelectItem value="B+">B+</SelectItem>
-                          <SelectItem value="B-">B-</SelectItem>
-                          <SelectItem value="AB+">AB+</SelectItem>
-                          <SelectItem value="AB-">AB-</SelectItem>
-                          <SelectItem value="O+">O+</SelectItem>
-                          <SelectItem value="O-">O-</SelectItem>
+                                <SelectItem value="Spouse/Partner">Spouse/Partner</SelectItem>
+                                <SelectItem value="Parent">Parent</SelectItem>
+                                <SelectItem value="Sibling">Sibling</SelectItem>
+                                <SelectItem value="Child">Child</SelectItem>
+                                <SelectItem value="Friend">Friend</SelectItem>
+                                <SelectItem value="Other">Other</SelectItem>
                         </SelectContent>
                       </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div>
+                        <Label>Mobile Phone</Label>
+                        <div className="flex gap-2 mt-2">
+                          <FormField
+                            control={emergencyContactForm.control}
+                            name="countryCode"
+                            render={({ field }) => (
+                              <FormItem className="w-40">
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue>
+                                        {(() => {
+                                          const selectedCountry = countryCodes.find((c) => c.code === field.value)
+                                          return selectedCountry
+                                            ? `${selectedCountry.flag} ${selectedCountry.code}`
+                                            : "Code"
+                                        })()}
+                                      </SelectValue>
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent className="max-h-[300px]">
+                                    {countryCodes.map((country) => (
+                                      <SelectItem key={`${country.code}-${country.country}`} value={country.code}>
+                                        {country.flag} {country.code} {country.country}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={emergencyContactForm.control}
+                            name="phone"
+                            render={({ field }) => (
+                              <FormItem className="flex-1">
+                                <FormControl>
+                                  <Input type="tel" placeholder="555 123 4567" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="allergies">{t("emergency.allergies")}</Label>
-                      <Input id="allergies" defaultValue="Penicillin, Peanuts" />
                     </div>
+
+                      <FormField
+                        control={emergencyContactForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email (Optional)</FormLabel>
+                            <FormControl>
+                              <Input type="email" placeholder="email@example.com" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setEmergencyContactDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button type="submit" className="bg-teal-600 hover:bg-teal-700">
+                          {editingContactId ? "Update Contact" : "Add Contact"}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
+
+              <Separator className="my-4" />
+
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold">Emergency Medical Information</h3>
+                    <p className="text-xs text-muted-foreground">Critical health information for emergency responders</p>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="medical-conditions">{t("emergency.medicalConditions")}</Label>
+                  <Dialog open={mobileSyncDialogOpen} onOpenChange={setMobileSyncDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full sm:w-auto h-9 bg-transparent">
+                        <Smartphone className="mr-2 h-3.5 w-3.5" />
+                        Sync to Mobile
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Sync to Mobile Device</DialogTitle>
+                        <DialogDescription>Choose your mobile platform to sync your emergency information</DialogDescription>
+                      </DialogHeader>
+                      <div className="grid grid-cols-2 gap-4 py-4">
+                        <Button
+                          variant="outline"
+                          className="h-20 flex items-center justify-center bg-transparent"
+                          onClick={() => handleMobileSync("ios")}
+                        >
+                          <span className="font-medium text-base">iOS</span>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="h-20 flex items-center justify-center bg-transparent"
+                          onClick={() => handleMobileSync("android")}
+                        >
+                          <span className="font-medium text-base">Android</span>
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                <Form {...emergencyInfoForm}>
+                  <form onSubmit={emergencyInfoForm.handleSubmit(onSubmitEmergencyInfo)} className="space-y-3">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                      <div className="space-y-3">
+                        <FormField
+                          control={emergencyInfoForm.control}
+                          name="allergies"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-sm font-medium">Allergies</FormLabel>
+                              <FormControl>
                     <Textarea
-                      id="medical-conditions"
-                      defaultValue="Hypertension, Type 2 Diabetes"
-                      className="resize-none"
+                                  placeholder="List any allergies (medications, food, etc.)"
+                                  className="resize-none text-sm"
+                                  rows={3}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={emergencyInfoForm.control}
+                          name="medications"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-sm font-medium">Current Medications</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="List current medications and dosages"
+                                  className="resize-none text-sm"
+                                  rows={3}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
                     />
                   </div>
+
+                      <div className="space-y-3">
+                        <FormField
+                          control={emergencyInfoForm.control}
+                          name="healthProblems"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-sm font-medium">Health Problems</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="List chronic conditions or health issues"
+                                  className="resize-none text-sm"
+                                  rows={3}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <FormField
+                            control={emergencyInfoForm.control}
+                            name="pregnancy"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-sm font-medium">Pregnancy Status</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger className="h-9 text-sm">
+                                      <SelectValue placeholder="Select status" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="no">Not Pregnant</SelectItem>
+                                    <SelectItem value="yes">Pregnant</SelectItem>
+                                    <SelectItem value="unknown">Unknown</SelectItem>
+                                    <SelectItem value="na">Not Applicable</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={emergencyInfoForm.control}
+                            name="organDonor"
+                            render={({ field }) => (
+                              <FormItem className="flex flex-col justify-end">
+                                <FormLabel className="text-sm font-medium mb-2">Organ Donor</FormLabel>
+                                <div className="flex items-center justify-between rounded-md border px-3 h-9">
+                                  <span className="text-sm">Willing to donate</span>
+                                  <FormControl>
+                                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                  </FormControl>
+                                </div>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
                 </div>
               </div>
 
-              <Button className="bg-teal-600 hover:bg-teal-700">
-                <Save className="mr-2 h-4 w-4" />
-                {t("emergency.saveInfo")}
+                    <Button type="submit" className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 h-9">
+                      <Save className="mr-2 h-3.5 w-3.5" />
+                      Save Emergency Information
               </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="insurance" className="space-y-4 mt-6">
-          <Card>
-            <CardContent className="pt-6 space-y-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium">{t("insurance.primary")}</h3>
-                <Button className="bg-teal-600 hover:bg-teal-700">
-                  <Plus className="mr-2 h-4 w-4" />
-                  {t("insurance.addInsurance")}
-                </Button>
+                  </form>
+                </Form>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="insurance-provider">{t("insurance.provider")}</Label>
-                  <Input id="insurance-provider" defaultValue="Blue Cross Blue Shield" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="policy-number">{t("insurance.policyNumber")}</Label>
-                  <Input id="policy-number" defaultValue="XYZ123456789" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="group-number">{t("insurance.groupNumber")}</Label>
-                  <Input id="group-number" defaultValue="GRP987654321" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="member-id">{t("insurance.memberId")}</Label>
-                  <Input id="member-id" defaultValue="MEM123456789" />
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <h3 className="text-lg font-medium mb-4">{t("insurance.secondary")}</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="secondary-provider">{t("insurance.provider")}</Label>
-                    <Input id="secondary-provider" placeholder="Secondary insurance provider" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="secondary-policy">{t("insurance.policyNumber")}</Label>
-                    <Input id="secondary-policy" placeholder="Secondary policy number" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="secondary-group">{t("insurance.groupNumber")}</Label>
-                    <Input id="secondary-group" placeholder="Secondary group number" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="secondary-member">{t("insurance.memberId")}</Label>
-                    <Input id="secondary-member" placeholder="Secondary member ID" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Input type="file" id="insurance-card" className="max-w-sm" accept="image/*" />
-                <Button variant="outline">{t("insurance.uploadCard")}</Button>
-              </div>
-
-              <Button className="bg-teal-600 hover:bg-teal-700">
-                <Save className="mr-2 h-4 w-4" />
-                {t("insurance.saveInfo")}
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="security" className="space-y-4 mt-6">
           <Card>
-            <CardContent className="pt-6 space-y-6">
-              <div>
-                <h3 className="text-lg font-medium mb-4">{t("security.password")}</h3>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="current-password">{t("security.currentPassword")}</Label>
-                    <Input id="current-password" type="password" />
+            <CardContent className="pt-6 space-y-4">
+              <div className="rounded-lg border bg-card p-4">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="rounded-full bg-primary/10 p-2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-primary"
+                    >
+                      <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+              </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text_base">Change Password</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Update your password to keep your account secure</p>
+                </div>
+                </div>
+
+                <Form {...passwordForm}>
+                  <form onSubmit={passwordForm.handleSubmit(onSubmitPasswordChange)} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <FormField
+                        control={passwordForm.control}
+                        name="currentPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium">Current Password</FormLabel>
+                            <FormControl>
+                              <Input type="password" className="h-9 text-sm" placeholder="••••••••" {...field} />
+                            </FormControl>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={passwordForm.control}
+                        name="newPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium">New Password</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="password"
+                                className="h-9 text-sm"
+                                placeholder="••••••••"
+                                {...field}
+                                onChange={(e) => {
+                                  field.onChange(e)
+                                  setNewPasswordValue(e.target.value)
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={passwordForm.control}
+                        name="confirmPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium">Confirm New Password</FormLabel>
+                            <FormControl>
+                              <Input type="password" className="h-9 text-sm" placeholder="••••••••" {...field} />
+                            </FormControl>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        )}
+                      />
+                </div>
+
+                    {newPasswordValue.length > 0 && (
+                      <div className="rounded-md bg-muted/50 p-3 space-y-1.5">
+                        <p className="text-xs font-medium mb-2">Password Requirements:</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          <div className="flex items-center gap-2 text-xs">
+                            {passwordChecks.minLength ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" />
+                            ) : (
+                              <Circle className="h-3.5 w-3.5 text-muted-foreground" />
+                            )}
+                            <span className={passwordChecks.minLength ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>
+                              At least 8 characters
+                            </span>
+                </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            {passwordChecks.hasLowercase ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" />
+                            ) : (
+                              <Circle className="h-3.5 w-3.5 text-muted-foreground" />
+                            )}
+                            <span className={passwordChecks.hasLowercase ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>
+                              One lowercase letter
+                            </span>
+              </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            {passwordChecks.hasUppercase ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" />
+                            ) : (
+                              <Circle className="h-3.5 w-3.5 text-muted-foreground" />
+                            )}
+                            <span className={passwordChecks.hasUppercase ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>
+                              One uppercase letter
+                            </span>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="new-password">{t("security.newPassword")}</Label>
-                    <Input id="new-password" type="password" />
+                          <div className="flex items-center gap-2 text-xs">
+                            {passwordChecks.hasNumber ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" />
+                            ) : (
+                              <Circle className="h-3.5 w-3.5 text-muted-foreground" />
+                            )}
+                            <span className={passwordChecks.hasNumber ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>
+                              One number
+                            </span>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirm-password">{t("security.confirmPassword")}</Label>
-                    <Input id="confirm-password" type="password" />
+                          <div className="flex items-center gap-2 text-xs">
+                            {passwordChecks.hasSpecial ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" />
+                            ) : (
+                              <Circle className="h-3.5 w-3.5 text-muted-foreground" />
+                            )}
+                            <span className={passwordChecks.hasSpecial ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>
+                              One special character
+                            </span>
+                  </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            {passwordChecks.passwordsMatch ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" />
+                            ) : (
+                              <Circle className="h-3.5 w-3.5 text-muted-foreground" />
+                            )}
+                            <span className={passwordChecks.passwordsMatch ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>
+                              Passwords match
+                            </span>
                   </div>
                 </div>
               </div>
+                    )}
 
-              <Separator />
+                    <Button type="submit" size="sm" className="bg-teal-600 hover:bg-teal-700 h-8 text-xs">
+                      Update Password
+                    </Button>
+                  </form>
+                </Form>
+              </div>
 
+              <div className="rounded-lg border bg-card p-4">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="rounded-full bg-primary/10 p-2">
+                    <div className="flex gap-0.5">
+                      <Lock className="h-4 w-4 text-primary" />
+                      <Lock className="h-4 w-4 text-primary" />
+                  </div>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-base">Two-Factor Authentication</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Add an extra layer of security to your account</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-md bg-background p-2">
+                      <Smartphone className="h-4 w-4 text-muted-foreground" />
+              </div>
               <div>
-                <h3 className="text-lg font-medium mb-4">{t("security.twoFactor")}</h3>
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div>
-                    <h4 className="font-medium">{t("security.authenticatorApp")}</h4>
-                    <p className="text-sm text-muted-foreground">{t("security.authenticatorDesc")}</p>
+                      <h4 className="font-medium text-sm">Authenticator App</h4>
+                      <p className="text-xs text-muted-foreground">Use an app to generate verification codes</p>
+                    </div>
                   </div>
                   <Switch
                     checked={accountSettings.twoFactorAuth}
@@ -533,37 +1229,138 @@ export default function ProfileClientPage() {
                 </div>
               </div>
 
-              <Separator />
-
-              <div>
-                <h3 className="text-lg font-medium mb-4">{t("security.loginSessions")}</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between rounded-lg border p-4">
-                    <div>
-                      <h4 className="font-medium">{t("security.currentSession")}</h4>
-                      <p className="text-sm text-muted-foreground">Chrome on Windows • IP: 192.168.1.1 • Active now</p>
+              <div className="rounded-lg border bg-card p-4">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="rounded-full bg-primary/10 p-2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-primary"
+                    >
+                      <rect width="20" height="14" x="2" y="7" rx="2" />
+                      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                    </svg>
                     </div>
-                    <Button variant="outline" size="sm" disabled>
-                      {t("action.current")}
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-base">Active Sessions</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Manage devices that are logged into your account</p>
+                  </div>
+                    </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="rounded-md bg-background p-2 flex-shrink-0">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="text-muted-foreground"
+                        >
+                          <rect width="20" height="14" x="2" y="3" rx="2" />
+                          <line x1="8" x2="16" y1="21" y2="21" />
+                          <line x1="12" x2="12" y1="17" y2="21" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium text-sm">Chrome on Windows</h4>
+                          <span className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">
+                            Active
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">IP: 192.168.1.1 • Active now</p>
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" disabled className="h-7 text-xs flex-shrink-0 ml-2 bg-transparent">
+                      Current
                     </Button>
                   </div>
-                  <div className="flex items-center justify-between rounded-lg border p-4">
-                    <div>
-                      <h4 className="font-medium">{t("security.previousSession")}</h4>
-                      <p className="text-sm text-muted-foreground">Safari on iPhone • IP: 192.168.1.2 • 2 days ago</p>
+
+                  <div className="flex items-center justify-between rounded-md border p-3 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="rounded-md bg-muted p-2 flex-shrink-0">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="text-muted-foreground"
+                        >
+                          <rect width="7" height="13" x="6" y="4" rx="1" />
+                          <path d="M10.5 1.5v2M13.5 1.5v2M8 4v16M16 7h2M16 11h2M16 15h2" />
+                        </svg>
+                </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm">Safari on iPhone</h4>
+                        <p className="text-xs text-muted-foreground truncate">IP: 192.168.1.2 • 2 days ago</p>
+                      </div>
                     </div>
-                    <Button variant="outline" size="sm">
-                      <X className="mr-2 h-4 w-4" />
-                      {t("action.revoke")}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs flex-shrink-0 ml-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 bg-transparent"
+                    >
+                      <X className="mr-1 h-3 w-3" />
+                      Revoke
                     </Button>
+              </div>
+
+                  <div className="flex items-center justify-between rounded-md border p-3 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="rounded-md bg-muted p-2 flex-shrink-0">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="text-muted-foreground"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <circle cx="12" cy="12" r="4" />
+                          <line x1="21.17" x2="12" y1="8" y2="8" />
+                          <line x1="3.95" x2="8.54" y1="6.06" y2="14" />
+                          <line x1="10.88" x2="15.46" y1="21.94" y2="14" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm">Firefox on MacBook</h4>
+                        <p className="text-xs text-muted-foreground truncate">IP: 192.168.1.5 • 5 days ago</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs flex-shrink-0 ml-2 hover:bg-destructive/10 hover:text-destructive hover;border-destructive/20 bg-transparent"
+                    >
+                      <X className="mr-1 h-3 w-3" />
+                      Revoke
+              </Button>
                   </div>
                 </div>
               </div>
-
-              <Button className="bg-teal-600 hover:bg-teal-700">
-                <Save className="mr-2 h-4 w-4" />
-                {t("security.saveSettings")}
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -572,140 +1369,175 @@ export default function ProfileClientPage() {
           <Card>
             <CardContent className="pt-6 space-y-6">
               <div>
-                <h3 className="text-lg font-medium mb-4">{t("notifications.email")}</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="appointment-email">{t("notifications.appointmentReminders")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("notifications.emailDesc")}</p>
+                <h3 className="text-lg font-medium mb-2">Notification Preferences</h3>
+                <p className="text-sm text-muted-foreground mb-6">Choose how you want to receive notifications for different events</p>
+
+                <div className="overflow-x-auto">
+                  <div className="min-w-[700px]">
+                    <div className="grid grid-cols-5 gap-4 pb-4 border-b">
+                      <div className="font-medium text-sm">Notification Type</div>
+                      <div className="font-medium text-sm text-center">Email</div>
+                      <div className="font-medium text-sm text-center">SMS</div>
+                      <div className="font-medium text-sm text-center">WhatsApp</div>
+                      <div className="font-medium text-sm text-center">Mobile App</div>
                     </div>
+
+                    <div className="grid grid-cols-5 gap-4 py-4 border-b items-center hover:bg-muted/50 transition-colors">
+                      <div className="space-y-2">
+                        <div className="font-medium text-sm">Appointment Reminders</div>
+                        <p className="text-xs text-muted-foreground mb-2">Upcoming appointments</p>
+                        <Select
+                          value={accountSettings.appointmentHoursBefore}
+                          onValueChange={(value) =>
+                            setAccountSettings((prev) => ({ ...prev, appointmentHoursBefore: value }))
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">1 hour before</SelectItem>
+                            <SelectItem value="2">2 hours before</SelectItem>
+                            <SelectItem value="4">4 hours before</SelectItem>
+                            <SelectItem value="12">12 hours before</SelectItem>
+                            <SelectItem value="24">24 hours before</SelectItem>
+                            <SelectItem value="48">48 hours before</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex justify-center">
                     <Switch
-                      id="appointment-email"
-                      checked={accountSettings.emailNotifications}
-                      onCheckedChange={() => handleToggle("emailNotifications")}
+                          checked={accountSettings.emailAppointments}
+                          onCheckedChange={() => handleToggle("emailAppointments")}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="medication-email">{t("notifications.medicationReminders")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("notifications.medicationDesc")}</p>
-                    </div>
+                      <div className="flex justify-center">
                     <Switch
-                      id="medication-email"
-                      checked={accountSettings.emailNotifications}
-                      onCheckedChange={() => handleToggle("emailNotifications")}
+                          checked={accountSettings.smsAppointments}
+                          onCheckedChange={() => handleToggle("smsAppointments")}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="results-email">{t("notifications.testResults")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("notifications.resultsDesc")}</p>
-                    </div>
+                      <div className="flex justify-center">
                     <Switch
-                      id="results-email"
-                      checked={accountSettings.emailNotifications}
-                      onCheckedChange={() => handleToggle("emailNotifications")}
+                          checked={accountSettings.whatsappAppointments}
+                          onCheckedChange={() => handleToggle("whatsappAppointments")}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="newsletter-email">{t("notifications.newsletter")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("notifications.newsletterDesc")}</p>
-                    </div>
+                      <div className="flex justify-center">
                     <Switch
-                      id="newsletter-email"
-                      checked={accountSettings.marketingEmails}
-                      onCheckedChange={() => handleToggle("marketingEmails")}
+                          checked={accountSettings.pushAppointments}
+                          onCheckedChange={() => handleToggle("pushAppointments")}
                     />
+                </div>
+              </div>
+
+                    <div className="grid grid-cols-5 gap-4 py-4 border-b items-center hover:bg-muted/50 transition-colors">
+                      <div className="space-y-2">
+                        <div className="font-medium text-sm">Medication Reminders</div>
+                        <p className="text-xs text-muted-foreground mb-2">Time to take medications</p>
+                        <Select
+                          value={accountSettings.medicationMinutesBefore}
+                          onValueChange={(value) =>
+                            setAccountSettings((prev) => ({ ...prev, medicationMinutesBefore: value }))
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">At medication time</SelectItem>
+                            <SelectItem value="5">5 minutes before</SelectItem>
+                            <SelectItem value="10">10 minutes before</SelectItem>
+                            <SelectItem value="15">15 minutes before</SelectItem>
+                            <SelectItem value="30">30 minutes before</SelectItem>
+                            <SelectItem value="60">1 hour before</SelectItem>
+                          </SelectContent>
+                        </Select>
+                    </div>
+                      <div className="flex justify-center">
+                    <Switch
+                          checked={accountSettings.emailMedications}
+                          onCheckedChange={() => handleToggle("emailMedications")}
+                    />
+                  </div>
+                      <div className="flex justify-center">
+                        <Switch checked={accountSettings.smsMedications} onCheckedChange={() => handleToggle("smsMedications")} />
+                    </div>
+                      <div className="flex justify-center">
+                    <Switch
+                          checked={accountSettings.whatsappMedications}
+                          onCheckedChange={() => handleToggle("whatsappMedications")}
+                    />
+                  </div>
+                      <div className="flex justify-center">
+                    <Switch
+                          checked={accountSettings.pushMedications}
+                          onCheckedChange={() => handleToggle("pushMedications")}
+                    />
+                </div>
+              </div>
+
+                    <div className="grid grid-cols-5 gap-4 py-4 border-b items-center hover:bg-muted/50 transition-colors">
+                      <div className="space-y-2">
+                        <div className="font-medium text-sm">Tasks Reminders</div>
+                        <p className="text-xs text-muted-foreground mb-2">Pending health tasks</p>
+                        <Input
+                          type="time"
+                          value={accountSettings.tasksReminderTime}
+                          onChange={(e) =>
+                            setAccountSettings((prev) => ({ ...prev, tasksReminderTime: e.target.value }))
+                          }
+                          className="h-8 text-xs"
+                        />
+                    </div>
+                      <div className="flex justify-center">
+                    <Switch
+                          checked={accountSettings.emailTasks}
+                          onCheckedChange={() => handleToggle("emailTasks")}
+                    />
+                  </div>
+                      <div className="flex justify-center">
+                        <Switch checked={accountSettings.smsTasks} onCheckedChange={() => handleToggle("smsTasks")} />
+                    </div>
+                      <div className="flex justify-center">
+                    <Switch
+                          checked={accountSettings.whatsappTasks}
+                          onCheckedChange={() => handleToggle("whatsappTasks")}
+                    />
+                  </div>
+                      <div className="flex justify-center">
+                        <Switch checked={accountSettings.pushTasks} onCheckedChange={() => handleToggle("pushTasks")} />
+                    </div>
+                    </div>
+
+                    <div className="grid grid-cols-5 gap-4 py-4 items-center hover:bg-muted/50 transition-colors">
+                      <div>
+                        <div className="font-medium text-sm">Newsletter</div>
+                        <p className="text-xs text-muted-foreground">Health tips and updates</p>
+                      </div>
+                      <div className="flex justify-center">
+                    <Switch
+                          checked={accountSettings.emailNewsletter}
+                          onCheckedChange={() => handleToggle("emailNewsletter")}
+                    />
+                  </div>
+                      <div className="flex justify-center">
+                        <span className="text-xs text-muted-foreground">—</span>
+                      </div>
+                      <div className="flex justify-center">
+                        <span className="text-xs text-muted-foreground">—</span>
+                      </div>
+                      <div className="flex justify-center">
+                        <span className="text-xs text-muted-foreground">—</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <Separator />
-
-              <div>
-                <h3 className="text-lg font-medium mb-4">{t("notifications.sms")}</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="appointment-sms">{t("notifications.appointmentReminders")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("notifications.smsAppointmentDesc")}</p>
-                    </div>
-                    <Switch
-                      id="appointment-sms"
-                      checked={accountSettings.smsNotifications}
-                      onCheckedChange={() => handleToggle("smsNotifications")}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="medication-sms">{t("notifications.medicationReminders")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("notifications.smsMedicationDesc")}</p>
-                    </div>
-                    <Switch
-                      id="medication-sms"
-                      checked={accountSettings.smsNotifications}
-                      onCheckedChange={() => handleToggle("smsNotifications")}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="results-sms">{t("notifications.testResults")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("notifications.smsResultsDesc")}</p>
-                    </div>
-                    <Switch
-                      id="results-sms"
-                      checked={accountSettings.smsNotifications}
-                      onCheckedChange={() => handleToggle("smsNotifications")}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <h3 className="text-lg font-medium mb-4">{t("notifications.push")}</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="appointment-push">{t("notifications.appointmentReminders")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("notifications.pushAppointmentDesc")}</p>
-                    </div>
-                    <Switch
-                      id="appointment-push"
-                      checked={accountSettings.smsNotifications}
-                      onCheckedChange={() => handleToggle("smsNotifications")}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="medication-push">{t("notifications.medicationReminders")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("notifications.pushMedicationDesc")}</p>
-                    </div>
-                    <Switch
-                      id="medication-push"
-                      checked={accountSettings.smsNotifications}
-                      onCheckedChange={() => handleToggle("smsNotifications")}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="results-push">{t("notifications.testResults")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("notifications.pushResultsDesc")}</p>
-                    </div>
-                    <Switch
-                      id="results-push"
-                      checked={accountSettings.smsNotifications}
-                      onCheckedChange={() => handleToggle("smsNotifications")}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <Button className="bg-teal-600 hover:bg-teal-700">
+              <Button className="bg-teal-600 hover:bg-teal-700" onClick={savePreferences}>
                 <Save className="mr-2 h-4 w-4" />
-                {t("notifications.savePreferences")}
+                Save Preferences
               </Button>
             </CardContent>
           </Card>
@@ -715,22 +1547,22 @@ export default function ProfileClientPage() {
           <Card>
             <CardContent className="pt-6 space-y-6">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium">{t("integrations.healthFitness")}</h3>
+                <h3 className="text-lg font-medium">Wearable Integrations</h3>
                 <Dialog open={newIntegrationOpen} onOpenChange={setNewIntegrationOpen}>
                   <DialogTrigger asChild>
                     <Button className="bg-teal-600 hover:bg-teal-700">
                       <Plus className="mr-2 h-4 w-4" />
-                      {t("integrations.newIntegration")}
+                      Add Integration
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
-                      <DialogTitle>{t("integrations.addNew")}</DialogTitle>
-                      <DialogDescription>{t("integrations.connectDesc")}</DialogDescription>
+                      <DialogTitle>Add New Integration</DialogTitle>
+                      <DialogDescription>Connect your wearable device or health app</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                       <div className="space-y-2">
-                        <Label htmlFor="integration-partner">{t("integrations.partner")}</Label>
+                        <Label htmlFor="integration-partner">Integration Partner</Label>
                         <Select>
                           <SelectTrigger id="integration-partner">
                             <SelectValue placeholder="Select integration partner" />
@@ -742,328 +1574,74 @@ export default function ProfileClientPage() {
                             <SelectItem value="garmin">Garmin</SelectItem>
                             <SelectItem value="withings">Withings</SelectItem>
                             <SelectItem value="oura">Oura Ring</SelectItem>
-                            <SelectItem value="samsung-health">Samsung Health</SelectItem>
-                            <SelectItem value="strava">Strava</SelectItem>
                           </SelectContent>
                         </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="integration-email">{t("profile.email")}</Label>
-                        <Input id="integration-email" type="email" placeholder="Enter your account email" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="integration-password">{t("security.password")}</Label>
-                        <Input id="integration-password" type="password" placeholder="Enter your account password" />
                       </div>
                     </div>
                     <DialogFooter>
                       <Button variant="outline" onClick={() => setNewIntegrationOpen(false)}>
-                        {t("action.cancel")}
+                        Cancel
                       </Button>
                       <Button className="bg-teal-600 hover:bg-teal-700" onClick={() => setNewIntegrationOpen(false)}>
-                        {t("action.connect")}
+                        Connect
                       </Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
               </div>
 
-              <p className="text-sm text-muted-foreground">{t("integrations.syncDesc")}</p>
+              <p className="text-sm text-muted-foreground">Sync your health data from wearable devices and fitness apps</p>
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="text-red-500"
-                      >
-                        <path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z" />
-                        <path d="M10 2c1 .5 2 2 2 5" />
-                      </svg>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+                  <div className="flex-1">
+                    <h4 className="font-medium text-sm">Google Fit</h4>
+                    <p className="text-xs text-muted-foreground">Android fitness data</p>
                     </div>
-                    <div>
-                      <h4 className="font-medium">{t("integrations.appleHealth")}</h4>
-                      <p className="text-sm text-muted-foreground">{t("integrations.appleHealthDesc")}</p>
-                    </div>
-                  </div>
-                  <Switch checked={accountSettings.appleHealth} onCheckedChange={() => handleToggle("appleHealth")} />
-                </div>
-
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="text-blue-500"
-                      >
-                        <path d="M12 2L4 12l8 10 8-10-8-10z" fill="#4285F4" />
-                        <path d="M12 2L4 12h16L12 2z" fill="#EA4335" />
-                        <path d="M4 12l8 10 8-10H4z" fill="#FBBC04" />
-                        <path d="M12 8a4 4 0 100 8 4 4 0 000-8z" fill="#0F9D58" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">{t("integrations.googleFit")}</h4>
-                      <p className="text-sm text-muted-foreground">{t("integrations.googleFitDesc")}</p>
-                    </div>
-                  </div>
-                  <Switch checked={accountSettings.googleFit} onCheckedChange={() => handleToggle("googleFit")} />
-                </div>
-
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="text-teal-600"
-                      >
-                        <circle cx="12" cy="12" r="10" />
-                        <path d="M8 12h8" />
-                        <path d="M12 8v8" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">{t("integrations.withings")}</h4>
-                      <p className="text-sm text-muted-foreground">{t("integrations.withingsDesc")}</p>
-                    </div>
-                  </div>
-                  <Switch checked={accountSettings.withings} onCheckedChange={() => handleToggle("withings")} />
-                </div>
-
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="text-blue-400"
-                      >
-                        <path d="M12 2v20" />
-                        <path d="M2 12h20" />
-                        <path d="M12 22a10 10 0 0 0 0-20" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">{t("integrations.fitbit")}</h4>
-                      <p className="text-sm text-muted-foreground">{t("integrations.fitbitDesc")}</p>
-                    </div>
-                  </div>
-                  <Switch checked={accountSettings.fitbit} onCheckedChange={() => handleToggle("fitbit")} />
-                </div>
-
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="text-blue-600"
-                      >
-                        <circle cx="12" cy="12" r="10" />
-                        <polyline points="12 6 12 12 16 14" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">{t("integrations.garmin")}</h4>
-                      <p className="text-sm text-muted-foreground">{t("integrations.garminDesc")}</p>
-                    </div>
-                  </div>
-                  <Switch checked={accountSettings.garmin} onCheckedChange={() => handleToggle("garmin")} />
-                </div>
-
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="text-gray-800"
-                      >
-                        <circle cx="12" cy="12" r="10" />
-                        <circle cx="12" cy="12" r="6" />
-                        <circle cx="12" cy="12" r="2" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">{t("integrations.ouraRing")}</h4>
-                      <p className="text-sm text-muted-foreground">{t("integrations.ouraRingDesc")}</p>
-                    </div>
-                  </div>
-                  <Switch checked={accountSettings.oura} onCheckedChange={() => handleToggle("oura")} />
-                </div>
-              </div>
-
-              <Button className="bg-teal-600 hover:bg-teal-700">
-                <Save className="mr-2 h-4 w-4" />
-                {t("integrations.saveSettings")}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="preferences" className="space-y-4 mt-6">
-          <Card>
-            <CardContent className="pt-6 space-y-6">
-              <div>
-                <h3 className="text-lg font-medium mb-4">{t("preferences.theme")}</h3>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button variant="outline" className="justify-start">
-                    <span className="h-4 w-4 rounded-full bg-background border mr-2"></span>
-                    {t("preferences.light")}
-                  </Button>
-                  <Button variant="outline" className="justify-start">
-                    <span className="h-4 w-4 rounded-full bg-slate-950 mr-2"></span>
-                    {t("preferences.dark")}
-                  </Button>
-                  <Button variant="outline" className="justify-start">
-                    <span className="h-4 w-4 rounded-full bg-gradient-to-r from-slate-100 to-slate-950 mr-2"></span>
-                    {t("preferences.system")}
-                  </Button>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <h3 className="text-lg font-medium mb-4">{t("preferences.accessibility")}</h3>
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="text-size">
-                        {t("preferences.textSize")} ({textSize}%)
-                      </Label>
-                      <span className="text-sm text-muted-foreground">{textSize}%</span>
-                    </div>
-                    <Slider
-                      id="text-size"
-                      min={75}
-                      max={150}
-                      step={5}
-                      value={[textSize]}
-                      onValueChange={(value) => setTextSize(value[0])}
-                      className="w-full"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>A</span>
-                      <span style={{ fontSize: "1.2em" }}>A</span>
-                      <span style={{ fontSize: "1.5em" }}>A</span>
+                  <div className="flex items-center gap-2">
+                    <Switch checked={accountSettings.googleFit} onCheckedChange={() => handleToggle("googleFit")} />
+                    {accountSettings.googleFit && (
+                      <Button size="sm" variant="outline" className="h-8 text-xs bg-transparent">
+                        Sync
+                      </Button>
+                    )}
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="reduce-motion">{t("preferences.reduceMotion")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("preferences.reduceMotionDesc")}</p>
-                    </div>
-                    <Switch id="reduce-motion" checked={reduceMotion} onCheckedChange={setReduceMotion} />
+                <div className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+                  <div className="flex-1">
+                    <h4 className="font-medium text-sm">Fitbit</h4>
+                    <p className="text-xs text-muted-foreground">Fitbit activity data</p>
                   </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="high-contrast">{t("preferences.highContrast")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("preferences.highContrastDesc")}</p>
-                    </div>
-                    <Switch id="high-contrast" checked={highContrast} onCheckedChange={setHighContrast} />
+                  <div className="flex items-center gap-2">
+                    <Switch checked={accountSettings.fitbit} onCheckedChange={() => handleToggle("fitbit")} />
+                    {accountSettings.fitbit && (
+                      <Button size="sm" variant="outline" className="h-8 text-xs bg-transparent">
+                        Sync
+                      </Button>
+                    )}
                   </div>
                 </div>
-              </div>
 
-              <Separator />
-
-              <div>
-                <h3 className="text-lg font-medium mb-4">{t("preferences.language")}</h3>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="language">{t("preferences.language")}</Label>
-                    <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
-                      <SelectTrigger id="language">
-                        <SelectValue placeholder="Select language" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="en">English</SelectItem>
-                        <SelectItem value="es">Español</SelectItem>
-                        <SelectItem value="pt">Português</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="timezone">{t("preferences.timezone")}</Label>
-                    <Select defaultValue="america-los_angeles">
-                      <SelectTrigger id="timezone">
-                        <SelectValue placeholder="Select time zone" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="america-los_angeles">Pacific Time (PT)</SelectItem>
-                        <SelectItem value="america-denver">Mountain Time (MT)</SelectItem>
-                        <SelectItem value="america-chicago">Central Time (CT)</SelectItem>
-                        <SelectItem value="america-new_york">Eastern Time (ET)</SelectItem>
-                        <SelectItem value="europe-london">Greenwich Mean Time (GMT)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="units">{t("preferences.units")}</Label>
-                    <RadioGroup defaultValue="imperial">
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="imperial" id="imperial" />
-                        <Label htmlFor="imperial">{t("preferences.imperial")}</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="metric" id="metric" />
-                        <Label htmlFor="metric">{t("preferences.metric")}</Label>
-                      </div>
-                    </RadioGroup>
+                <div className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+                  <div className="flex-1">
+                    <h4 className="font-medium text-sm">Garmin</h4>
+                    <p className="text-xs text-muted-foreground">Garmin devices</p>
+                    </div>
+                  <div className="flex items-center gap-2">
+                    <Switch checked={accountSettings.garmin} onCheckedChange={() => handleToggle("garmin")} />
+                    {accountSettings.garmin && (
+                      <Button size="sm" variant="outline" className="h-8 text-xs bg-transparent">
+                        Sync
+                      </Button>
+                    )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
               <Button className="bg-teal-600 hover:bg-teal-700" onClick={savePreferences}>
                 <Save className="mr-2 h-4 w-4" />
-                {t("preferences.savePreferences")}
+                Save Settings
               </Button>
             </CardContent>
           </Card>
@@ -1073,140 +1651,177 @@ export default function ProfileClientPage() {
           <Card>
             <CardContent className="pt-6 space-y-6">
               <div>
-                <h3 className="text-lg font-medium mb-4">{t("privacy.settings")}</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="data-sharing">{t("privacy.dataSharing")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("privacy.dataSharingDesc")}</p>
+                <h3 className="text-lg font-medium mb-2">Privacy & Data</h3>
+                <p className="text-sm text-muted-foreground">Manage how your data is used and request copies of your information</p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <div className="rounded-lg border bg-card p-4">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="rounded-full bg-primary/10 p-2">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-primary"
+                      >
+                        <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5" />
+                        <path d="M8.5 8.5v.01" />
+                        <path d="M16 15.5v.01" />
+                        <path d="M12 12v.01" />
+                        <path d="M11 17v.01" />
+                        <path d="M7 14v.01" />
+                      </svg>
                     </div>
-                    <Switch
-                      id="data-sharing"
-                      checked={accountSettings.dataSharing}
-                      onCheckedChange={() => handleToggle("dataSharing")}
-                    />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-base">Data Sharing Preferences</h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">Control how your health data is used to improve our services</p>
+                    </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="research-participation">{t("privacy.research")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("privacy.researchDesc")}</p>
-                    </div>
-                    <Switch id="research-participation" defaultChecked={false} />
-                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between rounded-md border bg-muted/30 p-4">
+                      <div className="flex-1 pr-4">
+                        <h5 className="font-medium text-sm mb-1">Share Anonymized Data for Research</h5>
+                        <p className="text-xs text-muted-foreground">Help advance medical research by sharing your anonymized health data with approved research institutions. Your personal information will never be shared.</p>
+                      </div>
+                      <Switch
+                        checked={accountSettings.shareAnonymizedData}
+                        onCheckedChange={() => handleToggle("shareAnonymizedData")}
+                      />
+                </div>
 
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="analytics">{t("privacy.analytics")}</Label>
-                      <p className="text-sm text-muted-foreground">{t("privacy.analyticsDesc")}</p>
+                    <div className="flex items-start justify-between rounded-md border bg-muted/30 p-4">
+                      <div className="flex-1 pr-4">
+                        <h5 className="font-medium text-sm mb-1">Share Usage Analytics</h5>
+                        <p className="text-xs text-muted-foreground">Allow us to collect anonymized usage data to improve app performance and user experience. This includes feature usage, navigation patterns, and technical diagnostics.</p>
+                      </div>
+                      <Switch
+                        checked={accountSettings.shareAnalytics}
+                        onCheckedChange={() => handleToggle("shareAnalytics")}
+                      />
                     </div>
-                    <Switch id="analytics" defaultChecked />
                   </div>
                 </div>
               </div>
 
-              <Button className="bg-teal-600 hover:bg-teal-700">
-                <Save className="mr-2 h-4 w-4" />
-                {t("privacy.saveSettings")}
-              </Button>
-
               <Separator />
 
-              <div>
-                <h3 className="text-lg font-medium mb-4">{t("privacy.dataManagement")}</h3>
-                <Dialog open={dataRequestOpen} onOpenChange={setDataRequestOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
-                      <Check className="mr-2 h-4 w-4" />
-                      {t("privacy.requestData")}
+              <div className="rounded-lg border bg-card p-4">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="rounded-full bg-primary/10 p-2">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      className="text-primary"
+                      >
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" x2="12" y1="15" y2="3" />
+                      </svg>
+                    </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-base">Data Export</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">Request a complete copy of your health data</p>
+                    </div>
+                </div>
+
+                <div className="rounded-md bg-muted/30 p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      className="text-muted-foreground mt-0.5 flex-shrink-0"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                      <path d="M12 16v-4" />
+                      <path d="M12 8h.01" />
+                      </svg>
+                    <div className="flex-1">
+                      <p className="text-sm">You can request a copy of all your health data stored in our system. This includes:</p>
+                      <ul className="text-xs text-muted-foreground mt-2 space-y-1 ml-4 list-disc">
+                        <li>Personal profile information</li>
+                        <li>Health records and medical history</li>
+                        <li>Appointments and prescriptions</li>
+                        <li>Wearable device data</li>
+                        <li>Emergency contacts and medical information</li>
+                      </ul>
+                      <p className="text-xs text-muted-foreground mt-3">Your data will be compiled and sent to your registered email address within 24 hours in a secure, downloadable format.</p>
+                    </div>
+                </div>
+
+                  <Dialog open={dataExportOpen} onOpenChange={setDataExportOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full sm:w-auto bg-transparent">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                          className="mr-2"
+                      >
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" x2="12" y1="15" y2="3" />
+                      </svg>
+                        Request Data Export
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[500px]">
+                    <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>{t("privacy.dataRequest")}</DialogTitle>
-                      <DialogDescription>{t("privacy.dataRequestDesc")}</DialogDescription>
+                        <DialogTitle>Request Data Export</DialogTitle>
+                        <DialogDescription>We'll send you a copy of all your health data within 24 hours to your registered email address.</DialogDescription>
                     </DialogHeader>
-                    <Form {...dataRequestForm}>
-                      <form onSubmit={dataRequestForm.handleSubmit(onDataRequestSubmit)} className="space-y-4">
-                        <FormField
-                          control={dataRequestForm.control}
-                          name="name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{t("profile.fullName")}</FormLabel>
-                              <FormControl>
-                                <Input {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={dataRequestForm.control}
-                          name="requestType"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{t("privacy.requestType")}</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select request type" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="data-export">{t("privacy.dataExport")}</SelectItem>
-                                  <SelectItem value="data-deletion">{t("privacy.dataDeletion")}</SelectItem>
-                                  <SelectItem value="account-deletion">{t("privacy.accountDeletion")}</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={dataRequestForm.control}
-                          name="reason"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{t("privacy.reason")}</FormLabel>
-                              <FormControl>
-                                <Textarea
-                                  placeholder={t("privacy.reasonPlaceholder")}
-                                  className="resize-none"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={dataRequestForm.control}
-                          name="email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{t("privacy.emailDownload")}</FormLabel>
-                              <FormControl>
-                                <Input {...field} />
-                              </FormControl>
-                              <FormDescription>{t("privacy.emailDownloadDesc")}</FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                      <div className="rounded-md bg-muted p-4 my-4">
+                        <p className="text-sm">
+                          <strong>Email:</strong> john.smith@email.com
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-2">The export will be sent to this email address. Make sure you have access to it.</p>
+                      </div>
                         <DialogFooter>
-                          <Button variant="outline" onClick={() => setDataRequestOpen(false)}>
-                            {t("action.cancel")}
+                        <Button variant="outline" onClick={() => setDataExportOpen(false)}>
+                          Cancel
                           </Button>
-                          <Button type="submit" className="bg-teal-600 hover:bg-teal-700">
-                            {t("action.submit")}
+                        <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleDataExport}>
+                          Confirm Request
                           </Button>
                         </DialogFooter>
-                      </form>
-                    </Form>
                   </DialogContent>
                 </Dialog>
               </div>
+              </div>
+
+              <Button className="bg-teal-600 hover:bg-teal-700" onClick={savePreferences}>
+                <Save className="mr-2 h-4 w-4" />
+                Save Privacy Settings
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

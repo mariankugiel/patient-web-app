@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { useSelector } from "react-redux"
+import { RootState } from "@/lib/store"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -399,19 +401,14 @@ export default function PermissionsClientPage() {
 
   const revokedContacts = sharedAccessData.filter((contact) => contact.status === "Revoked")
 
+  // Get user data from Redux store
+  const { user } = useSelector((state: RootState) => state.auth)
+  const userName = user?.user_metadata?.full_name || "User"
+  const firstName = userName.split(' ')[0] || "User"
+
   // Replace all hardcoded text with t function calls in the return statement
   return (
     <div className="space-y-4 px-4">
-      <div className="flex items-center gap-4 mb-4">
-        <Avatar className="h-16 w-16 border-2 border-primary">
-          <AvatarImage src="/middle-aged-man-profile.png" alt="John Doe" />
-          <AvatarFallback>JD</AvatarFallback>
-        </Avatar>
-        <div>
-          <h1 className="text-2xl font-bold text-primary">{t("greeting.morning")}, John</h1>
-          <p className="text-muted-foreground">{t("permissions.manageDataSharing")}</p>
-        </div>
-      </div>
 
       <Tabs defaultValue="shared-access">
         <TabsList className="grid w-full grid-cols-4">

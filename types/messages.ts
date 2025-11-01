@@ -15,6 +15,23 @@ export type MessagePriority = 'low' | 'normal' | 'high' | 'urgent'
 
 export type MessageStatus = 'sent' | 'delivered' | 'read' | 'failed'
 
+// Message attachment types
+export interface MessageAttachment {
+  id: number
+  message_id: number
+  file_name: string
+  original_file_name: string
+  file_type: string
+  file_size: number
+  file_extension: string
+  s3_bucket: string
+  s3_key: string
+  s3_url?: string
+  uploaded_by: number
+  created_at: string
+  updated_at?: string
+}
+
 export interface MessageSender {
   id: string
   name: string
@@ -52,15 +69,18 @@ export interface MessageSender {
 
 export interface Message {
   id: string
-  conversationId: string
-  sender: MessageSender
+  conversation_id: string
+  sender_id: number  // Simplified: just sender ID, no full sender object
+  attachments?: MessageAttachment[]  // Add attachments support
+  file_attachments?: any[]  // Add file attachments support
   content: string
-  type: MessageType
+  message_type: MessageType
   priority: MessagePriority
   status: MessageStatus
-  timestamp: string
-  readAt?: string
-  metadata?: {
+  created_at: string
+  updated_at?: string
+  read_at?: string
+  message_metadata?: {
     medicationId?: number
     appointmentId?: string
     labResultId?: string
@@ -73,7 +93,16 @@ export interface Message {
 
 export interface Conversation {
   id: string
-  contact: MessageSender
+  user_id: number
+  contact_id: number
+  contact_name?: string
+  contact_role?: string
+  contact_avatar?: string
+  contact_initials?: string
+  current_user_name?: string
+  current_user_role?: string
+  current_user_avatar?: string
+  current_user_initials?: string
   messages: Message[]
   unreadCount: number
   lastMessageTime: string
@@ -175,15 +204,24 @@ export interface MessagesResponse {
 }
 
 export interface SendMessageRequest {
-  conversationId?: string
-  recipientId: string
+  conversation_id?: string
+  recipient_id?: string
   content: string
-  type: MessageType
+  message_type: MessageType
   priority: MessagePriority
-  metadata?: Record<string, any>
+  attachments?: MessageAttachment[]  // Add attachments support
+  message_metadata?: Record<string, any>
 }
 
 export interface SendMessageResponse {
   message: Message
   conversation: Conversation
+}
+
+export interface MessagesResponse {
+  conversations: Conversation[]
+  total_count: number
+  unread_count: number
+  has_more: boolean
+  current_user_id: number  // Add actual database user ID from backend
 }

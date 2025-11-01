@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 
 export default function Loading() {
   return (
-    <div className="container py-6">
+    <div className="px-6 py-2">
       <header className="mb-6 flex items-center">
         <Skeleton className="h-10 w-10 rounded-full mr-3" />
         <div>

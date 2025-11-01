@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSelector } from "react-redux"
+import { RootState } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -537,18 +539,13 @@ export default function AppointmentsClientPage() {
     }
   }
 
+  // Get user data from Redux store
+  const { user } = useSelector((state: RootState) => state.auth)
+  const userName = user?.user_metadata?.full_name || "User"
+  const firstName = userName.split(' ')[0] || "User"
+
   return (
     <div className="container py-4">
-      <div className="flex items-center gap-4 mb-2">
-        <Avatar className="h-16 w-16 border-2 border-primary">
-          <AvatarImage src="/middle-aged-man-profile.png" alt="John Doe" />
-          <AvatarFallback>JD</AvatarFallback>
-        </Avatar>
-        <div>
-          <h1 className="text-2xl font-bold text-primary">{t("greeting.morning")}, John!</h1>
-          <p className="text-muted-foreground">{t("appointments.manageUpcoming")}</p>
-        </div>
-      </div>
       <div className="mb-4 flex justify-end">
         <Dialog>
           <DialogTrigger asChild>

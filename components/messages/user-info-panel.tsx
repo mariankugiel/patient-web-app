@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { 
-  X, User, Mail, MapPin, Calendar, 
+  X, User, Mail, MapPin, Calendar, Phone,
   Star, Clock, MessageSquare, FileText, Activity,
   Award, GraduationCap, Heart, Shield, Zap
 } from "lucide-react"

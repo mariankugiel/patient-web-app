@@ -24,18 +24,7 @@ export default function HealthRecordsLayout({
   }
 
   return (
-    <div className="container py-6">
-      {/* Header with patient photo and salutation */}
-      <header className="mb-6 flex items-center gap-4">
-        <div className="h-16 w-16 overflow-hidden rounded-full border-2 border-teal-500">
-          <Image src="/middle-aged-man-profile.png" alt="John's profile" className="h-full w-full object-cover" width={64} height={64}/>
-        </div>
-        <div>
-          <p className="text-2xl font-bold text-primary dark:text-teal-300">{t("greeting.morning")}, John!</p>
-          <p className="text-muted-foreground">{t("health.controlRecords")}</p>
-        </div>
-      </header>
-
+    <div className="py-6">
       {/* Navigation Tabs */}
       <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-6">
         <div className="overflow-x-auto pb-2">

@@ -1,7 +1,6 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
 
@@ -28,7 +27,7 @@ interface MessageListProps {
 
 export function MessageList({ messages, selectedId, onSelect }: MessageListProps) {
   return (
-    <ScrollArea className="h-[600px]">
+    <div className="h-[600px]">
       <div className="p-4">
         <h2 className="mb-4 text-xl font-semibold">Inbox</h2>
         <div className="space-y-2">
@@ -64,6 +63,6 @@ export function MessageList({ messages, selectedId, onSelect }: MessageListProps
           ))}
         </div>
       </div>
-    </ScrollArea>
+    </div>
   )
 }

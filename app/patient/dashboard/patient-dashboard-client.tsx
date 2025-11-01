@@ -315,16 +315,6 @@ export default function PatientDashboardClient() {
 
   return (
     <div className="container py-6">
-      <header className="mb-6 flex items-center gap-4">
-        <div className="h-16 w-16 overflow-hidden rounded-full border-2 border-primary">
-          <img src="/middle-aged-man-profile.png" alt="John's profile" className="h-full w-full object-cover" />
-        </div>
-        <div>
-          <p className="text-2xl font-bold text-primary">{t("greeting.morning")}, John!</p>
-          <p className="text-muted-foreground">{t("dashboard.overview")}</p>
-        </div>
-      </header>
-
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:grid-cols-4">
         {/* Main content - left side (spans 3 columns on large screens) */}
         <div className="space-y-6 md:col-span-2 lg:col-span-3">

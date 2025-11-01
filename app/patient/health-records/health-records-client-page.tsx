@@ -1462,16 +1462,6 @@ export default function HealthRecordsClientPage() {
 
   return (
     <div className="container py-6">
-      {/* New header with patient photo and salutation */}
-      <header className="mb-6 flex items-center gap-4">
-        <div className="h-16 w-16 overflow-hidden rounded-full border-2 border-teal-500">
-          <img src="/middle-aged-man-profile.png" alt="John's profile" className="h-full w-full object-cover" />
-        </div>
-        <div>
-          <p className="text-2xl font-bold text-primary dark:text-teal-300">{t("greeting.morning")}, John!</p>
-          <p className="text-muted-foreground">{t("health.controlRecords")}</p>
-        </div>
-      </header>
 
       {/* Improved tabs layout with horizontal scrolling on mobile */}
       <Tabs defaultValue="summary" value={activeTab} onValueChange={setActiveTab} className="space-y-6">

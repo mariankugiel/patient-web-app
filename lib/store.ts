@@ -4,6 +4,8 @@ import authSlice from "./features/auth/authSlice"
 import healthSlice from "./features/health/healthSlice"
 import uiSlice from "./features/ui/uiSlice"
 import onboardingSlice from "./features/onboarding/onboardingSlice"
+import messageParticipantsSlice from "./features/messages/messageParticipantsSlice"
+import conversationsSlice from "./features/messages/conversationsSlice"
 
 // Enable MapSet plugin for Immer to support Set and Map types
 enableMapSet()
@@ -14,6 +16,8 @@ export const store = configureStore({
     health: healthSlice,
     ui: uiSlice,
     onboarding: onboardingSlice,
+    messageParticipants: messageParticipantsSlice,
+    conversations: conversationsSlice,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

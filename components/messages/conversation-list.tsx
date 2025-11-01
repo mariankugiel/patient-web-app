@@ -30,6 +30,7 @@ import type { Conversation, MessageType } from '@/types/messages'
 interface ConversationListProps {
   conversations: Conversation[]
   selectedConversationId: string | null
+  typingUsers: Set<number>  // Add typing users
   onSelectConversation: (conversationId: string) => void
   onArchiveConversation: (conversationId: string) => void
   onTogglePin: (conversationId: string) => void
@@ -92,6 +93,7 @@ const getPriorityIndicator = (priority: string) => {
 export function ConversationList({
   conversations,
   selectedConversationId,
+  typingUsers,
   onSelectConversation,
   onArchiveConversation,
   onTogglePin,
@@ -117,18 +119,17 @@ export function ConversationList({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 w-full max-w-full overflow-hidden">
       {conversations.map((conversation) => {
         const isSelected = selectedConversationId === conversation.id
         const hasUnread = conversation.unreadCount > 0
-        const hasActionRequired = conversation.lastMessage?.metadata?.actionRequired && 
-                                 !conversation.lastMessage?.metadata?.actionCompleted
-        const lastMessageType = conversation.lastMessage?.type || 'general'
+        const hasActionRequired = conversation.lastMessage?.message_metadata?.actionRequired
+        const lastMessageType = conversation.lastMessage?.message_type || 'general'
 
         return (
           <Card
             key={conversation.id}
-            className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
+            className={`cursor-pointer transition-all duration-200 hover:shadow-md w-full max-w-full overflow-hidden ${
               isSelected
                 ? 'border-teal-600 bg-teal-50 dark:border-teal-400 dark:bg-teal-950'
                 : 'hover:bg-gray-50 dark:hover:bg-gray-800'
@@ -145,26 +146,35 @@ export function ConversationList({
                 <div className="relative">
                   <Avatar className="h-12 w-12">
                     <AvatarImage
-                      src={conversation.contact?.avatar || "/placeholder.svg"}
-                      alt={conversation.contact?.name || "Unknown"}
+                      src={conversation.contact_avatar && conversation.contact_avatar.trim() !== "" ? conversation.contact_avatar : undefined}
+                      alt={conversation.contact_name || "Unknown"}
                     />
-                    <AvatarFallback>{conversation.contact?.name?.charAt(0) || "U"}</AvatarFallback>
+                    <AvatarFallback className="bg-blue-600 text-white">
+                      {conversation.contact_initials || 
+                       (conversation.contact_name ? 
+                         (conversation.contact_name.split(' ').length > 1 ? 
+                           conversation.contact_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() :
+                           conversation.contact_name.substring(0, 2).toUpperCase()
+                         ) : 
+                         "U"
+                       )}
+                    </AvatarFallback>
                   </Avatar>
                   
                   {/* Online status indicator */}
                   <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-gray-900 ${
-                    conversation.contact?.type === 'system' ? 'bg-gray-400' : 'bg-green-500'
+                    conversation.contact_id === 0 ? 'bg-gray-400' : 'bg-green-500'
                   }`} />
                 </div>
 
                 {/* Conversation content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className={`font-medium truncate ${
+                <div className="flex-1 min-w-0 overflow-hidden w-full">
+                  <div className="flex items-center justify-between mb-1 w-full">
+                    <div className="flex items-center gap-2 min-w-0 flex-1 w-full">
+                      <h3 className={`font-medium truncate flex-1 ${
                         hasUnread ? 'font-semibold' : ''
                       }`}>
-                        {conversation.contact?.name || "Unknown"}
+                        {conversation.contact_name || "Unknown"}
                       </h3>
                       
                       {/* Message type icon */}
@@ -235,40 +245,68 @@ export function ConversationList({
 
                   {/* Contact role */}
                   <div className="text-xs text-muted-foreground mb-1">
-                    {conversation.contact?.role || "Unknown"}
+                    {conversation.contact_role || "Unknown"}
                   </div>
 
-                  {/* Last message preview */}
-                  {conversation.lastMessage && (
-                    <div className="flex items-center gap-2">
-                      <p className={`text-sm truncate ${
+                  {/* Last message preview or typing indicator */}
+                  {typingUsers.has(conversation.contact_id) ? (
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-center gap-1">
+                        <div className="flex space-x-1">
+                          <div className="w-1 h-1 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                          <div className="w-1 h-1 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                          <div className="w-1 h-1 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                        </div>
+                        <span className="text-sm text-teal-600 italic truncate">typing...</span>
+                      </div>
+                    </div>
+                  ) : conversation.lastMessage ? (
+                    <div className="flex items-center gap-2 min-w-0 w-full max-w-full overflow-hidden">
+                      <p className={`text-sm flex-1 min-w-0 max-w-[150px] ${
                         hasUnread ? 'font-medium text-gray-900 dark:text-gray-100' : 'text-muted-foreground'
                       }`}>
-                        {conversation.lastMessage.content}
+                        <span className="block truncate overflow-hidden text-ellipsis whitespace-nowrap">
+                          {conversation.lastMessage.content.length > 15 
+                            ? `${conversation.lastMessage.content.substring(0, 15)}...` 
+                            : conversation.lastMessage.content
+                          }
+                        </span>
                       </p>
                       
                       {/* Message type badge for last message */}
-                      {conversation.lastMessage.type !== 'general' && (
+                      {conversation.lastMessage?.message_type && conversation.lastMessage.message_type !== 'general' && (
                         <Badge 
                           variant="outline" 
                           className={`text-xs ${getMessageTypeColor(lastMessageType)} border-current`}
                         >
-                          {conversation.lastMessage.type.replace('_', ' ')}
+                          {conversation.lastMessage.message_type.replace('_', ' ')}
                         </Badge>
                       )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 min-w-0 w-full">
+                      <p className="text-sm text-muted-foreground italic">
+                        No messages yet
+                      </p>
                     </div>
                   )}
 
                   {/* Timestamp */}
                   <div className="flex items-center justify-between mt-1">
                     <span className="text-xs text-muted-foreground">
-                      {conversation.lastMessageTime ? 
+                      {conversation.lastMessage?.created_at ? 
                         (() => {
-                          const date = new Date(conversation.lastMessageTime);
+                          const date = new Date(conversation.lastMessage.created_at);
                           return isNaN(date.getTime()) ? 'Unknown time' : 
                             formatDistanceToNow(date, { addSuffix: true });
                         })() : 
-                        'No messages'
+                        conversation.lastMessageTime ? 
+                          (() => {
+                            const date = new Date(conversation.lastMessageTime);
+                            return isNaN(date.getTime()) ? 'Unknown time' : 
+                              formatDistanceToNow(date, { addSuffix: true });
+                          })() : 
+                          'No messages'
                       }
                     </span>
                     

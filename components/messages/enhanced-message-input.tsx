@@ -24,6 +24,7 @@ interface EnhancedMessageInputProps {
   onVoiceRecord: (audioBlob: Blob) => void
   placeholder?: string
   disabled?: boolean
+  loading?: boolean
   maxLength?: number
 }
 
@@ -52,14 +53,13 @@ export function EnhancedMessageInput({
   onVoiceRecord,
   placeholder = "Type a message...",
   disabled = false,
+  loading = false,
   maxLength = 2000
 }: EnhancedMessageInputProps) {
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [uploadingFiles, setUploadingFiles] = useState<File[]>([])
   
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -100,22 +100,8 @@ export function EnhancedMessageInput({
   }
 
   const handleFileUpload = (files: FileList) => {
-    const fileArray = Array.from(files)
-    setUploadingFiles(fileArray)
-    
-    // Simulate upload progress
-    setUploadProgress(0)
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          setUploadingFiles([])
-          onFileUpload(files)
-          return 0
-        }
-        return prev + 10
-      })
-    }, 100)
+    // Call the parent's file upload handler directly
+    onFileUpload(files)
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -192,9 +178,6 @@ export function EnhancedMessageInput({
     textareaRef.current?.focus()
   }
 
-  const removeUploadingFile = (index: number) => {
-    setUploadingFiles(prev => prev.filter((_, i) => i !== index))
-  }
 
   return (
     <div 
@@ -203,40 +186,6 @@ export function EnhancedMessageInput({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Upload Progress */}
-      {uploadingFiles.length > 0 && (
-        <div className="mb-4 space-y-2">
-          {uploadingFiles.map((file, index) => (
-            <Card key={index} className="p-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 rounded">
-                    {file.type.startsWith('image/') ? (
-                      <Image className="h-4 w-4 text-blue-600" />
-                    ) : (
-                      <FileText className="h-4 w-4 text-blue-600" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{file.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeUploadingFile(index)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <Progress value={uploadProgress} className="mt-2" />
-            </Card>
-          ))}
-        </div>
-      )}
 
       {/* Recording Indicator */}
       {isRecording && (
@@ -334,10 +283,14 @@ export function EnhancedMessageInput({
           
           <Button
             onClick={handleSend}
-            disabled={!value.trim() || disabled}
+            disabled={!value.trim() || disabled || loading}
             className="h-10 w-10 p-0 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300"
           >
-            <Send className="h-4 w-4" />
+            {loading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
           </Button>
         </div>
       </div>

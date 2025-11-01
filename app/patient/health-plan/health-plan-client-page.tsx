@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
+import { useSelector } from "react-redux"
+import { RootState } from "@/lib/store"
 import { usePathname, useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -1229,18 +1231,13 @@ export default function HealthPlanClientPage() {
     }
   }
 
+  // Get user data from Redux store
+  const { user } = useSelector((state: RootState) => state.auth)
+  const userName = user?.user_metadata?.full_name || "User"
+  const firstName = userName.split(' ')[0] || "User"
+
   return (
     <div className="container py-6">
-      <div className="flex items-center gap-4 mb-6">
-        <Avatar className="h-16 w-16 border-2 border-primary">
-          <AvatarImage src="/middle-aged-man-profile.png" alt="John Doe" />
-          <AvatarFallback>JD</AvatarFallback>
-        </Avatar>
-        <div>
-          <h1 className="text-2xl font-bold text-primary">{t("greeting.morning")}, John!</h1>
-          <p className="text-muted-foreground">{t("dashboard.healthPlanProgressDesc")}</p>
-        </div>
-      </div>
 
       <Tabs defaultValue="overview" value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList>

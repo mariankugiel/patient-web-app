@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { MapPin, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { loadGoogleMaps, isGoogleMapsReady } from "@/lib/google-maps-loader"
@@ -32,20 +31,16 @@ interface LocationSearchProps {
   value: string
   onChange: (location: string, details?: LocationResult) => void
   placeholder?: string
-  label?: string
   className?: string
   error?: string
-  required?: boolean
 }
 
 export function LocationSearch({
   value,
   onChange,
   placeholder = "Search for a location...",
-  label = "Location",
   className,
   error,
-  required = false
 }: LocationSearchProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [results, setResults] = useState<LocationResult[]>([])
@@ -299,9 +294,6 @@ export function LocationSearch({
 
   return (
     <div className={cn("relative", className)}>
-      <Label htmlFor="location">
-        {label} {required && "*"}
-      </Label>
       <div className="relative">
         <Input
           ref={inputRef}

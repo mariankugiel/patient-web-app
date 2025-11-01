@@ -1,18 +1,20 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
+import { useSelector } from "react-redux"
 import { 
   PlusCircle, Send, Filter, Search, Bell, MessageSquare, 
   Mic, Paperclip, Smile, MoreVertical,
-  X, Pin, Archive, Trash2, Star, User, Clock, CheckCheck
+  X, Pin, Archive, Trash2, Star, User, Clock, CheckCheck,
+  CheckCircle, AlertCircle
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
+import { RootState } from "@/lib/store"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -41,15 +43,22 @@ import { Separator } from "@/components/ui/separator"
 import { useLanguage } from "@/contexts/language-context"
 import { useWebSocketContext } from "@/contexts/websocket-context"
 import { useMessages } from "@/hooks/use-messages"
+import { useGlobalConversations } from "@/hooks/use-global-conversations"
 import { useRealtimeMessages } from "@/hooks/use-realtime-messages"
 import { ConversationList } from "@/components/messages/conversation-list"
-import { MessageItem } from "@/components/messages/message-item"
+import { FileUploadDialog } from "@/components/messages/file-upload-dialog"
+import { UploadProgressItem } from "@/components/messages/upload-progress-item"
+import { FileMessageItem } from "@/components/messages/file-message-item"
+import { MessageAttachments } from "@/components/messages/message-attachments"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { EnhancedMessageInput } from "@/components/messages/enhanced-message-input"
 import { UserInfoPanel } from "@/components/messages/user-info-panel"
 import { RecipientAutocomplete, type Contact } from "@/components/messages/recipient-autocomplete"
 import { GlobalHeader } from "@/components/layout/global-header"
-import type { MessageFilters, MessageType } from "@/types/messages"
+import type { MessageFilters, MessageType, MessageAttachment, Message, MessagePriority, MessageStatus } from "@/types/messages"
+import type { FileUploadItem } from "@/types/files"
 import { messagesApiService } from "@/lib/api/messages-api"
+import { s3UploadService } from "@/lib/api/s3-upload-api"
 
 // Sample conversation data
 const conversations = [
@@ -307,6 +316,16 @@ const conversations = [
 
 export default function MessagesClientPage() {
   const { t } = useLanguage()
+  
+  // Get current user from Redux state
+  const { user } = useSelector((state: RootState) => state.auth)
+  
+  // Get participants from Redux state
+  const participants = useSelector((state: RootState) => {
+    const messageParticipants = state.messageParticipants as any
+    return messageParticipants?.participants || {}
+  })
+  
   const [newMessage, setNewMessage] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [showFilters, setShowFilters] = useState(false)
@@ -324,25 +343,41 @@ export default function MessagesClientPage() {
   const [currentSearchQuery, setCurrentSearchQuery] = useState("")
   const contactsLimit = 20 // Load 20 contacts at a time
 
+  // File upload state
+  const [fileUploadDialogOpen, setFileUploadDialogOpen] = useState(false)
+  const [dialogFiles, setDialogFiles] = useState<FileUploadItem[]>([])
+  const [uploadingFiles, setUploadingFiles] = useState<FileUploadItem[]>([])
+  const [uploadProgress, setUploadProgress] = useState<Map<string, number>>(new Map())
+
+  // Ref for messages container to handle auto-scroll
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+
   // Get WebSocket context for real-time updates
   const { onUserStatusChange } = useWebSocketContext()
 
   // Use the messages hook
   const {
-    conversations,
     selectedConversation,
     messages,
-    unreadCount,
     unreadCountByType,
     loading,
+    loadingConversations, // Add loadingConversations
+    loadingMessages, // Add loadingMessages
+    sendingMessage,
     error,
+    currentUserId,  // Add actual database user ID from backend
+    typingUsers, // Add typingUsers from useMessages
     selectConversation,
     sendMessage,
+    uploadFile,
+    sendMessageWithFiles,
     markAsRead,
+    sendTypingIndicator,
     markConversationAsRead,
     archiveConversation,
     togglePin,
     deleteConversation,
+    setMessages,
     handleMedicationAction,
     handleAppointmentAction,
     handleLabResultAction,
@@ -351,10 +386,12 @@ export default function MessagesClientPage() {
     currentFilters,
     refreshConversations
   } = useMessages()
+  
+  // Use global conversations state
+  const { conversations, unreadCount } = useGlobalConversations()
 
   // Use real-time messaging hook
   const {
-    typingUsers,
     onlineUsers,
     isTyping,
     isConnected,
@@ -387,19 +424,19 @@ export default function MessagesClientPage() {
     
     // Check if conversation matches any selected filter
     if (selectedFilters.includes("doctors")) {
-      if (conv.contact?.role?.includes("Physician") ||
-          conv.contact?.role?.includes("Cardiologist") ||
-          conv.contact?.role?.includes("Endocrinologist") ||
-          conv.contact?.role?.includes("Doctor")) {
+      if (conv.contact_role?.includes("Physician") ||
+          conv.contact_role?.includes("Cardiologist") ||
+          conv.contact_role?.includes("Endocrinologist") ||
+          conv.contact_role?.includes("Doctor")) {
         return true
       }
     }
     
     if (selectedFilters.includes("system")) {
-      if (conv.contact?.role?.includes("System") ||
-          conv.contact?.role?.includes("Team") ||
-          conv.contact?.role?.includes("Support") ||
-          conv.contact?.role?.includes("Admin")) {
+      if (conv.contact_role?.includes("System") ||
+          conv.contact_role?.includes("Team") ||
+          conv.contact_role?.includes("Support") ||
+          conv.contact_role?.includes("Admin")) {
         return true
       }
     }
@@ -418,7 +455,7 @@ export default function MessagesClientPage() {
     const message = messages.find(m => m.id === messageId)
     if (!message) return
 
-    switch (message.type) {
+    switch (message.message_type) {
       case 'medication_reminder':
         await handleMedicationAction(messageId, action as 'taken' | 'snooze')
         break
@@ -429,18 +466,282 @@ export default function MessagesClientPage() {
         await handleLabResultAction(messageId, action as 'view' | 'schedule_followup')
         break
       default:
-        console.log('Action not implemented for message type:', message.type)
+        console.log('Action not implemented for message type:', message.message_type)
     }
   }
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation) return
 
+    console.log('📤 handleSendMessage called with:', newMessage.trim())
+    console.log('📤 Selected conversation:', selectedConversation)
+
     try {
-      await sendRealtimeMessage(newMessage.trim())
+      await sendMessage(newMessage.trim())
       setNewMessage("")
+      console.log('📤 Message sent successfully')
+      
+      // Scroll to bottom after sending message
+      setTimeout(() => {
+        scrollToBottom()
+      }, 100)
     } catch (error) {
-      console.error("Failed to send message:", error)
+      console.error("📤 Failed to send message:", error)
+    }
+  }
+
+
+  // Wrapper for voice messages with auto-scroll
+  const handleVoiceMessage = async (audioBlob: Blob) => {
+    try {
+      await sendVoiceMessage(audioBlob)
+      console.log('📤 Voice message sent successfully')
+      
+      // Scroll to bottom after sending voice message
+      setTimeout(() => {
+        scrollToBottom()
+      }, 100)
+    } catch (error) {
+      console.error("📤 Failed to send voice message:", error)
+    }
+  }
+
+  // File upload handlers
+  const handleFileUpload = (files: FileList) => {
+    // Convert FileList to FileUploadItem[]
+    const fileItems = Array.from(files).map(file => ({
+      id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      file,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      extension: file.name.split('.').pop()?.toLowerCase() || '',
+      status: 'pending' as const,
+      progress: 0
+    }))
+    
+    // Set files for dialog and show dialog
+    setDialogFiles(fileItems)
+    setFileUploadDialogOpen(true)
+  }
+
+  const handleFileUploadDialogSend = (files: FileUploadItem[], message: string) => {
+    if (!selectedConversation || !currentUserId) return
+
+    console.log('📎 Starting file upload:', files.length, 'files')
+    
+    // Close dialog
+    setFileUploadDialogOpen(false)
+    
+    // Create optimistic message with upload progress immediately
+    const messageContent = message.trim() || `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`
+    
+    // Create optimistic message for immediate display
+    const optimisticMessage: Message = {
+      id: `temp_upload_${Date.now()}`,
+      conversation_id: selectedConversation.id,
+      sender_id: currentUserId,
+      content: messageContent,
+      message_type: 'general' as MessageType,
+      priority: 'normal' as MessagePriority,
+      status: 'sending' as MessageStatus,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      message_metadata: {},
+      attachments: [],
+      file_attachments: files.map(file => ({
+        id: file.id,
+        message_id: 0,
+        file_name: file.name,
+        original_file_name: file.name,
+        file_type: file.type,
+        file_size: file.size,
+        file_extension: file.extension,
+        s3_bucket: '',
+        s3_key: '',
+        s3_url: '',
+        uploaded_by: currentUserId,
+        created_at: new Date().toISOString(),
+        updated_at: null
+      }))
+    }
+    
+    // Add optimistic message to state immediately
+    setMessages(prev => [...prev, optimisticMessage])
+    
+    // Set files to uploading status for progress display
+    setUploadingFiles(files.map(file => ({ ...file, status: 'uploading' as const, progress: 0 })))
+    
+    // Start actual upload process
+    uploadFiles(files, message, optimisticMessage.id)
+  }
+
+  const uploadFiles = async (files: FileUploadItem[], message: string, optimisticMessageId?: string) => {
+    if (!selectedConversation || !currentUserId) return
+
+    try {
+      console.log('📎 Starting file upload for', files.length, 'files')
+      
+      // Update uploading files with progress tracking
+      const uploadingFiles = files.map(file => ({ ...file, status: 'uploading' as const, progress: 0 }))
+      setUploadingFiles(uploadingFiles)
+      console.log('📎 Set files to uploading status:', uploadingFiles.length)
+      
+      // Small delay to ensure UI updates
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Upload files to S3
+      const uploadedFiles = await s3UploadService.uploadMultipleFiles(
+        files,
+        currentUserId,
+        {
+          maxFileSize: 50 * 1024 * 1024, // 50MB
+          allowedTypes: ['pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'mp4', 'mp3', 'zip'],
+          maxFiles: 10
+        },
+        (fileId, progress) => {
+          console.log('📎 Upload progress for', fileId, ':', progress + '%')
+          setUploadProgress(prev => new Map(prev).set(fileId, progress))
+          // Also update the file status in uploadingFiles
+          setUploadingFiles(prev => prev.map(file => 
+            file.id === fileId 
+              ? { ...file, progress }
+              : file
+          ))
+          
+          // Update optimistic message progress if it exists
+          if (optimisticMessageId) {
+            setMessages(prev => prev.map(msg => 
+              msg.id === optimisticMessageId 
+                ? { ...msg, content: `Uploading... ${progress}%` }
+                : msg
+            ))
+          }
+        },
+        (fileId, s3Data) => {
+          console.log('📎 File uploaded successfully:', fileId)
+          setUploadingFiles(prev => prev.map(file => 
+            file.id === fileId 
+              ? { ...file, status: 'uploaded' as const, progress: 100 }
+              : file
+          ))
+        },
+        (fileId, error) => {
+          console.error('📎 File upload failed:', fileId, error)
+          setUploadingFiles(prev => prev.map(file => 
+            file.id === fileId 
+              ? { ...file, status: 'failed' as const, error }
+              : file
+          ))
+        }
+      )
+
+      // Update uploading files with the results
+      setUploadingFiles(uploadedFiles)
+
+      // Send message with file attachments
+      const successfulFiles = uploadedFiles.filter(file => file.status === 'uploaded' && file.attachment)
+      if (successfulFiles.length > 0) {
+        // Use attachments directly from upload response
+        const attachments = successfulFiles.map(file => file.attachment!)
+        
+        // Send message with file attachments (even if no text content)
+        const messageContent = message.trim() || `Sent ${successfulFiles.length} file${successfulFiles.length > 1 ? 's' : ''}`
+        await sendMessage(messageContent, 'general', attachments)
+        console.log('📎 Message with files sent successfully')
+        
+        // Remove optimistic message and uploading files
+        if (optimisticMessageId) {
+          setMessages(prev => prev.filter(msg => msg.id !== optimisticMessageId))
+        }
+        setUploadingFiles([])
+        setUploadProgress(new Map())
+      } else {
+        // If no successful uploads, update optimistic message to show error
+        if (optimisticMessageId) {
+          setMessages(prev => prev.map(msg => 
+            msg.id === optimisticMessageId 
+              ? { ...msg, status: 'failed', content: 'Upload failed' }
+              : msg
+          ))
+        }
+        setUploadingFiles([])
+        setUploadProgress(new Map())
+      }
+
+    } catch (error) {
+      console.error('📎 File upload failed:', error)
+      setUploadingFiles(prev => prev.map(file => ({ ...file, status: 'failed' as const })))
+    }
+  }
+
+  const handleCancelFileUpload = (fileId: string) => {
+    console.log('📎 Cancelling file upload:', fileId)
+    
+    // Cancel S3 upload
+    s3UploadService.cancelUpload(fileId)
+    
+    // Update file status
+    setUploadingFiles(prev => prev.map(file => 
+      file.id === fileId 
+        ? { ...file, status: 'cancelled' as const }
+        : file
+    ))
+  }
+
+  const handleRetryFileUpload = (fileId: string) => {
+    console.log('📎 Retrying file upload:', fileId)
+
+    const file = uploadingFiles.find(f => f.id === fileId)
+    if (file) {
+      // Reset file status and retry
+      setUploadingFiles(prev => prev.map(f =>
+        f.id === fileId
+          ? { ...f, status: 'pending' as const, progress: 0, error: undefined }
+          : f
+      ))
+
+      // Retry upload for this specific file
+      uploadFiles([file], newMessage)
+    }
+  }
+
+  // Message action handlers
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!confirm('Are you sure you want to delete this message?')) return
+
+    try {
+      // TODO: Implement delete message API call
+      console.log('🗑️ Deleting message:', messageId)
+      // await deleteMessage(messageId)
+    } catch (error) {
+      console.error('🗑️ Failed to delete message:', error)
+    }
+  }
+
+  const handleReplyToMessage = (messageId: string, messageContent: string) => {
+    // TODO: Implement reply functionality
+    console.log('💬 Replying to message:', messageId, messageContent)
+    setNewMessage(`Replying to: ${messageContent.substring(0, 50)}... `)
+  }
+
+  const handlePinMessage = async (messageId: string) => {
+    try {
+      // TODO: Implement pin message API call
+      console.log('📌 Pinning message:', messageId)
+      // await pinMessage(messageId)
+    } catch (error) {
+      console.error('📌 Failed to pin message:', error)
+    }
+  }
+
+  const handleUnpinMessage = async (messageId: string) => {
+    try {
+      // TODO: Implement unpin message API call
+      console.log('📌 Unpinning message:', messageId)
+      // await unpinMessage(messageId)
+    } catch (error) {
+      console.error('📌 Failed to unpin message:', error)
     }
   }
 
@@ -534,6 +835,67 @@ export default function MessagesClientPage() {
     return cleanup
   }, [newMessageDialogOpen, onUserStatusChange])
 
+  // Helper function to scroll to bottom with width and length consideration
+  const scrollToBottom = useCallback(() => {
+    if (messagesContainerRef.current) {
+      // Try multiple selectors for ScrollArea
+      const selectors = [
+        '[data-radix-scroll-area-viewport]',
+        '.scroll-area-viewport',
+        '[data-scroll-area-viewport]',
+        'div[style*="overflow"]'
+      ]
+      
+      let scrollableElement = null
+      for (const selector of selectors) {
+        scrollableElement = messagesContainerRef.current.querySelector(selector)
+        if (scrollableElement) {
+          break
+        }
+      }
+      
+      // If no specific element found, try the container itself
+      if (!scrollableElement) {
+        scrollableElement = messagesContainerRef.current
+      }
+      
+      if (scrollableElement) {
+        // Use requestAnimationFrame to ensure DOM is updated
+        requestAnimationFrame(() => {
+          // First, scroll to the very bottom
+          scrollableElement.scrollTop = scrollableElement.scrollHeight
+          
+          // Then check if the last message is fully visible
+          const lastMessage = messagesContainerRef.current?.querySelector('[data-message-item]:last-child')
+          if (lastMessage) {
+            const lastMessageRect = lastMessage.getBoundingClientRect()
+            const containerRect = scrollableElement.getBoundingClientRect()
+            
+            // Calculate how much of the last message is visible
+            const visibleHeight = Math.min(lastMessageRect.bottom, containerRect.bottom) - Math.max(lastMessageRect.top, containerRect.top)
+            const messageHeight = lastMessageRect.height
+            
+            // If less than 80% of the last message is visible, scroll more
+            if (visibleHeight < messageHeight * 0.8) {
+              const additionalScroll = messageHeight - visibleHeight + 50 // Extra padding
+              scrollableElement.scrollTop = scrollableElement.scrollTop + additionalScroll
+            }
+          }
+        })
+      }
+    }
+  }, [messages])
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      // Add a small delay to ensure DOM is fully updated
+      setTimeout(() => {
+        scrollToBottom()
+      }, 100)
+    }
+  }, [messages, scrollToBottom])
+
   const handleCreateNewMessage = async () => {
     if (!selectedRecipient || !newMessageContent.trim()) {
       return
@@ -543,12 +905,7 @@ export default function MessagesClientPage() {
       // Create a new conversation and send the first message
       const conversation = await messagesApiService.createConversation(
         selectedRecipient.id,
-        newMessageContent.trim(),
-        {
-          name: selectedRecipient.name,
-          role: selectedRecipient.role,
-          avatar: selectedRecipient.avatar
-        }
+        newMessageContent.trim()
       )
 
       // Clear the inputs and close dialog
@@ -570,17 +927,7 @@ export default function MessagesClientPage() {
 
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
-      {/* Global Header */}
-      <GlobalHeader
-        title="Messages"
-        subtitle="Communicate with your healthcare team"
-        showNotification={true}
-        unreadCount={unreadCount}
-        showFilters={true}
-        onFilterClick={() => setShowFilters(!showFilters)}
-      />
-
+    <div className="flex flex-col h-full bg-gray-50 overflow-hidden">
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden min-w-0">
         {/* Left Panel - User List */}
@@ -648,7 +995,7 @@ export default function MessagesClientPage() {
                           Doctors
                         </label>
                         <span className="text-xs text-gray-500">
-                          {conversations.filter(c => c.contact?.role?.includes("Doctor") || c.contact?.role?.includes("Physician")).length}
+                          {conversations.filter(c => c.contact_role?.includes("Doctor") || c.contact_role?.includes("Physician")).length}
                         </span>
                       </div>
                       
@@ -666,7 +1013,7 @@ export default function MessagesClientPage() {
                           System
                         </label>
                         <span className="text-xs text-gray-500">
-                          {conversations.filter(c => c.contact?.role?.includes("System") || c.contact?.role?.includes("Support")).length}
+                          {conversations.filter(c => c.contact_role?.includes("System") || c.contact_role?.includes("Support")).length}
                         </span>
                       </div>
                       
@@ -695,16 +1042,26 @@ export default function MessagesClientPage() {
           </div>
 
           {/* Conversation List */}
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 w-full max-w-full overflow-hidden">
             <div className="p-2">
+              {loadingConversations ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm text-gray-600">Loading conversations...</span>
+                  </div>
+                </div>
+              ) : (
               <ConversationList
                 conversations={filteredConversations}
                 selectedConversationId={selectedConversation?.id || null}
+                  typingUsers={typingUsers} // Use typingUsers directly from useMessages
                 onSelectConversation={selectConversation}
                 onArchiveConversation={archiveConversation}
                 onTogglePin={togglePin}
                 onMarkAsRead={markConversationAsRead}
               />
+              )}
             </div>
           </ScrollArea>
 
@@ -786,32 +1143,20 @@ export default function MessagesClientPage() {
                       onClick={() => setShowUserInfo(!showUserInfo)}
                     >
                       <AvatarImage
-                        src={selectedConversation.contact?.avatar || "/placeholder.svg"}
-                        alt={selectedConversation.contact?.name || "Unknown"}
+                        src={selectedConversation.contact_avatar || "/placeholder.svg"}
+                        alt={selectedConversation.contact_name || "Unknown"}
                       />
-                      <AvatarFallback>{selectedConversation.contact?.name?.charAt(0) || "U"}</AvatarFallback>
+                      <AvatarFallback className="bg-blue-600 text-white">
+                        {selectedConversation.contact_initials || selectedConversation.contact_name?.charAt(0) || "U"}
+                      </AvatarFallback>
                     </Avatar>
                     <div>
-                      <div className="font-medium text-gray-900">{selectedConversation.contact?.name || "Unknown"}</div>
+                      <div className="font-medium text-gray-900">{selectedConversation.contact_name || "Unknown"}</div>
                       <div className="text-sm text-gray-500 flex items-center gap-2">
-                        {selectedConversation.contact?.isOnline ? (
                           <span className="flex items-center gap-1">
                             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                             Online
                           </span>
-                        ) : (
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {selectedConversation.contact?.lastSeen ? 
-                              (() => {
-                                const date = new Date(selectedConversation.contact.lastSeen);
-                                return isNaN(date.getTime()) ? 'Offline' : 
-                                  `Last seen ${formatDistanceToNow(date)} ago`;
-                              })() :
-                              'Offline'
-                            }
-                          </span>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -846,16 +1191,125 @@ export default function MessagesClientPage() {
               </div>
 
               {/* Messages Area */}
-              <ScrollArea className="flex-1 p-4">
-                <div className="space-y-4">
-                  {messages.map((message) => (
-                    <MessageItem
-                      key={message.id}
-                      message={message}
-                      isOwn={message.sender.type === 'user'}
-                      onActionClick={handleMessageAction}
+              <ScrollArea className="flex-1 p-4" ref={messagesContainerRef}>
+                {loadingMessages ? (
+                  <div className="flex items-center justify-center h-32">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-sm text-gray-600">Loading messages...</span>
+                    </div>
+                  </div>
+                ) : (
+                    <div className="space-y-2 w-full max-w-full overflow-hidden">
+                      {/* Upload Progress */}
+                      {(() => {
+                        console.log('📎 Uploading files count:', uploadingFiles.length)
+                        return null
+                      })()}
+                      {uploadingFiles.length > 0 && (
+                        <div className="space-y-2 mb-4">
+                          <div className="text-sm font-medium text-gray-600 mb-2">
+                            Uploading files...
+                          </div>
+                          {uploadingFiles.map((file) => (
+                            <UploadProgressItem
+                              key={file.id}
+                              file={file}
+                              onCancel={handleCancelFileUpload}
+                              onRetry={handleRetryFileUpload}
                     />
                   ))}
+                        </div>
+                      )}
+                      
+                      {(() => {
+                        console.log('📱 Total messages to render:', messages.length)
+                        return null
+                      })()}
+                      {messages.map((message) => {
+                      // Use current user ID from backend (actual database ID)
+                      if (!currentUserId) {
+                        console.error('❌ No current user ID found from backend')
+                        return null
+                      }
+                      
+                      console.log('📱 Rendering message:', message.id, 'with attachments:', message.file_attachments?.length || 0)
+                      
+                      // Proper message alignment logic: compare sender ID with current user ID
+                      // Both are now actual database IDs (numbers)
+                      const isOwn = message.sender_id === currentUserId
+                      
+                      // Get sender info from participants
+                      const senderInfo = participants[message.sender_id]
+                      
+                      return (
+                        <div key={message.id} className={`flex items-end gap-2 w-full max-w-full ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                          {/* Avatar for received messages */}
+                          {!isOwn && senderInfo && (
+                            <Avatar className="h-8 w-8 flex-shrink-0">
+                              <AvatarImage src={senderInfo.avatar} alt={senderInfo.name || "Unknown"} />
+                              <AvatarFallback className="bg-blue-600 text-white">
+                                {senderInfo.initials || senderInfo.name?.charAt(0) || "U"}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+                          
+                          {/* Message bubble */}
+                          <div className={`max-w-[50%] min-w-0 p-3 rounded-lg ${
+                            isOwn 
+                              ? 'bg-blue-500 text-white' 
+                              : 'bg-gray-200 text-gray-900'
+                          }`}>
+                            {/* Message content - only show if no file attachments or if there's meaningful text */}
+                            {message.content && (!message.file_attachments || message.file_attachments.length === 0 || !message.content.startsWith('Sent ')) && (
+                              <div 
+                                className="text-sm break-words overflow-wrap-anywhere hyphens-auto" 
+                                style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}
+                              >
+                                {message.content}
+                              </div>
+                            )}
+                            
+                            {/* Message attachments */}
+                            {message.attachments && message.attachments.length > 0 && (
+                              <div className="mt-2">
+                                <MessageAttachments
+                                  attachments={message.attachments}
+                                  isOwn={isOwn}
+                                />
+                              </div>
+                            )}
+                            
+                            {/* Time and status */}
+                            <div className={`text-xs mt-1 flex items-center justify-between ${
+                              isOwn ? 'text-blue-100' : 'text-gray-500'
+                            }`}>
+                              <span>
+                                {message.created_at ? new Date(message.created_at).toLocaleTimeString() : 'Unknown time'}
+                              </span>
+                              {isOwn && (
+                                <div className="ml-2">
+                                  {message.status === 'sent' && <CheckCircle className="h-3 w-3" />}
+                                  {message.status === 'delivered' && <CheckCircle className="h-3 w-3" />}
+                                  {message.status === 'read' && <CheckCircle className="h-3 w-3 text-blue-300" />}
+                                  {message.status === 'failed' && <AlertCircle className="h-3 w-3 text-red-300" />}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Avatar for sent messages */}
+                          {isOwn && senderInfo && (
+                            <Avatar className="h-8 w-8 flex-shrink-0">
+                              <AvatarImage src={senderInfo.avatar} alt={senderInfo.name || "Unknown"} />
+                              <AvatarFallback className="bg-blue-600 text-white">
+                                {senderInfo.initials || senderInfo.name?.charAt(0) || "U"}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+                        </div>
+                      )
+                  })}
                   
                   {messages.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
@@ -864,6 +1318,7 @@ export default function MessagesClientPage() {
                     </div>
                   )}
                 </div>
+                )}
               </ScrollArea>
 
               {/* Typing Indicator */}
@@ -880,13 +1335,13 @@ export default function MessagesClientPage() {
                 value={newMessage}
                 onChange={(value) => {
                   setNewMessage(value)
-                  handleTyping()
                 }}
                 onSend={handleSendMessage}
-                onFileUpload={sendFileMessage}
-                onVoiceRecord={sendVoiceMessage}
+                onFileUpload={handleFileUpload}
+                onVoiceRecord={handleVoiceMessage}
                 placeholder="Type a message..."
                 disabled={!isConnected}
+                loading={sendingMessage}
               />
             </>
           ) : (
@@ -903,12 +1358,33 @@ export default function MessagesClientPage() {
         {/* Right Panel - User Info (Optional) */}
         {showUserInfo && selectedConversation && (
           <UserInfoPanel
-            contact={selectedConversation.contact}
+            contact={{
+              id: selectedConversation.contact_id.toString(),
+              name: selectedConversation.contact_name || "Unknown",
+              avatar: selectedConversation.contact_avatar,
+              role: selectedConversation.contact_role || "Unknown",
+              type: "user" as const,
+              isOnline: true,
+              lastSeen: new Date().toISOString()
+            }}
             onClose={() => setShowUserInfo(false)}
             onViewProfile={() => console.log('View profile clicked')}
             onSendMessage={() => setShowUserInfo(false)}
           />
         )}
+
+        {/* File Upload Dialog */}
+        <FileUploadDialog
+          isOpen={fileUploadDialogOpen}
+          onClose={() => {
+            setFileUploadDialogOpen(false)
+            setDialogFiles([]) // Clear dialog files when closing
+          }}
+          onSend={handleFileUploadDialogSend}
+          maxFiles={10}
+          maxFileSize={50 * 1024 * 1024} // 50MB
+          initialFiles={dialogFiles}
+        />
       </div>
     </div>
   )

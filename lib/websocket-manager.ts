@@ -119,6 +119,18 @@ class GlobalWebSocketManager {
         this.isConnecting = false
         this.connectionId = null
         
+        // Check for authentication errors
+        if (event.code === 1008 || event.code === 1002 || event.reason?.includes('unauthorized') || event.reason?.includes('expired')) {
+          console.log('🔐 Authentication error detected, redirecting to login')
+          // Clear token and redirect to login
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('access_token')
+            localStorage.removeItem('refresh_token')
+            window.location.href = '/auth/login'
+            return
+          }
+        }
+        
         // Notify all disconnect handlers
         this.disconnectHandlers.forEach(handler => handler())
         

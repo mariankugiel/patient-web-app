@@ -338,6 +338,8 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="location">{getTranslation(language, "fields.location")}</Label>
         <LocationSearch
           value={formData.location}
           onChange={(location, details) => {
@@ -347,10 +349,9 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
             }
           }}
           placeholder={getTranslation(language, "placeholders.enterLocation")}
-          label={getTranslation(language, "fields.location")}
           error={fieldErrors.location}
-          required={true}
         />
+        </div>
 
         <div>
           <Label htmlFor="phone">{getTranslation(language, "fields.phone")} *</Label>
