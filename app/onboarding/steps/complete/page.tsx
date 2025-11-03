@@ -60,7 +60,7 @@ export default function OnboardingCompletePage() {
   }, [dispatch, user])
 
   const handleGoToDashboard = () => {
-    router.push('/dashboard')
+    router.push('/patient/dashboard')
   }
 
   return (

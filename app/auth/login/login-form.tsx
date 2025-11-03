@@ -38,12 +38,24 @@ export function LoginForm() {
   const [mfaEmail, setMfaEmail] = useState("")
 
   useEffect(() => {
+<<<<<<< HEAD
     // Only redirect if authenticated AND MFA dialog is not showing
     // This prevents redirect while waiting for MFA verification
     if (isAuthenticated && !showMfaDialog) {
       router.push("/patient/dashboard")
     }
   }, [isAuthenticated, showMfaDialog, router])
+=======
+    // DEVELOPMENT: Always redirect to onboarding page when authenticated
+    if (isAuthenticated) {
+      router.push("/onboarding")
+    }
+    // If already authenticated, redirect to dashboard (COMMENTED OUT FOR DEVELOPMENT)
+    // if (isAuthenticated) {
+    //   router.push("/patient/dashboard")
+    // }
+  }, [isAuthenticated, router])
+>>>>>>> bcf6989eb7432448692af1b6fce0c437d51884ef
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

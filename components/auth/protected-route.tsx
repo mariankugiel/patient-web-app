@@ -25,17 +25,18 @@ export function ProtectedRoute({
         // User not authenticated, redirect to login page
         router.push('/auth/login')
       } else if (isAuthenticated && user) {
+        // DEVELOPMENT: Always allow access to onboarding (commented out redirect logic)
         // Check if user needs onboarding (has is_new_user flag or hasn't completed/skipped onboarding)
-        const needsOnboarding = user.user_metadata?.is_new_user || 
-                               (!user.user_metadata?.onboarding_completed && !user.user_metadata?.onboarding_skipped)
+        // const needsOnboarding = user.user_metadata?.is_new_user || 
+        //                        (!user.user_metadata?.onboarding_completed && !user.user_metadata?.onboarding_skipped)
 
-        if (needsOnboarding && redirectTo !== '/onboarding') {
-          // Redirect users who need onboarding to onboarding
-          router.push('/onboarding')
-        } else if (!needsOnboarding && redirectTo === '/onboarding') {
-          // Redirect users who don't need onboarding away from onboarding
-          router.push('/patient/dashboard')
-        }
+        // if (needsOnboarding && redirectTo !== '/onboarding') {
+        //   // Redirect users who need onboarding to onboarding
+        //   router.push('/onboarding')
+        // } else if (!needsOnboarding && redirectTo === '/onboarding') {
+        //   // Redirect users who don't need onboarding away from onboarding
+        //   router.push('/patient/dashboard')
+        // }
       }
     }
   }, [isAuthenticated, user, isLoading, isRestoringSession, router, requireAuth, redirectTo])
