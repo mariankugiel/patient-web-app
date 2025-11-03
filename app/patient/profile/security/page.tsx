@@ -37,7 +37,7 @@ const passwordChangeSchema = z
 type PasswordChangeFormValues = z.infer<typeof passwordChangeSchema>
 
 export default function SecurityTabPage() {
-  const { isRestoringSession, isAuthenticated } = useSelector((state: RootState) => state.auth)
+  const { isRestoringSession, isAuthenticated, user } = useSelector((state: RootState) => state.auth)
   const [accountSettings, setAccountSettings] = useState({ twoFactorAuth: false })
   const [mfaFactors, setMfaFactors] = useState<Array<{id: string, type: string, friendly_name: string, status: string, created_at: string}>>([])
   const [showQRCode, setShowQRCode] = useState(false)
@@ -188,8 +188,13 @@ export default function SecurityTabPage() {
         // Explicitly keep switch disabled until verification succeeds
         setAccountSettings({ twoFactorAuth: false })
         
+        // Get user's first name for the authenticator label
+        const userFullName = user?.user_metadata?.full_name || ""
+        const firstName = userFullName.split(' ')[0] || "User"
+        const friendlyName = `${firstName}-authenticator`
+        
         // Start enrollment process
-        const { data, error } = await enrollMFA()
+        const { data, error } = await enrollMFA(friendlyName)
         if (error) throw error
         if (!data) throw new Error("No enrollment data returned")
         
@@ -242,13 +247,36 @@ export default function SecurityTabPage() {
           }
           // Generate and log current TOTP code immediately
           generateAndLogTOTPCode(secret)
+          
+          // Generate custom QR code with issuer "Saluso" instead of localhost:3000
+          // Format: otpauth://totp/ISSUER:LABEL?secret=SECRET&issuer=ISSUER
+          const customLabel = `${firstName}-authenticator`
+          const customOtpauthUrl = `otpauth://totp/Saluso:${encodeURIComponent(customLabel)}?secret=${secret}&issuer=Saluso&algorithm=SHA1&digits=6&period=30`
+          
+          // Generate QR code from the custom otpauth URL
+          try {
+            // Import qrcode dynamically (uses named exports)
+            const QRCode = await import('qrcode')
+            const qrCodeDataUrl = await QRCode.toDataURL(customOtpauthUrl, {
+              width: 256,
+              margin: 2,
+              errorCorrectionLevel: 'M'
+            })
+            setQrCodeUrl(qrCodeDataUrl)
+            console.log('✅ Generated custom QR code with issuer "Saluso"')
+          } catch (qrError) {
+            console.warn('Failed to generate custom QR code, using Supabase QR code:', qrError)
+            // Fallback to Supabase QR code if custom generation fails
+            setQrCodeUrl(data.totp?.qr_code || "")
+          }
         } else {
           console.warn('❌ No secret found in enrollment data')
           console.log('Available data keys:', Object.keys(data || {}))
           console.log('data.totp keys:', data?.totp ? Object.keys(data.totp) : 'no totp')
+          // Use Supabase QR code if no secret
+          setQrCodeUrl(data.totp?.qr_code || "")
         }
         
-        setQrCodeUrl(data.totp.qr_code)
         setEnrollmentFactorId(data.id)
         setShowQRCode(true)
         // Keep switch disabled - only enable after successful verification
