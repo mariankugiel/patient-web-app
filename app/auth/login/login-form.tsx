@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import Link from "next/link"
@@ -9,6 +9,7 @@ import { RootState, AppDispatch } from "@/lib/store"
 import { Loader2 } from "lucide-react"
 import { signInWithGoogle } from "@/lib/auth-helpers"
 import { toast } from "react-toastify"
+import { TOTP } from 'otpauth'
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ export function LoginForm() {
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null)
   const [mfaAccessToken, setMfaAccessToken] = useState<string | null>(null)
   const [mfaEmail, setMfaEmail] = useState("")
+  const [mfaSecret, setMfaSecret] = useState<string | null>(null)
 
   useEffect(() => {
     // DEVELOPMENT: Always redirect to onboarding page when authenticated
@@ -47,6 +49,50 @@ export function LoginForm() {
     //   router.push("/patient/dashboard")
     // }
   }, [isAuthenticated, showMfaDialog, router])
+
+  // Function to generate and log current TOTP code
+  const generateAndLogTOTPCode = useCallback((secret: string) => {
+    try {
+      if (!secret) return
+      
+      const totp = new TOTP({
+        issuer: 'YourHealth1Place',
+        label: '2FA',
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+        secret: secret
+      })
+      
+      const currentCode = totp.generate()
+      const timestamp = Math.floor(Date.now() / 1000)
+      const timeRemaining = 30 - (timestamp % 30)
+      
+      // Always log to console - this is what the user wants to see
+      console.log('')
+      console.log('═══════════════════════════════════════════')
+      console.log('  🔐 EXPECTED CODE: ' + currentCode + ' (expires in ' + timeRemaining + 's)')
+      console.log('═══════════════════════════════════════════')
+      console.log('')
+    } catch (err) {
+      console.error('❌ Error generating TOTP code:', err)
+    }
+  }, [])
+
+  // Log TOTP code every 5 seconds while MFA dialog is open
+  useEffect(() => {
+    if (mfaSecret && showMfaDialog) {
+      // Log immediately
+      generateAndLogTOTPCode(mfaSecret)
+      
+      // Then log every 5 seconds
+      const interval = setInterval(() => {
+        generateAndLogTOTPCode(mfaSecret)
+      }, 5000)
+      
+      return () => clearInterval(interval)
+    }
+  }, [mfaSecret, showMfaDialog, generateAndLogTOTPCode])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,6 +109,20 @@ export function LoginForm() {
         setMfaFactorId((result as any).factor_id)
         setMfaAccessToken((result as any).access_token)
         setMfaEmail((result as any).email || email)
+        
+        // Try to get secret from localStorage (stored when 2FA was enabled)
+        if (typeof window !== 'undefined') {
+          const storedSecret = localStorage.getItem('mfa_totp_secret')
+          const storedFactorId = localStorage.getItem('mfa_factor_id')
+          
+          if (storedSecret && storedFactorId === (result as any).factor_id) {
+            setMfaSecret(storedSecret)
+            generateAndLogTOTPCode(storedSecret)
+          } else {
+            console.warn('⚠️ MFA secret not found in localStorage - code will not be displayed')
+          }
+        }
+        
         setShowMfaDialog(true)
       }
       // Otherwise, navigation is handled by the useEffect above when isAuthenticated changes
@@ -92,6 +152,7 @@ export function LoginForm() {
       setMfaFactorId(null)
       setMfaAccessToken(null)
       setMfaEmail("")
+      setMfaSecret(null)
       
       // Navigation is handled by the useEffect above when isAuthenticated changes
     } catch (err) {
@@ -261,6 +322,7 @@ export function LoginForm() {
                 setMfaFactorId(null)
                 setMfaAccessToken(null)
                 setMfaEmail("")
+                setMfaSecret(null)
               }}
               disabled={isLoading}
             >

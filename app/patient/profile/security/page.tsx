@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Smartphone, X, Lock, CheckCircle2, Circle } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "react-toastify"
 import { AuthApiService } from "@/lib/api/auth-api"
 import { enrollMFA, verifyMFAEnrollment, listMFAFactors, unenrollMFAFactor } from "@/lib/auth-helpers"
 import { useSelector } from "react-redux"
@@ -37,7 +37,6 @@ const passwordChangeSchema = z
 type PasswordChangeFormValues = z.infer<typeof passwordChangeSchema>
 
 export default function SecurityTabPage() {
-  const { toast } = useToast()
   const { isRestoringSession, isAuthenticated } = useSelector((state: RootState) => state.auth)
   const [accountSettings, setAccountSettings] = useState({ twoFactorAuth: false })
   const [mfaFactors, setMfaFactors] = useState<Array<{id: string, type: string, friendly_name: string, status: string, created_at: string}>>([])
@@ -347,11 +346,7 @@ export default function SecurityTabPage() {
           }
           setMfaFactors([])
           setAccountSettings({ twoFactorAuth: false })
-          toast({
-            title: "2FA Disabled",
-            description: "Two-factor authentication has been disabled.",
-            duration: 3000,
-          })
+          toast.success("Two-factor authentication has been disabled.")
         }
       }
       } catch (error: any) {
@@ -365,12 +360,7 @@ export default function SecurityTabPage() {
           setAccountSettings({ twoFactorAuth: false })
         }
         
-        toast({
-          title: "Error",
-          description: error.message || "Failed to toggle 2FA. Please try again.",
-          variant: "destructive",
-          duration: 3000,
-        })
+        toast.error(error.message || "Failed to toggle 2FA. Please try again.")
       } finally {
         setIsLoadingMFA(false)
       }
@@ -399,11 +389,7 @@ export default function SecurityTabPage() {
           localStorage.removeItem('mfa_factor_id')
         }
         
-        toast({
-          title: "2FA Disabled",
-          description: "Two-factor authentication has been disabled successfully.",
-          duration: 3000,
-        })
+        toast.success("Two-factor authentication has been disabled successfully.")
         
         // Reload factors - this will update accountSettings.twoFactorAuth
         await loadMFAFactors()
@@ -419,11 +405,7 @@ export default function SecurityTabPage() {
         setQrCodeUrl("")
         setTotpSecret(null) // Clear secret after successful verification
         
-        toast({
-          title: "2FA Enabled",
-          description: "Two-factor authentication has been enabled successfully.",
-          duration: 3000,
-        })
+        toast.success("Two-factor authentication has been enabled successfully.")
         
         // Reload factors - this will update accountSettings.twoFactorAuth based on actual factors
         await loadMFAFactors()
@@ -470,12 +452,7 @@ export default function SecurityTabPage() {
       // Show notification - prioritize 422 errors as "Invalid Verification Code"
       if (is422Error || hasInvalidCodeMessage) {
         // Always show notification for 422/invalid code errors
-        toast({
-          title: "Invalid Verification Code",
-          description: "The code you entered is incorrect. Please try again.",
-          variant: "destructive",
-          duration: 3000,
-        })
+        toast.error("Invalid verification code. The code you entered is incorrect. Please try again.")
       } else {
         // For other errors, show the error message
         const displayMessage = errorObj.message || 
@@ -488,12 +465,7 @@ export default function SecurityTabPage() {
                                     String(displayMessage).toLowerCase().includes("totp") ||
                                     String(displayMessage).toLowerCase().includes("invalid")
         
-        toast({
-          title: isLikelyInvalidCode ? "Invalid Verification Code" : "Verification Failed",
-          description: displayMessage,
-          variant: "destructive",
-          duration: 3000,
-        })
+        toast.error(displayMessage)
       }
       
       // Clear the verification code input so user can try again
@@ -577,22 +549,13 @@ export default function SecurityTabPage() {
     try {
       await AuthApiService.changePassword(data.currentPassword, data.newPassword)
       
-      toast({
-        title: "Password Changed",
-        description: "Your password has been updated successfully.",
-        duration: 3000,
-      })
+      toast.success("Your password has been updated successfully.")
       
       passwordForm.reset()
       setNewPasswordValue("")
     } catch (error: any) {
       console.error("Error changing password:", error)
-      toast({
-        title: "Error",
-        description: error.message || "Failed to change password. Please try again.",
-        variant: "destructive",
-        duration: 3000,
-      })
+      toast.error(error.message || "Failed to change password. Please try again.")
     } finally {
       setIsChangingPassword(false)
     }
