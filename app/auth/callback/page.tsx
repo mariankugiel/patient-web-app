@@ -101,15 +101,18 @@ export default function AuthCallbackPage() {
 
           toast.success("Successfully signed in!")
           
-          // Redirect based on onboarding status
-          const needsOnboarding = isNewUser || 
-                                 (!userProfile.onboarding_completed && !userProfile.onboarding_skipped)
+          // DEVELOPMENT: Always redirect to onboarding page
+          router.push('/onboarding')
           
-          if (needsOnboarding) {
-            router.push('/onboarding')
-          } else {
-            router.push('/patient/dashboard')
-          }
+          // Redirect based on onboarding status (COMMENTED OUT FOR DEVELOPMENT)
+          // const needsOnboarding = isNewUser || 
+          //                        (!userProfile.onboarding_completed && !userProfile.onboarding_skipped)
+          // 
+          // if (needsOnboarding) {
+          //   router.push('/onboarding')
+          // } else {
+          //   router.push('/patient/dashboard')
+          // }
         } else {
           toast.error("Authentication failed. Please try again.")
           router.push('/')

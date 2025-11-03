@@ -20,10 +20,14 @@ export function LoginForm() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
 
   useEffect(() => {
-    // If already authenticated, redirect to dashboard
+    // DEVELOPMENT: Always redirect to onboarding page when authenticated
     if (isAuthenticated) {
-      router.push("/patient/dashboard")
+      router.push("/onboarding")
     }
+    // If already authenticated, redirect to dashboard (COMMENTED OUT FOR DEVELOPMENT)
+    // if (isAuthenticated) {
+    //   router.push("/patient/dashboard")
+    // }
   }, [isAuthenticated, router])
 
   const handleSubmit = async (e: React.FormEvent) => {

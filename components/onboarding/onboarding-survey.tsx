@@ -404,7 +404,9 @@ export function OnboardingSurvey() {
       }))
 
       toast.success("Onboarding skipped successfully!")
-      router.push("/patient/dashboard")
+      // DEVELOPMENT: Always redirect to onboarding page instead of dashboard
+      router.push("/onboarding")
+      // router.push("/patient/dashboard")
     } catch (error) {
       console.error('Error marking onboarding as skipped:', error)
       toast.error("Failed to skip onboarding. Please try again.")
@@ -902,7 +904,9 @@ export function OnboardingSurvey() {
               onClick={currentStep === steps.length ? async () => {
                 console.log("Submit", formData)
                 await markOnboardingCompleted()
-                router.push("/patient/dashboard")
+                // DEVELOPMENT: Always redirect to onboarding page instead of dashboard
+                router.push("/onboarding")
+                // router.push("/patient/dashboard")
               } : nextStep}
               className="bg-primary hover:bg-primary/90"
             >
