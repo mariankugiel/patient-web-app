@@ -1177,12 +1177,7 @@ export default function PermissionsClientPage() {
                       />
                     </TableCell>
                     <TableCell className="text-center">
-                      <Checkbox
-                        checked={newContact.permissions.medicalHistory.download}
-                        onCheckedChange={(checked) =>
-                          handlePermissionChange("medicalHistory", "download", checked as boolean)
-                        }
-                      />
+                      <span className="text-muted-foreground">-</span>
                     </TableCell>
                     <TableCell className="text-center">
                       <Checkbox
@@ -1241,12 +1236,7 @@ export default function PermissionsClientPage() {
                       />
                     </TableCell>
                     <TableCell className="text-center">
-                      <Checkbox
-                        checked={newContact.permissions.healthPlan.download}
-                        onCheckedChange={(checked) =>
-                          handlePermissionChange("healthPlan", "download", checked as boolean)
-                        }
-                      />
+                      <span className="text-muted-foreground">-</span>
                     </TableCell>
                     <TableCell className="text-center">
                       <Checkbox
@@ -1438,12 +1428,7 @@ export default function PermissionsClientPage() {
                               />
                             </TableCell>
                             <TableCell className="text-center">
-                              <Checkbox
-                                checked={selectedContact.permissions.medicalHistory.download}
-                                onCheckedChange={(checked) =>
-                                  handlePermissionChange("medicalHistory", "download", checked as boolean)
-                                }
-                              />
+                              <span className="text-muted-foreground">-</span>
                             </TableCell>
                             <TableCell className="text-center">
                               <Checkbox
@@ -1504,12 +1489,7 @@ export default function PermissionsClientPage() {
                               />
                             </TableCell>
                             <TableCell className="text-center">
-                              <Checkbox
-                                checked={selectedContact.permissions.healthPlan.download}
-                                onCheckedChange={(checked) =>
-                                  handlePermissionChange("healthPlan", "download", checked as boolean)
-                                }
-                              />
+                              <span className="text-muted-foreground">-</span>
                             </TableCell>
                             <TableCell className="text-center">
                               <Checkbox

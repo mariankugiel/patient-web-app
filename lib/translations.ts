@@ -321,6 +321,7 @@ export const translations = {
     },
     permissions: {
       title: "Permissions",
+      subtitle: "Manage who can access your health information",
       healthProfessionals: "Health Professionals",
       familyFriends: "Family/Friends",
       authorizedProfessionals: "Authorized Health Professionals",
@@ -1122,6 +1123,7 @@ export const translations = {
     },
     permissions: {
       title: "Permisos",
+      subtitle: "Gestiona quién puede acceder a tu información de salud",
       healthProfessionals: "Profesionales de la Salud",
       familyFriends: "Familia/Amigos",
       authorizedProfessionals: "Profesionales de Salud Autorizados",
@@ -1916,6 +1918,7 @@ export const translations = {
     },
     permissions: {
       title: "Permissões",
+      subtitle: "Gerir quem pode aceder às suas informações de saúde",
       healthProfessionals: "Profissionais de Saúde",
       familyFriends: "Família/Amigos",
       authorizedProfessionals: "Profissionais de Saúde Autorizados",

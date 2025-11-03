@@ -46,8 +46,8 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
         <div className="flex min-h-screen flex-col md:flex-row">
           <PatientSidebar />
           <main className="flex-1 pt-16 md:ml-64 md:pt-0 flex flex-col min-h-0">
-            <div className="container py-6">
-              <div className="flex items-center space-x-4 pb-4 border-b">
+            <div className="">
+              <div className="flex items-center space-x-4 p-6 border-b">
                 <div className="relative">
                   <Avatar className="h-16 w-16 border-2 border-primary">
                     <AvatarImage src="" alt={fullName} />
@@ -61,7 +61,7 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <div className="container py-6 h-full">
+              <div className="h-full">
                 {children}
               </div>
             </div>
