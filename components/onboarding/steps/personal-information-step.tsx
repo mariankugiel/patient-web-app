@@ -298,42 +298,51 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
       <div className="grid grid-cols-3 gap-4">
         <div>
           <Label htmlFor="height">{getTranslation(language, "fields.height")}</Label>
-          <Input
-            id="height"
-            type="number"
-            step="0.1"
-            min="0"
-            value={formData.height}
-            onChange={(e) => updateFormData("height", e.target.value)}
-            placeholder={getTranslation(language, "placeholders.enterHeight")}
-            className="border-2 border-gray-300"
-          />
+          <div className="relative">
+            <Input
+              id="height"
+              type="number"
+              step="0.1"
+              min="0"
+              value={formData.height}
+              onChange={(e) => updateFormData("height", e.target.value)}
+              placeholder={getTranslation(language, "placeholders.enterHeight")}
+              className="border-2 border-gray-300 pr-10"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">cm</span>
+          </div>
         </div>
         <div>
           <Label htmlFor="weight">{getTranslation(language, "fields.weight")}</Label>
-          <Input
-            id="weight"
-            type="number"
-            step="0.1"
-            min="0"
-            value={formData.weight}
-            onChange={(e) => updateFormData("weight", e.target.value)}
-            placeholder={getTranslation(language, "placeholders.enterWeight")}
-            className="border-2 border-gray-300"
-          />
+          <div className="relative">
+            <Input
+              id="weight"
+              type="number"
+              step="0.1"
+              min="0"
+              value={formData.weight}
+              onChange={(e) => updateFormData("weight", e.target.value)}
+              placeholder={getTranslation(language, "placeholders.enterWeight")}
+              className="border-2 border-gray-300 pr-10"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">kg</span>
+          </div>
         </div>
         <div>
           <Label htmlFor="waistDiameter">{getTranslation(language, "fields.waistDiameter")}</Label>
-          <Input
-            id="waistDiameter"
-            type="number"
-            step="0.1"
-            min="0"
-            value={formData.waistDiameter}
-            onChange={(e) => updateFormData("waistDiameter", e.target.value)}
-            placeholder={getTranslation(language, "placeholders.enterWaist")}
-            className="border-2 border-gray-300"
-          />
+          <div className="relative">
+            <Input
+              id="waistDiameter"
+              type="number"
+              step="0.1"
+              min="0"
+              value={formData.waistDiameter}
+              onChange={(e) => updateFormData("waistDiameter", e.target.value)}
+              placeholder={getTranslation(language, "placeholders.enterWaist")}
+              className="border-2 border-gray-300 pr-10"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">cm</span>
+          </div>
         </div>
       </div>
 
