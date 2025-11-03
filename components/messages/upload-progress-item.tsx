@@ -128,7 +128,7 @@ export function UploadProgressItem({ file, onCancel, onRetry }: UploadProgressIt
 
         {/* Error Message */}
         {file.error && (
-          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+          <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-400">
             {file.error}
           </div>
         )}

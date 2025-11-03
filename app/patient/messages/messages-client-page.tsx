@@ -927,16 +927,16 @@ export default function MessagesClientPage() {
 
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 overflow-hidden">
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900 overflow-hidden">
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden min-w-0">
         {/* Left Panel - User List */}
-        <div className="w-80 min-w-80 max-w-80 bg-white border-r border-gray-200 flex flex-col shrink-0">
+        <div className="w-80 min-w-80 max-w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col shrink-0">
           {/* Search with Filter Button */}
-          <div className="p-4 border-b border-gray-200">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex gap-2">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
                 <Input
                   placeholder="Search conversations..."
                   value={searchQuery}
@@ -994,7 +994,7 @@ export default function MessagesClientPage() {
                         >
                           Doctors
                         </label>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
                           {conversations.filter(c => c.contact_role?.includes("Doctor") || c.contact_role?.includes("Physician")).length}
                         </span>
                       </div>
@@ -1012,7 +1012,7 @@ export default function MessagesClientPage() {
                         >
                           System
                         </label>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
                           {conversations.filter(c => c.contact_role?.includes("System") || c.contact_role?.includes("Support")).length}
                         </span>
                       </div>
@@ -1030,7 +1030,7 @@ export default function MessagesClientPage() {
                         >
                           Unread
                         </label>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
                           {conversations.filter(c => c.unreadCount > 0).length}
                         </span>
                       </div>
@@ -1048,7 +1048,7 @@ export default function MessagesClientPage() {
                 <div className="flex items-center justify-center h-32">
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-sm text-gray-600">Loading conversations...</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Loading conversations...</span>
                   </div>
                 </div>
               ) : (
@@ -1066,7 +1066,7 @@ export default function MessagesClientPage() {
           </ScrollArea>
 
           {/* New Message Button */}
-          <div className="p-4 border-t border-gray-200">
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
             <Dialog open={newMessageDialogOpen} onOpenChange={handleNewMessageDialogOpenChange}>
               <DialogTrigger asChild>
                 <Button className="w-full bg-blue-600 hover:bg-blue-700">
@@ -1135,7 +1135,7 @@ export default function MessagesClientPage() {
           {selectedConversation ? (
             <>
               {/* Conversation Header */}
-              <div className="bg-white border-b border-gray-200 p-4">
+              <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Avatar 
@@ -1151,8 +1151,8 @@ export default function MessagesClientPage() {
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <div className="font-medium text-gray-900">{selectedConversation.contact_name || "Unknown"}</div>
-                      <div className="text-sm text-gray-500 flex items-center gap-2">
+                      <div className="font-medium text-gray-900 dark:text-gray-100">{selectedConversation.contact_name || "Unknown"}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
                           <span className="flex items-center gap-1">
                             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                             Online
@@ -1191,12 +1191,12 @@ export default function MessagesClientPage() {
               </div>
 
               {/* Messages Area */}
-              <ScrollArea className="flex-1 p-4" ref={messagesContainerRef}>
+              <ScrollArea className="flex-1 p-4 bg-white dark:bg-gray-900" ref={messagesContainerRef}>
                 {loadingMessages ? (
                   <div className="flex items-center justify-center h-32">
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                      <span className="text-sm text-gray-600">Loading messages...</span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Loading messages...</span>
                     </div>
                   </div>
                 ) : (
@@ -1208,7 +1208,7 @@ export default function MessagesClientPage() {
                       })()}
                       {uploadingFiles.length > 0 && (
                         <div className="space-y-2 mb-4">
-                          <div className="text-sm font-medium text-gray-600 mb-2">
+                          <div className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
                             Uploading files...
                           </div>
                           {uploadingFiles.map((file) => (
@@ -1257,8 +1257,8 @@ export default function MessagesClientPage() {
                           {/* Message bubble */}
                           <div className={`max-w-[50%] min-w-0 p-3 rounded-lg ${
                             isOwn 
-                              ? 'bg-blue-500 text-white' 
-                              : 'bg-gray-200 text-gray-900'
+                              ? 'bg-blue-500 text-white dark:bg-blue-600' 
+                              : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
                           }`}>
                             {/* Message content - only show if no file attachments or if there's meaningful text */}
                             {message.content && (!message.file_attachments || message.file_attachments.length === 0 || !message.content.startsWith('Sent ')) && (
@@ -1282,7 +1282,7 @@ export default function MessagesClientPage() {
                             
                             {/* Time and status */}
                             <div className={`text-xs mt-1 flex items-center justify-between ${
-                              isOwn ? 'text-blue-100' : 'text-gray-500'
+                              isOwn ? 'text-blue-100 dark:text-blue-200' : 'text-gray-500 dark:text-gray-400'
                             }`}>
                               <span>
                                 {message.created_at ? new Date(message.created_at).toLocaleTimeString() : 'Unknown time'}
@@ -1312,7 +1312,7 @@ export default function MessagesClientPage() {
                   })}
                   
                   {messages.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                       <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p>No messages yet</p>
                     </div>
@@ -1323,8 +1323,8 @@ export default function MessagesClientPage() {
 
               {/* Typing Indicator */}
               {typingUsersForCurrentConversation.length > 0 && (
-                <div className="px-4 py-2 bg-gray-50 border-t border-gray-200">
-                  <div className="text-sm text-gray-500">
+                <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
                     {typingUsersForCurrentConversation.map(u => u.userName).join(', ')} {typingUsersForCurrentConversation.length === 1 ? 'is' : 'are'} typing...
                   </div>
                 </div>
@@ -1345,11 +1345,11 @@ export default function MessagesClientPage() {
               />
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center bg-gray-50">
+            <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
               <div className="text-center">
-                <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Select a conversation</h3>
-                <p className="text-gray-500">Choose a conversation from the list to start messaging</p>
+                <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-400 dark:text-gray-500" />
+                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Select a conversation</h3>
+                <p className="text-gray-500 dark:text-gray-400">Choose a conversation from the list to start messaging</p>
               </div>
             </div>
           )}

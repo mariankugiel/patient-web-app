@@ -44,24 +44,26 @@ export function MessageAttachments({ attachments, isOwn }: MessageAttachmentsPro
           key={attachment.id} 
           className={`p-3 max-w-xs ${
             isOwn 
-              ? 'bg-blue-50 border-blue-200' 
-              : 'bg-gray-50 border-gray-200'
+              ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700' 
+              : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
           }`}
         >
           <div className="flex items-start gap-3">
-            <div className="flex-shrink-0">
+            <div className={`flex-shrink-0 ${
+              isOwn ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
+            }`}>
               {getFileIcon(attachment.file_type)}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                   {attachment.original_file_name}
                 </p>
                 <Badge variant="outline" className="text-xs">
                   {attachment.file_extension.toUpperCase()}
                 </Badge>
               </div>
-              <p className="text-xs text-gray-500 mb-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
                 {formatFileSize(attachment.file_size)}
               </p>
               <Button

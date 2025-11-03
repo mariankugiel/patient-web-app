@@ -71,7 +71,7 @@ const getMessageTypeColor = (type: MessageType) => {
     case 'system_announcement':
       return 'text-yellow-600'
     default:
-      return 'text-gray-600'
+      return 'text-gray-600 dark:text-gray-400'
   }
 }
 

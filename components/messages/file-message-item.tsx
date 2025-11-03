@@ -89,30 +89,38 @@ export function FileMessageItem({ attachments, message, isOwn, createdAt }: File
       {/* Message bubble */}
       <div className={`max-w-[70%] min-w-0 p-3 rounded-lg ${
         isOwn 
-          ? 'bg-blue-500 text-white' 
-          : 'bg-gray-200 text-gray-900'
+          ? 'bg-blue-500 dark:bg-blue-600 text-white' 
+          : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
       }`}>
         
         {/* Files Section */}
         <div className="space-y-2 mb-3">
           <div className="flex items-center gap-2 mb-2">
-            <File className="h-4 w-4" />
-            <span className="text-sm font-medium">
+            <File className={`h-4 w-4 ${isOwn ? 'text-white' : 'text-gray-700 dark:text-gray-300'}`} />
+            <span className={`text-sm font-medium ${isOwn ? 'text-white' : 'text-gray-900 dark:text-gray-100'}`}>
               {attachments.length} file{attachments.length > 1 ? 's' : ''}
             </span>
           </div>
           
           {attachments.map((attachment) => (
-            <Card key={attachment.id} className="p-2 bg-white/10 border-white/20">
+            <Card key={attachment.id} className={`p-2 ${
+              isOwn 
+                ? 'bg-white/10 dark:bg-white/10 border-white/20 dark:border-white/20' 
+                : 'bg-white/50 dark:bg-gray-600/50 border-gray-300/50 dark:border-gray-500/50'
+            }`}>
               <div className="flex items-center gap-3">
                 <div className="text-2xl">
                   {getFileTypeIcon(attachment.original_file_name)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">
+                  <p className={`text-sm font-medium truncate ${
+                    isOwn ? 'text-white' : 'text-gray-900 dark:text-gray-100'
+                  }`}>
                     {attachment.original_file_name}
                   </p>
-                  <p className="text-xs opacity-75">
+                  <p className={`text-xs ${
+                    isOwn ? 'opacity-75' : 'text-gray-600 dark:text-gray-300'
+                  }`}>
                     {formatFileSize(attachment.file_size)}
                   </p>
                 </div>
@@ -143,7 +151,7 @@ export function FileMessageItem({ attachments, message, isOwn, createdAt }: File
 
         {/* Timestamp */}
         <div className={`text-xs mt-2 ${
-          isOwn ? 'text-blue-100' : 'text-gray-500'
+          isOwn ? 'text-blue-100 dark:text-blue-200' : 'text-gray-500 dark:text-gray-400'
         }`}>
           {formatTime(createdAt)}
         </div>

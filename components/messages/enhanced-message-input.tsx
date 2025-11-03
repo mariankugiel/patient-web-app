@@ -181,7 +181,7 @@ export function EnhancedMessageInput({
 
   return (
     <div 
-      className={`relative border-t border-gray-200 bg-white p-4 ${isDragOver ? 'bg-blue-50 border-blue-300' : ''}`}
+      className={`relative border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 ${isDragOver ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -189,11 +189,11 @@ export function EnhancedMessageInput({
 
       {/* Recording Indicator */}
       {isRecording && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-              <span className="text-sm font-medium text-red-700">
+              <span className="text-sm font-medium text-red-700 dark:text-red-400">
                 Recording: {formatRecordingTime(recordingTime)}
               </span>
             </div>
@@ -201,7 +201,7 @@ export function EnhancedMessageInput({
               variant="outline"
               size="sm"
               onClick={stopRecording}
-              className="text-red-600 border-red-300 hover:bg-red-50"
+              className="text-red-600 dark:text-red-400 border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/50"
             >
               <Square className="h-4 w-4 mr-1" />
               Stop
@@ -227,7 +227,7 @@ export function EnhancedMessageInput({
           
           {/* Character Count */}
           {maxLength && (
-            <div className="absolute bottom-1 right-12 text-xs text-gray-400">
+            <div className="absolute bottom-1 right-12 text-xs text-gray-400 dark:text-gray-500">
               {value.length}/{maxLength}
             </div>
           )}
@@ -249,7 +249,7 @@ export function EnhancedMessageInput({
                   <button
                     key={emoji}
                     onClick={() => insertEmoji(emoji)}
-                    className="p-2 hover:bg-gray-100 rounded text-lg transition-colors"
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-lg transition-colors"
                   >
                     {emoji}
                   </button>
@@ -297,10 +297,10 @@ export function EnhancedMessageInput({
 
       {/* Drag and Drop Indicator */}
       {isDragOver && (
-        <div className="absolute inset-0 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg flex items-center justify-center">
+        <div className="absolute inset-0 bg-blue-50 dark:bg-blue-900/30 border-2 border-dashed border-blue-300 dark:border-blue-600 rounded-lg flex items-center justify-center">
           <div className="text-center">
-            <Upload className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-            <p className="text-sm text-blue-600 font-medium">Drop files here to upload</p>
+            <Upload className="h-8 w-8 text-blue-500 dark:text-blue-400 mx-auto mb-2" />
+            <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">Drop files here to upload</p>
           </div>
         </div>
       )}
