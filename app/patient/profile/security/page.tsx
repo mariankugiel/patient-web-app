@@ -51,6 +51,7 @@ export default function SecurityTabPage() {
   const [isLoadingMFA, setIsLoadingMFA] = useState(false)
   const [isSessionReady, setIsSessionReady] = useState(false)
   const [totpSecret, setTotpSecret] = useState<string | null>(null)
+  const [isDisabling2FA, setIsDisabling2FA] = useState(false)
 
   const passwordChecks = {
     minLength: newPasswordValue.length >= 8,
@@ -215,33 +216,52 @@ export default function SecurityTabPage() {
         setShowQRCode(true)
         // Keep switch disabled - only enable after successful verification
       } else {
-        // Disable 2FA by removing factors
-        for (const factor of mfaFactors) {
-          const { error } = await unenrollMFAFactor(factor.id)
-          if (error) throw error
+        // Disable 2FA - requires verification code for verified factors
+        // Check if we have verified factors that require AAL2
+        const verifiedFactors = mfaFactors.filter(f => f.status === 'verified')
+        
+        if (verifiedFactors.length > 0) {
+          // Show dialog to get verification code for disabling
+          setIsDisabling2FA(true)
+          setEnrollmentFactorId(verifiedFactors[0].id) // Use first verified factor
+          setQrCodeUrl("") // Clear QR code since we're disabling, not enabling
+          setShowQRCode(true) // Reuse the QR dialog for verification input
+        } else {
+          // No verified factors, can unenroll directly
+          for (const factor of mfaFactors) {
+            const { error } = await unenrollMFAFactor(factor.id)
+            if (error) throw error
+          }
+          setMfaFactors([])
+          setAccountSettings({ twoFactorAuth: false })
+          toast({
+            title: "2FA Disabled",
+            description: "Two-factor authentication has been disabled.",
+            duration: 3000,
+          })
         }
-        setMfaFactors([])
-        setAccountSettings({ twoFactorAuth: false })
+      }
+      } catch (error: any) {
+        console.error("Error toggling 2FA:", error)
+        
+        // If disabling 2FA, keep switch enabled on error (user hasn't successfully disabled)
+        if (!enabled) {
+          setAccountSettings({ twoFactorAuth: true })
+        } else {
+          // If enabling 2FA, keep switch disabled on error
+          setAccountSettings({ twoFactorAuth: false })
+        }
+        
         toast({
-          title: "2FA Disabled",
-          description: "Two-factor authentication has been disabled.",
+          title: "Error",
+          description: error.message || "Failed to toggle 2FA. Please try again.",
+          variant: "destructive",
           duration: 3000,
         })
+      } finally {
+        setIsLoadingMFA(false)
       }
-    } catch (error: any) {
-      console.error("Error toggling 2FA:", error)
-      toast({
-        title: "Error",
-        description: error.message || "Failed to toggle 2FA. Please try again.",
-        variant: "destructive",
-        duration: 3000,
-      })
-      // Make sure switch stays off on error
-      setAccountSettings({ twoFactorAuth: false })
-    } finally {
-      setIsLoadingMFA(false)
     }
-  }
 
   const handleVerifyEnrollment = async () => {
     setIsLoadingMFA(true)
@@ -249,6 +269,7 @@ export default function SecurityTabPage() {
       // Log what code we're sending
       console.log('📤 Attempting verification with code:', verificationCode)
       console.log('📤 Factor ID:', enrollmentFactorId)
+      console.log('📤 Is disabling 2FA:', isDisabling2FA)
       
       // If we have the secret, generate and log the expected code
       if (totpSecret) {
@@ -273,27 +294,56 @@ export default function SecurityTabPage() {
         }
       }
       
-      const { error } = await verifyMFAEnrollment(enrollmentFactorId, verificationCode)
-      if (error) throw error
-      
-      // Only enable 2FA after successful verification
-      setShowQRCode(false)
-      setVerificationCode("")
-      setEnrollmentFactorId("")
-      setQrCodeUrl("")
-      setTotpSecret(null) // Clear secret after successful verification
-      
-      toast({
-        title: "2FA Enabled",
-        description: "Two-factor authentication has been enabled successfully.",
-        duration: 3000,
-      })
-      
-      // Reload factors - this will update accountSettings.twoFactorAuth based on actual factors
-      await loadMFAFactors()
+      if (isDisabling2FA) {
+        // Disable 2FA - verify code and unenroll
+        const { error } = await unenrollMFAFactor(enrollmentFactorId, verificationCode)
+        if (error) throw error
+        
+        // Clear state
+        setShowQRCode(false)
+        setVerificationCode("")
+        setEnrollmentFactorId("")
+        setQrCodeUrl("")
+        setIsDisabling2FA(false)
+        
+        toast({
+          title: "2FA Disabled",
+          description: "Two-factor authentication has been disabled successfully.",
+          duration: 3000,
+        })
+        
+        // Reload factors - this will update accountSettings.twoFactorAuth
+        await loadMFAFactors()
+      } else {
+        // Enable 2FA - verify enrollment
+        const { error } = await verifyMFAEnrollment(enrollmentFactorId, verificationCode)
+        if (error) throw error
+        
+        // Only enable 2FA after successful verification
+        setShowQRCode(false)
+        setVerificationCode("")
+        setEnrollmentFactorId("")
+        setQrCodeUrl("")
+        setTotpSecret(null) // Clear secret after successful verification
+        
+        toast({
+          title: "2FA Enabled",
+          description: "Two-factor authentication has been enabled successfully.",
+          duration: 3000,
+        })
+        
+        // Reload factors - this will update accountSettings.twoFactorAuth based on actual factors
+        await loadMFAFactors()
+      }
     } catch (error: any) {
-      // Explicitly keep switch disabled when verification fails
-      setAccountSettings({ twoFactorAuth: false })
+      // Handle switch state based on whether we're enabling or disabling
+      if (isDisabling2FA) {
+        // If disabling fails, keep switch enabled (2FA is still active)
+        setAccountSettings({ twoFactorAuth: true })
+      } else {
+        // If enabling fails, keep switch disabled
+        setAccountSettings({ twoFactorAuth: false })
+      }
       
       // Extract error message - check multiple sources
       let errorMessage = "Invalid verification code. Please try again."
@@ -343,16 +393,25 @@ export default function SecurityTabPage() {
 
   const handleDialogClose = async (open: boolean) => {
     if (!open && enrollmentFactorId && showQRCode) {
-      // User closed dialog without verifying - clean up the unverified enrollment
+      // User closed dialog without verifying
       setIsLoadingMFA(true)
       try {
-        await unenrollMFAFactor(enrollmentFactorId)
+        if (isDisabling2FA) {
+          // User canceled disabling 2FA - reset state and keep switch enabled
+          setIsDisabling2FA(false)
+          setAccountSettings({ twoFactorAuth: true })
+        } else {
+          // User closed enrollment dialog - clean up the unverified enrollment
+          await unenrollMFAFactor(enrollmentFactorId)
+        }
       } catch (error) {
-        console.error("Error cleaning up enrollment on dialog close:", error)
+        console.error("Error cleaning up on dialog close:", error)
       } finally {
         setEnrollmentFactorId("")
         setQrCodeUrl("")
         setVerificationCode("")
+        setTotpSecret(null)
+        setIsDisabling2FA(false)
         setIsLoadingMFA(false)
       }
     }
@@ -504,13 +563,18 @@ export default function SecurityTabPage() {
         <Dialog open={showQRCode} onOpenChange={handleDialogClose}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Scan QR Code</DialogTitle>
+              <DialogTitle>
+                {isDisabling2FA ? "Disable Two-Factor Authentication" : "Scan QR Code"}
+              </DialogTitle>
               <DialogDescription>
-                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+                {isDisabling2FA 
+                  ? "Enter your current verification code to disable two-factor authentication."
+                  : "Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)"
+                }
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col items-center gap-4 py-4">
-              {qrCodeUrl && (
+              {!isDisabling2FA && qrCodeUrl && (
                 <img src={qrCodeUrl} alt="QR Code" className="w-64 h-64 border rounded-lg" />
               )}
               <Input 
@@ -526,7 +590,10 @@ export default function SecurityTabPage() {
                 Cancel
               </Button>
               <Button onClick={handleVerifyEnrollment} disabled={verificationCode.length !== 6 || isLoadingMFA}>
-                {isLoadingMFA ? "Verifying..." : "Verify"}
+                {isLoadingMFA 
+                  ? (isDisabling2FA ? "Disabling..." : "Verifying...")
+                  : (isDisabling2FA ? "Disable 2FA" : "Verify")
+                }
               </Button>
             </DialogFooter>
           </DialogContent>

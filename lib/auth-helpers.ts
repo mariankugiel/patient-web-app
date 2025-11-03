@@ -314,17 +314,61 @@ export async function listMFAFactors() {
   }
 }
 
-export async function unenrollMFAFactor(factorId: string) {
+export async function unenrollMFAFactor(factorId: string, verificationCode?: string) {
   const supabase = createClient()
   
   try {
     // Ensure we have a valid session before making MFA calls
     await ensureSupabaseSession(supabase)
     
-    const { data, error } = await supabase.auth.mfa.unenroll({
-      factorId
-    })
-    return { data, error }
+    // If a verification code is provided, we need to create a challenge and verify first
+    // This is required for unenrolling verified factors (AAL2 requirement)
+    if (verificationCode) {
+      // Step 1: Create a challenge for the factor
+      const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId
+      })
+      
+      if (challengeError || !challengeData?.id) {
+        return { 
+          data: null, 
+          error: new Error(challengeError?.message || "Failed to create verification challenge") 
+        }
+      }
+      
+      // Step 2: Verify the challenge with the code
+      const { data: verifyData, error: verifyError } = await supabase.auth.mfa.verify({
+        factorId,
+        challengeId: challengeData.id,
+        code: verificationCode.trim()
+      })
+      
+      if (verifyError) {
+        return { data: null, error: verifyError }
+      }
+      
+      // Step 3: Now we can unenroll the factor (we have AAL2)
+      const { data, error } = await supabase.auth.mfa.unenroll({
+        factorId
+      })
+      
+      return { data, error }
+    } else {
+      // Try direct unenroll (might work for unverified factors)
+      const { data, error } = await supabase.auth.mfa.unenroll({
+        factorId
+      })
+      
+      // If we get AAL2 error, return a helpful error message
+      if (error && error.message?.includes("AAL2")) {
+        return { 
+          data: null, 
+          error: new Error("Verification code required to disable 2FA. Please provide your current authenticator code.") 
+        }
+      }
+      
+      return { data, error }
+    }
   } catch (error: any) {
     return { data: null, error: error instanceof Error ? error : new Error(String(error)) }
   }

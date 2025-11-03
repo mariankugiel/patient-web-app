@@ -38,7 +38,11 @@ export class MessagesApiService {
         params.append('endDate', filters.dateRange.end)
       }
 
-      const response = await apiClient.get(`/messages/conversations?${params.toString()}`)
+      // Use longer timeout for conversations endpoint (60 seconds)
+      // as it may need to fetch multiple profiles from Supabase
+      const response = await apiClient.get(`/messages/conversations?${params.toString()}`, {
+        timeout: 60000
+      })
       console.log('📋 API: Conversations response:', response.data)
       return response.data
     } catch (error) {
