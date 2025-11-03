@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useSelector } from "react-redux"
 import { RootState } from "@/lib/store"
+import { AuthApiService } from "@/lib/api/auth-api"
+import { useToast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -80,6 +82,9 @@ type Contact = {
 export default function PermissionsClientPage() {
   // Add this line at the beginning of the function, with other useState declarations
   const { t } = useLanguage()
+  const { toast } = useToast()
+  const user = useSelector((state: RootState) => state.auth.user)
+  const [isSaving, setIsSaving] = useState(false)
 
   const [permissions, setPermissions] = useState({
     shareHealthData: true,
@@ -114,11 +119,27 @@ export default function PermissionsClientPage() {
     },
   })
 
-  const handleToggle = (key: keyof typeof permissions) => {
-    setPermissions((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }))
+  const handleToggle = async (key: keyof typeof permissions) => {
+    const updatedPermissions = {
+      ...permissions,
+      [key]: !permissions[key],
+    }
+    setPermissions(updatedPermissions)
+    
+    // Auto-save to Supabase
+    if (!user?.id) return
+    
+    try {
+      await AuthApiService.updateDataSharing({
+        share_health_data: updatedPermissions.shareHealthData,
+        share_with_other_providers: updatedPermissions.shareWithProviders,
+        share_with_researchers: updatedPermissions.shareWithResearchers,
+        share_with_insurance: updatedPermissions.shareWithInsurance,
+      })
+      console.log("✅ Data sharing preferences saved")
+    } catch (error) {
+      console.error("Error saving data sharing preferences:", error)
+    }
   }
 
   const handlePermissionChange = (category: string, action: string, checked: boolean) => {
@@ -183,7 +204,8 @@ export default function PermissionsClientPage() {
       permissions: newContact.permissions,
     }
 
-    setSharedAccessData([...sharedAccessData, newContactData])
+    const updatedData = [...sharedAccessData, newContactData]
+    setSharedAccessData(updatedData)
     setIsGrantAccessDialogOpen(false)
 
     // Reset form
@@ -202,6 +224,9 @@ export default function PermissionsClientPage() {
         messages: { view: false, edit: false },
       },
     })
+    
+    // Auto-save after adding
+    saveSharedAccess(updatedData)
   }
 
   const handleManageContact = (contact: Contact) => {
@@ -220,6 +245,9 @@ export default function PermissionsClientPage() {
     setSharedAccessData(updatedData)
     setIsManageDialogOpen(false)
     setSelectedContact(null)
+    
+    // Auto-save after updating
+    saveSharedAccess(updatedData)
   }
 
   const handleRevokePrompt = (contact: Contact) => {
@@ -232,164 +260,280 @@ export default function PermissionsClientPage() {
 
     // Update the contact status to Revoked
     const updatedData = sharedAccessData.map((contact) =>
-      contact.id === selectedContact.id ? { ...contact, status: "Revoked" } : contact,
+      contact.id === selectedContact.id ? { ...contact, status: "Revoked" as const } : contact,
     )
 
     setSharedAccessData(updatedData)
     setIsRevokeDialogOpen(false)
     setSelectedContact(null)
+    saveSharedAccess(updatedData)
   }
 
-  const [sharedAccessData, setSharedAccessData] = useState<Contact[]>([
-    {
-      id: "contact-1",
-      name: "Dr. Sarah Johnson",
-      role: "Cardiologist",
-      type: "professional",
-      accessLevel: "Full Access",
-      status: "Active",
-      lastAccessed: "Today, 10:30 AM",
-      expires: "Dec 31, 2023",
-      permissions: {
-        medicalHistory: { view: true, download: true, edit: true },
-        healthRecords: { view: true, download: true, edit: true },
-        healthPlan: { view: true, download: true, edit: false },
-        medications: { view: true, download: true, edit: true },
-        appointments: { view: true, edit: true },
-        messages: { view: true, edit: true },
-      },
-    },
-    {
-      id: "contact-2",
-      name: "Dr. Michael Chen",
-      role: "Primary Care",
-      type: "professional",
-      accessLevel: "Limited",
-      status: "Active",
-      lastAccessed: "Yesterday",
-      expires: "Jan 15, 2024",
-      permissions: {
-        medicalHistory: { view: true, download: true, edit: false },
-        healthRecords: { view: true, download: true, edit: false },
-        healthPlan: { view: true, download: false, edit: false },
-        medications: { view: true, download: true, edit: true },
-        appointments: { view: true, edit: true },
-        messages: { view: true, edit: true },
-      },
-    },
-    {
-      id: "contact-3",
-      name: "Dr. Emily Rodriguez",
-      role: "Endocrinologist",
-      type: "professional",
-      accessLevel: "Limited",
-      status: "Pending",
-      lastAccessed: "Never",
-      expires: "Feb 28, 2024",
-      permissions: {
-        medicalHistory: { view: true, download: false, edit: false },
-        healthRecords: { view: true, download: false, edit: false },
-        healthPlan: { view: false, download: false, edit: false },
-        medications: { view: true, download: false, edit: false },
-        appointments: { view: true, edit: false },
-        messages: { view: true, edit: false },
-      },
-    },
-    {
-      id: "contact-4",
-      name: "Memorial Hospital",
-      role: "Healthcare Facility",
-      type: "professional",
-      accessLevel: "Emergency Only",
-      status: "Active",
-      lastAccessed: "3 weeks ago",
-      expires: "Dec 31, 2023",
-      permissions: {
-        medicalHistory: { view: true, download: true, edit: false },
-        healthRecords: { view: true, download: true, edit: false },
-        healthPlan: { view: false, download: false, edit: false },
-        medications: { view: true, download: true, edit: false },
-        appointments: { view: false, edit: false },
-        messages: { view: false, edit: false },
-      },
-    },
-    {
-      id: "contact-5",
-      name: "Maria Johnson",
-      role: "Family Member",
-      type: "personal",
-      accessLevel: "Limited",
-      status: "Active",
-      lastAccessed: "2 days ago",
-      expires: "Dec 31, 2024",
-      relationship: "Spouse",
-      permissions: {
-        medicalHistory: { view: true, download: false, edit: false },
-        healthRecords: { view: true, download: false, edit: false },
-        healthPlan: { view: true, download: false, edit: false },
-        medications: { view: true, download: false, edit: false },
-        appointments: { view: true, edit: true },
-        messages: { view: false, edit: false },
-      },
-    },
-    {
-      id: "contact-6",
-      name: "Robert Smith",
-      role: "Caregiver",
-      type: "personal",
-      accessLevel: "Limited",
-      status: "Revoked",
-      lastAccessed: "1 month ago",
-      expires: "Expired",
-      relationship: "Caregiver",
-      permissions: {
-        medicalHistory: { view: false, download: false, edit: false },
-        healthRecords: { view: false, download: false, edit: false },
-        healthPlan: { view: false, download: false, edit: false },
-        medications: { view: false, download: false, edit: false },
-        appointments: { view: false, edit: false },
-        messages: { view: false, edit: false },
-      },
-    },
-  ])
+  const saveSharedAccess = async (contacts: Contact[]) => {
+    if (!user?.id) return
+    
+    setIsSaving(true)
+    try {
+      // Split contacts into professionals and personal
+      const healthProfessionals = contacts.filter(c => c.type === "professional").map(c => ({
+        id: c.id,
+        permissions_contact_type: c.role || "",
+        profile_fullname: c.name,
+        profile_email: c.email,
+        permissions_relationship: c.relationship,
+        medical_history_view: c.permissions?.medicalHistory?.view,
+        medical_history_download: c.permissions?.medicalHistory?.download,
+        medical_history_edit: c.permissions?.medicalHistory?.edit,
+        health_records_view: c.permissions?.healthRecords?.view,
+        health_records_download: c.permissions?.healthRecords?.download,
+        health_records_edit: c.permissions?.healthRecords?.edit,
+        health_plan_view: c.permissions?.healthPlan?.view,
+        health_plan_download: c.permissions?.healthPlan?.download,
+        health_plan_edit: c.permissions?.healthPlan?.edit,
+        medications_view: c.permissions?.medications?.view,
+        medications_download: c.permissions?.medications?.download,
+        medications_edit: c.permissions?.medications?.edit,
+        appointments_view: c.permissions?.appointments?.view,
+        appointments_edit: c.permissions?.appointments?.edit,
+        messages_view: c.permissions?.messages?.view,
+        messages_edit: c.permissions?.messages?.edit,
+        accessLevel: c.accessLevel,
+        status: c.status,
+        lastAccessed: c.lastAccessed,
+        expires: c.expires,
+      }))
+      
+      const familyFriends = contacts.filter(c => c.type === "personal").map(c => ({
+        id: c.id,
+        permissions_contact_type: c.role || "",
+        profile_fullname: c.name,
+        profile_email: c.email,
+        permissions_relationship: c.relationship,
+        medical_history_view: c.permissions?.medicalHistory?.view,
+        medical_history_download: c.permissions?.medicalHistory?.download,
+        medical_history_edit: c.permissions?.medicalHistory?.edit,
+        health_records_view: c.permissions?.healthRecords?.view,
+        health_records_download: c.permissions?.healthRecords?.download,
+        health_records_edit: c.permissions?.healthRecords?.edit,
+        health_plan_view: c.permissions?.healthPlan?.view,
+        health_plan_download: c.permissions?.healthPlan?.download,
+        health_plan_edit: c.permissions?.healthPlan?.edit,
+        medications_view: c.permissions?.medications?.view,
+        medications_download: c.permissions?.medications?.download,
+        medications_edit: c.permissions?.medications?.edit,
+        appointments_view: c.permissions?.appointments?.view,
+        appointments_edit: c.permissions?.appointments?.edit,
+        messages_view: c.permissions?.messages?.view,
+        messages_edit: c.permissions?.messages?.edit,
+        accessLevel: c.accessLevel,
+        status: c.status,
+        lastAccessed: c.lastAccessed,
+        expires: c.expires,
+      }))
+      
+      await AuthApiService.updateSharedAccess({
+        health_professionals: healthProfessionals,
+        family_friends: familyFriends,
+      })
+      
+      console.log("💾 Shared access saved")
+    } catch (error) {
+      console.error("Error saving shared access:", error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
-  const accessLogsData = [
-    {
-      name: "Dr. Sarah Johnson",
-      role: "Cardiologist",
-      action: "Viewed health records",
-      date: "Today, 10:30 AM",
-      authorized: true,
-    },
-    {
-      name: "Dr. Michael Chen",
-      role: "Primary Care",
-      action: "Updated medication list",
-      date: "Yesterday, 3:45 PM",
-      authorized: true,
-    },
-    {
-      name: "System",
-      role: "Automated Process",
-      action: "Security audit",
-      date: "Oct 15, 2023, 2:00 AM",
-      authorized: true,
-    },
-    {
-      name: "Unknown User",
-      role: "External",
-      action: "Login attempt",
-      date: "Oct 10, 2023, 11:23 PM",
-      authorized: false,
-    },
-    {
-      name: "Dr. Sarah Johnson",
-      role: "Cardiologist",
-      action: "Downloaded medical history",
-      date: "Oct 5, 2023, 9:15 AM",
-      authorized: true,
-    },
-  ]
+  // Load shared access data from Supabase
+  useEffect(() => {
+    const loadSharedAccess = async () => {
+      console.log("🔍 loadSharedAccess called, user:", user)
+      if (!user?.id) {
+        console.log("⏭️ Skipping shared access load - no user ID")
+        return
+      }
+      
+      try {
+        const sharedAccessData = await AuthApiService.getSharedAccess()
+        console.log("📦 Shared access data loaded:", sharedAccessData)
+        
+        if (sharedAccessData) {
+          // Combine health_professionals and family_friends into one array
+          const allContacts: Contact[] = []
+          
+          // Add professionals
+          if (sharedAccessData.health_professionals && sharedAccessData.health_professionals.length > 0) {
+            sharedAccessData.health_professionals.forEach((contact: any) => {
+              allContacts.push({
+                id: contact.id,
+                name: contact.profile_fullname || "",
+                role: contact.permissions_contact_type || "",
+                type: "professional",
+                accessLevel: contact.accessLevel || "Limited",
+                status: (contact.status || "Active") as "Active" | "Pending" | "Revoked",
+                lastAccessed: contact.lastAccessed || "Never",
+                expires: contact.expires || "",
+                email: contact.profile_email,
+                relationship: contact.permissions_relationship,
+                permissions: {
+                  medicalHistory: {
+                    view: contact.medical_history_view || false,
+                    download: contact.medical_history_download || false,
+                    edit: contact.medical_history_edit || false,
+                  },
+                  healthRecords: {
+                    view: contact.health_records_view || false,
+                    download: contact.health_records_download || false,
+                    edit: contact.health_records_edit || false,
+                  },
+                  healthPlan: {
+                    view: contact.health_plan_view || false,
+                    download: contact.health_plan_download || false,
+                    edit: contact.health_plan_edit || false,
+                  },
+                  medications: {
+                    view: contact.medications_view || false,
+                    download: contact.medications_download || false,
+                    edit: contact.medications_edit || false,
+                  },
+                  appointments: {
+                    view: contact.appointments_view || false,
+                    edit: contact.appointments_edit || false,
+                  },
+                  messages: {
+                    view: contact.messages_view || false,
+                    edit: contact.messages_edit || false,
+                  },
+                },
+              })
+            })
+          }
+          
+          // Add family/friends
+          if (sharedAccessData.family_friends && sharedAccessData.family_friends.length > 0) {
+            sharedAccessData.family_friends.forEach((contact: any) => {
+              allContacts.push({
+                id: contact.id,
+                name: contact.profile_fullname || "",
+                role: contact.permissions_contact_type || "",
+                type: "personal",
+                accessLevel: contact.accessLevel || "Limited",
+                status: (contact.status || "Active") as "Active" | "Pending" | "Revoked",
+                lastAccessed: contact.lastAccessed || "Never",
+                expires: contact.expires || "",
+                email: contact.profile_email,
+                relationship: contact.permissions_relationship,
+                permissions: {
+                  medicalHistory: {
+                    view: contact.medical_history_view || false,
+                    download: contact.medical_history_download || false,
+                    edit: contact.medical_history_edit || false,
+                  },
+                  healthRecords: {
+                    view: contact.health_records_view || false,
+                    download: contact.health_records_download || false,
+                    edit: contact.health_records_edit || false,
+                  },
+                  healthPlan: {
+                    view: contact.health_plan_view || false,
+                    download: contact.health_plan_download || false,
+                    edit: contact.health_plan_edit || false,
+                  },
+                  medications: {
+                    view: contact.medications_view || false,
+                    download: contact.medications_download || false,
+                    edit: contact.medications_edit || false,
+                  },
+                  appointments: {
+                    view: contact.appointments_view || false,
+                    edit: contact.appointments_edit || false,
+                  },
+                  messages: {
+                    view: contact.messages_view || false,
+                    edit: contact.messages_edit || false,
+                  },
+                },
+              })
+            })
+          }
+          
+          if (allContacts.length > 0) {
+            setSharedAccessData(allContacts)
+            console.log("✅ Loaded", allContacts.length, "contacts from Supabase")
+          }
+        }
+      } catch (error) {
+        console.error("Error loading shared access:", error)
+      }
+    }
+    
+    loadSharedAccess()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  // Load access logs on mount
+  useEffect(() => {
+    const loadAccessLogs = async () => {
+      console.log("🔍 loadAccessLogs called, user:", user)
+      if (!user?.id) {
+        console.log("⏭️ Skipping access logs load - no user ID")
+        return
+      }
+      
+      try {
+        const logsData = await AuthApiService.getAccessLogs()
+        console.log("📦 Access logs loaded:", logsData)
+        
+        if (logsData && logsData.logs && logsData.logs.length > 0) {
+          setAccessLogsData(logsData.logs)
+          console.log("✅ Loaded", logsData.logs.length, "access logs from Supabase")
+        }
+      } catch (error) {
+        console.error("Error loading access logs:", error)
+      }
+    }
+    
+    loadAccessLogs()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  // Load data sharing preferences on mount
+  useEffect(() => {
+    const loadDataSharing = async () => {
+      console.log("🔍 loadDataSharing called, user:", user)
+      if (!user?.id) {
+        console.log("⏭️ Skipping data sharing load - no user ID")
+        return
+      }
+      
+      try {
+        const dataSharingData = await AuthApiService.getDataSharing()
+        console.log("📦 Data sharing loaded:", dataSharingData)
+        
+        if (dataSharingData) {
+          setPermissions({
+            shareHealthData: dataSharingData.share_health_data ?? true,
+            shareWithProviders: dataSharingData.share_with_other_providers ?? true,
+            shareWithResearchers: dataSharingData.share_with_researchers ?? false,
+            shareWithInsurance: dataSharingData.share_with_insurance ?? true,
+            receiveNotifications: true,
+            receiveMarketing: false,
+            allowLocationTracking: false,
+            allowDataAnalytics: true,
+          })
+          console.log("✅ Loaded data sharing preferences from Supabase")
+        }
+      } catch (error) {
+        console.error("Error loading data sharing:", error)
+      }
+    }
+    
+    loadDataSharing()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  const [sharedAccessData, setSharedAccessData] = useState<Contact[]>([])
+  const [accessLogsData, setAccessLogsData] = useState<Array<{ id: string; name: string; role: string; action: string; date: string; authorized: boolean }>>([])
 
   // Filter contacts based on status and type
   const filteredContacts = sharedAccessData.filter((contact) => {
@@ -401,8 +545,6 @@ export default function PermissionsClientPage() {
 
   const revokedContacts = sharedAccessData.filter((contact) => contact.status === "Revoked")
 
-  // Get user data from Redux store
-  const { user } = useSelector((state: RootState) => state.auth)
   const userName = user?.user_metadata?.full_name || "User"
   const firstName = userName.split(' ')[0] || "User"
 
@@ -493,7 +635,7 @@ export default function PermissionsClientPage() {
                                   : "secondary"
                             }
                           >
-                            {t(`permissions.status.${provider.status.toLowerCase()}`)}
+                            {t(`permissions.statusOptions.${provider.status.toLowerCase()}`)}
                           </Badge>
                         </div>
                         <CardContent className="p-4">
@@ -611,7 +753,7 @@ export default function PermissionsClientPage() {
                                   : "secondary"
                             }
                           >
-                            {t(`permissions.status.${provider.status.toLowerCase()}`)}
+                            {t(`permissions.statusOptions.${provider.status.toLowerCase()}`)}
                           </Badge>
                         </div>
                         <CardContent className="p-4">
@@ -728,7 +870,7 @@ export default function PermissionsClientPage() {
                         </p>
                       </div>
                     </div>
-                    <Badge variant="secondary">{t("permissions.status.revoked")}</Badge>
+                    <Badge variant="secondary">{t("permissions.statusOptions.revoked")}</Badge>
                   </div>
                   <CardContent className="p-4">
                     <div className="space-y-4">
@@ -755,9 +897,10 @@ export default function PermissionsClientPage() {
                           onClick={() => {
                             // Restore access
                             const updatedData = sharedAccessData.map((contact) =>
-                              contact.id === provider.id ? { ...contact, status: "Active" } : contact,
+                              contact.id === provider.id ? { ...contact, status: "Active" as const } : contact,
                             )
                             setSharedAccessData(updatedData)
+                            saveSharedAccess(updatedData)
                           }}
                         >
                           {t("permissions.restoreAccess")}
@@ -846,7 +989,7 @@ export default function PermissionsClientPage() {
           </Card>
 
           <div className="flex justify-between items-center">
-            <p className="text-sm text-muted-foreground">{t("permissions.showingEntries", { count: 5, total: 24 })}</p>
+            <p className="text-sm text-muted-foreground">{t("permissions.showingEntries")}</p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" disabled>
                 {t("permissions.previous")}
@@ -1214,7 +1357,7 @@ export default function PermissionsClientPage() {
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl">{t("permissions.manageAccess")}</DialogTitle>
-            <DialogDescription>{t("permissions.updateAccessFor", { name: selectedContact?.name })}</DialogDescription>
+            <DialogDescription>{t("permissions.updateAccessFor")}</DialogDescription>
           </DialogHeader>
 
           {selectedContact && (
@@ -1492,7 +1635,7 @@ export default function PermissionsClientPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t("permissions.revokeAccess")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("permissions.revokeConfirmation", { name: selectedContact?.name })}
+              {t("permissions.revokeConfirmation")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

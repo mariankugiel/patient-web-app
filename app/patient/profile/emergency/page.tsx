@@ -1,7 +1,7 @@
 "use client"
 
 import * as z from "zod"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Card, CardContent } from "@/components/ui/card"
@@ -17,6 +17,9 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { countryCodes } from "@/lib/country-codes"
+import { useSelector } from "react-redux"
+import { RootState } from "@/lib/store"
+import { AuthApiService } from "@/lib/api/auth-api"
 
 type EmergencyContact = { id: number; name: string; relationship: string; countryCode: string; phone: string; email: string }
 
@@ -42,11 +45,10 @@ type EmergencyInfoFormValues = z.infer<typeof emergencyInfoSchema>
 
 export default function EmergencyTabPage() {
   const { toast } = useToast()
+  const user = useSelector((state: RootState) => state.auth.user)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([
-    { id: 1, name: "Jane Smith", relationship: "Wife", countryCode: "+1", phone: "5559876543", email: "jane.smith@email.com" },
-    { id: 2, name: "Robert Smith", relationship: "Brother", countryCode: "+1", phone: "5554567890", email: "robert.smith@email.com" },
-  ])
+  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([])
   const [emergencyContactDialogOpen, setEmergencyContactDialogOpen] = useState(false)
   const [editingContactId, setEditingContactId] = useState<number | null>(null)
   const [mobileSyncDialogOpen, setMobileSyncDialogOpen] = useState(false)
@@ -59,13 +61,67 @@ export default function EmergencyTabPage() {
   const emergencyInfoForm = useForm<EmergencyInfoFormValues>({
     resolver: zodResolver(emergencyInfoSchema),
     defaultValues: {
-      allergies: "Penicillin, Peanuts",
-      pregnancy: "no",
-      medications: "Lisinopril 10mg daily, Metformin 500mg twice daily",
-      healthProblems: "Type 2 Diabetes, Hypertension",
-      organDonor: true,
+      allergies: "",
+      pregnancy: "",
+      medications: "",
+      healthProblems: "",
+      organDonor: false,
     },
   })
+
+  // Load emergency data on mount
+  useEffect(() => {
+    const loadEmergency = async () => {
+      if (!user?.id) return
+      
+      try {
+        const emergencyData = await AuthApiService.getEmergency()
+        console.log("📦 Emergency data loaded:", emergencyData)
+        
+        // Load contacts
+        if (emergencyData.contacts && emergencyData.contacts.length > 0) {
+          const contactsWithIds = emergencyData.contacts.map((contact: any, index: number) => {
+            // Parse phone number: if it starts with +, extract country code
+            let countryCode = "+1"
+            let phone = contact.phone || ""
+            
+            if (phone && phone.startsWith("+")) {
+              // Try to extract country code (assumes 1-3 digits after +)
+              const match = phone.match(/^\+(\d{1,3})/)
+              if (match) {
+                countryCode = `+${match[1]}`
+                phone = phone.substring(countryCode.length)
+              }
+            }
+            
+            return {
+              id: index + 1,
+              name: contact.name,
+              relationship: contact.relationship,
+              countryCode: countryCode,
+              phone: phone,
+              email: contact.email,
+            }
+          })
+          setEmergencyContacts(contactsWithIds)
+        }
+        
+        // Load emergency info form
+        emergencyInfoForm.reset({
+          allergies: emergencyData.allergies || "",
+          pregnancy: emergencyData.pregnancy_status || "",
+          medications: emergencyData.medications || "",
+          healthProblems: emergencyData.health_problems || "",
+          organDonor: emergencyData.organ_donor || false,
+        })
+      } catch (error) {
+        console.error("Error loading emergency data:", error)
+      }
+    }
+    
+    loadEmergency()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   const handleAddContact = () => {
     setEditingContactId(null)
@@ -80,25 +136,92 @@ export default function EmergencyTabPage() {
   }
 
   const handleRemoveContact = (id: number) => {
-    setEmergencyContacts((prev) => prev.filter((c) => c.id !== id))
-    toast({ title: "Contact removed", description: "Emergency contact has been removed successfully.", duration: 3000 })
+    const updatedContacts = emergencyContacts.filter((c) => c.id !== id)
+    setEmergencyContacts(updatedContacts)
+    // Auto-save after removal
+    saveEmergency(updatedContacts)
+  }
+
+  const saveEmergency = async (contacts?: EmergencyContact[]) => {
+    if (!user?.id) return
+    
+    const contactsToSave = contacts || emergencyContacts
+    
+    console.log("💾 Saving emergency contacts:", contactsToSave.length, contactsToSave)
+    
+    setIsLoading(true)
+    try {
+      await AuthApiService.updateEmergency({
+        contacts: contactsToSave.map(c => ({
+          name: c.name,
+          relationship: c.relationship,
+          phone: `${c.countryCode}${c.phone}`,
+          email: c.email,
+        })),
+      })
+      console.log("✅ Emergency contacts saved successfully")
+    } catch (error) {
+      console.error("❌ Error saving emergency:", error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const onSubmitEmergencyContact = (data: EmergencyContactFormValues) => {
+    let updatedContacts: EmergencyContact[]
+    
     if (editingContactId) {
-      setEmergencyContacts((prev) => prev.map((c) => (c.id === editingContactId ? { ...c, ...data, email: data.email || "" } : c)))
-      toast({ title: "Contact updated", description: "Emergency contact has been updated successfully.", duration: 3000 })
+      updatedContacts = emergencyContacts.map((c) => (c.id === editingContactId ? { ...c, ...data, email: data.email || "" } : c))
+      setEmergencyContacts(updatedContacts)
     } else {
-      const newContact: EmergencyContact = { id: Math.max(...emergencyContacts.map((c) => c.id), 0) + 1, ...data, email: data.email || "" }
-      setEmergencyContacts((prev) => [...prev, newContact])
-      toast({ title: "Contact added", description: "Emergency contact has been added successfully.", duration: 3000 })
+      const newContact: EmergencyContact = { id: Math.max(...(emergencyContacts.length > 0 ? emergencyContacts.map((c) => c.id) : [0]), 0) + 1, ...data, email: data.email || "" }
+      updatedContacts = [...emergencyContacts, newContact]
+      setEmergencyContacts(updatedContacts)
     }
     setEmergencyContactDialogOpen(false)
+    // Auto-save after add/edit with the updated contacts
+    saveEmergency(updatedContacts)
   }
 
-  const onSubmitEmergencyInfo = (data: EmergencyInfoFormValues) => {
-    console.log(data)
-    toast({ title: "Emergency information updated", description: "Your emergency information has been saved successfully.", duration: 3000 })
+  const onSubmitEmergencyInfo = async (data: EmergencyInfoFormValues) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to update your emergency information.",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    setIsLoading(true)
+    
+    try {
+      await AuthApiService.updateEmergency({
+        allergies: data.allergies || undefined,
+        medications: data.medications || undefined,
+        pregnancy_status: data.pregnancy || undefined,
+        health_problems: data.healthProblems || undefined,
+        organ_donor: data.organDonor,
+      })
+      
+      console.log("💾 Emergency info saved")
+      
+      toast({
+        title: "Emergency information updated",
+        description: "Your emergency information has been saved successfully.",
+        duration: 3000,
+      })
+    } catch (error: any) {
+      console.error("Error updating emergency info:", error)
+      toast({
+        title: "Error",
+        description: error.message || "An unexpected error occurred.",
+        variant: "destructive",
+        duration: 3000,
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleMobileSync = (platform: "ios" | "android") => {
@@ -320,7 +443,7 @@ export default function EmergencyTabPage() {
                     <FormField control={emergencyInfoForm.control} name="pregnancy" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-sm font-medium">Pregnancy Status</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger className="h-9 text-sm">
                               <SelectValue placeholder="Select status" />

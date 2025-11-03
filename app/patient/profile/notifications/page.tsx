@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -8,8 +8,16 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Save } from "lucide-react"
+import { useSelector } from "react-redux"
+import { RootState } from "@/lib/store"
+import { AuthApiService } from "@/lib/api/auth-api"
+import { useToast } from "@/hooks/use-toast"
 
 export default function NotificationsTabPage() {
+  const { toast } = useToast()
+  const user = useSelector((state: RootState) => state.auth.user)
+  const [isLoading, setIsLoading] = useState(false)
+  
   const [accountSettings, setAccountSettings] = useState({
     appointmentHoursBefore: "24",
     medicationMinutesBefore: "15",
@@ -29,10 +37,95 @@ export default function NotificationsTabPage() {
     emailNewsletter: false,
   })
 
+  // Load notifications on mount
+  useEffect(() => {
+    const loadNotifications = async () => {
+      if (!user?.id) return
+      
+      try {
+        const notificationsData = await AuthApiService.getNotifications()
+        console.log("📦 Notifications data loaded:", notificationsData)
+        
+        if (notificationsData) {
+          setAccountSettings({
+            appointmentHoursBefore: notificationsData.appointment_hours_before || "24",
+            medicationMinutesBefore: notificationsData.medication_minutes_before || "15",
+            tasksReminderTime: notificationsData.tasks_reminder_time || "09:00",
+            emailAppointments: notificationsData.email_appointments ?? true,
+            smsAppointments: notificationsData.sms_appointments ?? false,
+            whatsappAppointments: notificationsData.whatsapp_appointments ?? true,
+            pushAppointments: notificationsData.push_appointments ?? true,
+            emailMedications: notificationsData.email_medications ?? true,
+            smsMedications: notificationsData.sms_medications ?? false,
+            whatsappMedications: notificationsData.whatsapp_medications ?? false,
+            pushMedications: notificationsData.push_medications ?? true,
+            emailTasks: notificationsData.email_tasks ?? false,
+            smsTasks: notificationsData.sms_tasks ?? false,
+            whatsappTasks: notificationsData.whatsapp_tasks ?? true,
+            pushTasks: notificationsData.push_tasks ?? false,
+            emailNewsletter: notificationsData.email_newsletter ?? false,
+          })
+        }
+      } catch (error) {
+        console.error("Error loading notifications:", error)
+      }
+    }
+    
+    loadNotifications()
+  }, [user?.id])
+
   const handleToggle = (key: keyof typeof accountSettings) => setAccountSettings((prev) => ({ ...prev, [key]: !prev[key] }))
 
-  const savePreferences = () => {
-    console.log("saved notification prefs", accountSettings)
+  const savePreferences = async () => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to update your preferences.",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    setIsLoading(true)
+    
+    try {
+      await AuthApiService.updateNotifications({
+        appointment_hours_before: accountSettings.appointmentHoursBefore,
+        medication_minutes_before: accountSettings.medicationMinutesBefore,
+        tasks_reminder_time: accountSettings.tasksReminderTime,
+        email_appointments: accountSettings.emailAppointments,
+        sms_appointments: accountSettings.smsAppointments,
+        whatsapp_appointments: accountSettings.whatsappAppointments,
+        push_appointments: accountSettings.pushAppointments,
+        email_medications: accountSettings.emailMedications,
+        sms_medications: accountSettings.smsMedications,
+        whatsapp_medications: accountSettings.whatsappMedications,
+        push_medications: accountSettings.pushMedications,
+        email_tasks: accountSettings.emailTasks,
+        sms_tasks: accountSettings.smsTasks,
+        whatsapp_tasks: accountSettings.whatsappTasks,
+        push_tasks: accountSettings.pushTasks,
+        email_newsletter: accountSettings.emailNewsletter,
+      })
+      
+      console.log("💾 Notifications saved")
+      
+      toast({
+        title: "Preferences updated",
+        description: "Your notification preferences have been saved successfully.",
+        duration: 3000,
+      })
+    } catch (error: any) {
+      console.error("Error saving notifications:", error)
+      toast({
+        title: "Error",
+        description: error.message || "An unexpected error occurred.",
+        variant: "destructive",
+        duration: 3000,
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -122,7 +215,7 @@ export default function NotificationsTabPage() {
           </div>
         </div>
 
-        <Button className="bg-teal-600 hover:bg-teal-700" onClick={savePreferences}><Save className="mr-2 h-4 w-4" />Save Preferences</Button>
+        <Button className="bg-teal-600 hover:bg-teal-700" onClick={savePreferences} disabled={isLoading}><Save className="mr-2 h-4 w-4" />{isLoading ? "Saving..." : "Save Preferences"}</Button>
       </CardContent>
     </Card>
   )

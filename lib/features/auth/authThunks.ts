@@ -3,6 +3,7 @@ import { loginStart, loginSuccess, loginFailure, signupStart, signupSuccess, sig
 import { AuthApiService, UserRegistrationData, UserLoginData } from "@/lib/api/auth-api"
 import { resetSessionExpiredFlag } from "@/lib/api/axios-config"
 import { toast } from "react-toastify"
+import { createClient } from "@/lib/supabase-client"
 
 export const loginUser = createAsyncThunk(
   "auth/loginUser",
@@ -26,6 +27,23 @@ export const loginUser = createAsyncThunk(
         if (tokenResponse.expires_in) {
           localStorage.setItem('expires_in', tokenResponse.expires_in.toString())
         }
+      }
+      
+      // Set Supabase session for MFA to work
+      try {
+        const supabase = createClient()
+        const sessionResult = await supabase.auth.setSession({
+          access_token: tokenResponse.access_token,
+          refresh_token: tokenResponse.refresh_token,
+        })
+        if (sessionResult.error) {
+          console.error('Failed to set Supabase session:', sessionResult.error)
+        } else {
+          console.log('Successfully set Supabase session')
+        }
+      } catch (sessionError) {
+        console.error('Failed to set Supabase session (exception):', sessionError)
+        // Continue anyway - MFA will not work but other features will
       }
       
       // Get user profile (token automatically added by interceptor)
@@ -123,6 +141,23 @@ export const signupUser = createAsyncThunk(
         }
       }
       
+      // Set Supabase session for MFA to work
+      try {
+        const supabase = createClient()
+        const sessionResult = await supabase.auth.setSession({
+          access_token: tokenResponse.access_token,
+          refresh_token: tokenResponse.refresh_token,
+        })
+        if (sessionResult.error) {
+          console.error('Failed to set Supabase session:', sessionResult.error)
+        } else {
+          console.log('Successfully set Supabase session')
+        }
+      } catch (sessionError) {
+        console.error('Failed to set Supabase session (exception):', sessionError)
+        // Continue anyway - MFA will not work but other features will
+      }
+      
       // Get user profile (token automatically added by interceptor)
       const userProfile = await AuthApiService.getProfile()
       
@@ -144,7 +179,7 @@ export const signupUser = createAsyncThunk(
         is_active: userResponse.is_active,
         created_at: userResponse.created_at,
       }
-
+      
       dispatch(signupSuccess(user))
       
       // Reset session expired notification flag after successful signup

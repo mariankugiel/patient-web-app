@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
 import { loginSuccess, sessionRestorationStart, sessionRestorationComplete } from '@/lib/features/auth/authSlice'
 import { AuthApiService } from '@/lib/api/auth-api'
+import { createClient } from '@/lib/supabase-client'
 
 export function useSessionPersistence() {
   const dispatch = useDispatch()
@@ -12,12 +13,36 @@ export function useSessionPersistence() {
     const restoreSession = async () => {
       // Check if we have a stored access token
       const storedToken = localStorage.getItem('access_token')
+      const refreshToken = localStorage.getItem('refresh_token')
+      
+      // Always restore Supabase session if we have tokens (needed for MFA)
+      if (storedToken && refreshToken) {
+        try {
+          const supabase = createClient()
+          // Check if session already exists
+          const { data: { session } } = await supabase.auth.getSession()
+          if (!session) {
+            // Only set session if it doesn't exist
+            const sessionResult = await supabase.auth.setSession({
+              access_token: storedToken,
+              refresh_token: refreshToken,
+            })
+            if (sessionResult.error) {
+              console.warn('Failed to restore Supabase session:', sessionResult.error)
+            } else {
+              console.log('Successfully restored Supabase session')
+            }
+          }
+        } catch (supabaseError) {
+          console.warn('Failed to restore Supabase session (exception):', supabaseError)
+        }
+      }
       
       if (storedToken && !isAuthenticated) {
         dispatch(sessionRestorationStart())
         try {
           // Verify the token is still valid by fetching user profile
-          const userProfile = await AuthApiService.getProfile(storedToken)
+          const userProfile = await AuthApiService.getProfile()
           
           // Use the onboarding status directly from the backend profile
           // Don't override the backend values with our own logic
@@ -34,7 +59,7 @@ export function useSessionPersistence() {
               // Keep the original onboarding_completed and onboarding_skipped values from backend
             },
             access_token: storedToken,
-            refresh_token: localStorage.getItem('refresh_token') || '',
+            refresh_token: refreshToken || '',
             expires_in: parseInt(localStorage.getItem('expires_in') || '0'),
           }
           

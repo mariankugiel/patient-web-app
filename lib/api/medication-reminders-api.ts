@@ -115,7 +115,7 @@ class MedicationRemindersApiService {
   }
 
   async markAllAsRead(): Promise<void> {
-    await apiClient.patch('/notifications/read-all')
+    await apiClient.post('/notifications/mark-all-read')
   }
 
   async dismissNotification(notificationId: number): Promise<void> {
@@ -123,7 +123,7 @@ class MedicationRemindersApiService {
   }
 
   async getUnreadCount(): Promise<{ count: number }> {
-    const response = await apiClient.get('/notifications/unread-count')
+    const response = await apiClient.get('/notifications/unread/count')
     return response.data
   }
 

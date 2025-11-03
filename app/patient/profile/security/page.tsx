@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import * as z from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -10,7 +10,15 @@ import { Separator } from "@/components/ui/separator"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Smartphone, X, Lock, CheckCircle2, Circle } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { AuthApiService } from "@/lib/api/auth-api"
+import { enrollMFA, verifyMFAEnrollment, listMFAFactors, unenrollMFAFactor } from "@/lib/auth-helpers"
+import { useSelector } from "react-redux"
+import { RootState } from "@/lib/store"
+import { createClient } from "@/lib/supabase-client"
+import { TOTP } from 'otpauth'
 
 const passwordChangeSchema = z
   .object({
@@ -29,9 +37,20 @@ const passwordChangeSchema = z
 type PasswordChangeFormValues = z.infer<typeof passwordChangeSchema>
 
 export default function SecurityTabPage() {
-  const [accountSettings, setAccountSettings] = useState({ twoFactorAuth: true })
+  const { toast } = useToast()
+  const { isRestoringSession, isAuthenticated } = useSelector((state: RootState) => state.auth)
+  const [accountSettings, setAccountSettings] = useState({ twoFactorAuth: false })
+  const [mfaFactors, setMfaFactors] = useState<Array<{id: string, type: string, friendly_name: string, status: string, created_at: string}>>([])
+  const [showQRCode, setShowQRCode] = useState(false)
+  const [qrCodeUrl, setQrCodeUrl] = useState("")
+  const [enrollmentFactorId, setEnrollmentFactorId] = useState("")
+  const [verificationCode, setVerificationCode] = useState("")
   const passwordForm = useForm<PasswordChangeFormValues>({ resolver: zodResolver(passwordChangeSchema), defaultValues: { currentPassword: "", newPassword: "", confirmPassword: "" } })
   const [newPasswordValue, setNewPasswordValue] = useState("")
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [isLoadingMFA, setIsLoadingMFA] = useState(false)
+  const [isSessionReady, setIsSessionReady] = useState(false)
+  const [totpSecret, setTotpSecret] = useState<string | null>(null)
 
   const passwordChecks = {
     minLength: newPasswordValue.length >= 8,
@@ -42,12 +61,352 @@ export default function SecurityTabPage() {
     passwordsMatch: newPasswordValue === passwordForm.watch("confirmPassword") && newPasswordValue.length > 0,
   }
 
+  // Wait for session restoration and check Supabase session
+  useEffect(() => {
+    const checkSession = async () => {
+      // Wait for Redux session restoration to complete
+      if (isRestoringSession) {
+        return
+      }
+
+      // Check if Supabase session exists
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          setIsSessionReady(true)
+        } else {
+          // If no session but we have tokens, try to restore it
+          const storedToken = localStorage.getItem('access_token')
+          const refreshToken = localStorage.getItem('refresh_token')
+          if (storedToken && refreshToken && isAuthenticated) {
+            try {
+              const sessionResult = await supabase.auth.setSession({
+                access_token: storedToken,
+                refresh_token: refreshToken,
+              })
+              if (!sessionResult.error) {
+                setIsSessionReady(true)
+              }
+            } catch (error) {
+              console.warn('Failed to restore Supabase session in security page:', error)
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to check Supabase session:', error)
+      }
+    }
+
+    checkSession()
+  }, [isRestoringSession, isAuthenticated])
+
+  const loadMFAFactors = useCallback(async () => {
+    try {
+      const { data, error } = await listMFAFactors()
+      if (error) throw error
+      // listFactors returns { all: Factor[], totp: Factor[], phone: Factor[] }
+      const factors = data?.all || []
+      setMfaFactors(factors as any)
+      setAccountSettings({ twoFactorAuth: factors.length > 0 })
+    } catch (error: any) {
+      console.error("Error loading MFA factors:", error)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isSessionReady) {
+      loadMFAFactors()
+    }
+  }, [isSessionReady, loadMFAFactors])
+
+  // Function to generate and log current TOTP code
+  const generateAndLogTOTPCode = useCallback((secret: string) => {
+    try {
+      // Create TOTP instance - Supabase uses standard TOTP (SHA1, 6 digits, 30 seconds)
+      // The secret should be base32 encoded string (otpauth library handles this)
+      const totp = new TOTP({
+        issuer: 'YourHealth1Place',
+        label: '2FA',
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+        secret: secret // otpauth library expects base32 encoded secret
+      })
+      
+      const currentCode = totp.generate()
+      const timestamp = Math.floor(Date.now() / 1000)
+      const timeRemaining = 30 - (timestamp % 30)
+      const currentTimeWindow = Math.floor(timestamp / 30)
+      
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      console.log('🔐 Expected TOTP Code (from secret):', currentCode)
+      console.log('⏰ Code expires in:', timeRemaining, 'seconds')
+      console.log('🕐 Current time window:', currentTimeWindow)
+      console.log('📋 Secret (first/last 4):', secret.substring(0, 8) + '...' + secret.substring(secret.length - 4))
+      console.log('📋 Full secret length:', secret.length)
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    } catch (err) {
+      console.error('❌ Error generating TOTP code:', err)
+      console.error('Secret that failed:', secret?.substring(0, 20) + '...')
+    }
+  }, [])
+
+  const handleToggle2FA = async (enabled: boolean) => {
+    setIsLoadingMFA(true)
+    try {
+      if (enabled) {
+        // Explicitly keep switch disabled until verification succeeds
+        setAccountSettings({ twoFactorAuth: false })
+        
+        // Start enrollment process
+        const { data, error } = await enrollMFA()
+        if (error) throw error
+        if (!data) throw new Error("No enrollment data returned")
+        
+        // Log full enrollment data for debugging
+        console.log('📦 Full enrollment data:', JSON.stringify(data, null, 2))
+        console.log('📦 Enrollment data type check:', {
+          hasData: !!data,
+          dataKeys: Object.keys(data || {}),
+          hasTotp: !!data?.totp,
+          totpKeys: data?.totp ? Object.keys(data.totp) : [],
+          qrCodeType: typeof data?.totp?.qr_code,
+          qrCodeSample: data?.totp?.qr_code?.substring(0, 50)
+        })
+        
+        // Extract secret from enrollment data
+        // The secret is in data.totp.secret or can be extracted from QR code URL
+        let secret: string | null = data.totp?.secret || null
+        console.log('🔑 Direct secret from data.totp.secret:', secret ? secret.substring(0, 8) + '...' : 'null')
+        
+        if (!secret && data.totp?.qr_code) {
+          // Try to extract from QR code URL (otpauth://totp/...?secret=XXXXX)
+          try {
+            // QR code might be a data URL or a string URL
+            let qrCodeUrlString = data.totp.qr_code
+            // If it's a data URL (data:image/png;base64,...) we need to extract the otpauth URL differently
+            if (qrCodeUrlString.startsWith('data:')) {
+              console.warn('QR code is a data URL, cannot extract secret from it directly')
+            } else {
+              const url = new URL(qrCodeUrlString)
+              secret = url.searchParams.get('secret')
+              console.log('📎 Extracted secret from QR URL:', secret ? secret.substring(0, 8) + '...' : 'null')
+            }
+          } catch (e) {
+            console.warn('Could not extract secret from QR code URL:', e)
+            console.log('QR code value:', data.totp.qr_code?.substring(0, 100))
+          }
+        }
+        
+        if (secret) {
+          console.log('✅ Secret found:', secret.substring(0, 8) + '...' + secret.substring(secret.length - 4))
+          setTotpSecret(secret)
+          // Generate and log current TOTP code immediately
+          generateAndLogTOTPCode(secret)
+        } else {
+          console.warn('❌ No secret found in enrollment data')
+          console.log('Available data keys:', Object.keys(data || {}))
+          console.log('data.totp keys:', data?.totp ? Object.keys(data.totp) : 'no totp')
+        }
+        
+        setQrCodeUrl(data.totp.qr_code)
+        setEnrollmentFactorId(data.id)
+        setShowQRCode(true)
+        // Keep switch disabled - only enable after successful verification
+      } else {
+        // Disable 2FA by removing factors
+        for (const factor of mfaFactors) {
+          const { error } = await unenrollMFAFactor(factor.id)
+          if (error) throw error
+        }
+        setMfaFactors([])
+        setAccountSettings({ twoFactorAuth: false })
+        toast({
+          title: "2FA Disabled",
+          description: "Two-factor authentication has been disabled.",
+          duration: 3000,
+        })
+      }
+    } catch (error: any) {
+      console.error("Error toggling 2FA:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to toggle 2FA. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      })
+      // Make sure switch stays off on error
+      setAccountSettings({ twoFactorAuth: false })
+    } finally {
+      setIsLoadingMFA(false)
+    }
+  }
+
+  const handleVerifyEnrollment = async () => {
+    setIsLoadingMFA(true)
+    try {
+      // Log what code we're sending
+      console.log('📤 Attempting verification with code:', verificationCode)
+      console.log('📤 Factor ID:', enrollmentFactorId)
+      
+      // If we have the secret, generate and log the expected code
+      if (totpSecret) {
+        generateAndLogTOTPCode(totpSecret)
+        
+        // Generate expected code and compare
+        try {
+          const totp = new TOTP({
+            issuer: 'YourHealth1Place',
+            label: '2FA',
+            algorithm: 'SHA1',
+            digits: 6,
+            period: 30,
+            secret: totpSecret
+          })
+          const expectedCode = totp.generate()
+          console.log('✅ Expected code from secret:', expectedCode)
+          console.log('📝 Entered code:', verificationCode)
+          console.log('✅ Codes match?', expectedCode === verificationCode.trim())
+        } catch (err) {
+          console.error('Error generating comparison code:', err)
+        }
+      }
+      
+      const { error } = await verifyMFAEnrollment(enrollmentFactorId, verificationCode)
+      if (error) throw error
+      
+      // Only enable 2FA after successful verification
+      setShowQRCode(false)
+      setVerificationCode("")
+      setEnrollmentFactorId("")
+      setQrCodeUrl("")
+      setTotpSecret(null) // Clear secret after successful verification
+      
+      toast({
+        title: "2FA Enabled",
+        description: "Two-factor authentication has been enabled successfully.",
+        duration: 3000,
+      })
+      
+      // Reload factors - this will update accountSettings.twoFactorAuth based on actual factors
+      await loadMFAFactors()
+    } catch (error: any) {
+      // Explicitly keep switch disabled when verification fails
+      setAccountSettings({ twoFactorAuth: false })
+      
+      // Extract error message - check multiple sources
+      let errorMessage = "Invalid verification code. Please try again."
+      
+      // Try to get error message from various sources
+      if (error?.message) {
+        errorMessage = error.message
+      } else if (error?.originalError?.message) {
+        errorMessage = error.originalError.message
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      }
+      
+      // Provide user-friendly messages for common errors
+      if (errorMessage.includes("Invalid TOTP code") || errorMessage.toLowerCase().includes("invalid code")) {
+        errorMessage = "Invalid verification code. Please check your authenticator app and ensure your device time is correct. Try entering a fresh code."
+      } else if (errorMessage.includes("expired") || errorMessage.includes("timeout")) {
+        errorMessage = "The verification code has expired. Please enter a fresh code from your authenticator app."
+      } else if (errorMessage.includes("422") || error?.status === 422) {
+        errorMessage = "Invalid verification code. This could be due to:\n• Incorrect code\n• Device time not synchronized\n• Code expired\n\nPlease ensure your device time is correct and try with a fresh code."
+      } else if (errorMessage.includes("connection") || errorMessage.includes("network") || errorMessage.includes("failed")) {
+        // If it's a connection error, provide helpful message
+        errorMessage = "Connection error. Please check your internet connection and try again."
+      }
+      
+      // Log the full error for debugging
+      console.error("MFA verification error:", error)
+      
+      // Show user-friendly notification
+      toast({
+        title: "Verification Failed",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 5000,
+      })
+      
+      // Clear the verification code input so user can try again
+      setVerificationCode("")
+      
+      // Don't clean up the enrollment on first failure - let user try again
+      // Only clean up if they explicitly cancel or close the dialog
+      // Switch is explicitly kept disabled above
+    } finally {
+      setIsLoadingMFA(false)
+    }
+  }
+
+  const handleDialogClose = async (open: boolean) => {
+    if (!open && enrollmentFactorId && showQRCode) {
+      // User closed dialog without verifying - clean up the unverified enrollment
+      setIsLoadingMFA(true)
+      try {
+        await unenrollMFAFactor(enrollmentFactorId)
+      } catch (error) {
+        console.error("Error cleaning up enrollment on dialog close:", error)
+      } finally {
+        setEnrollmentFactorId("")
+        setQrCodeUrl("")
+        setVerificationCode("")
+        setIsLoadingMFA(false)
+      }
+    }
+    setShowQRCode(open)
+  }
+
   const handleToggle = (key: keyof typeof accountSettings) => setAccountSettings((prev) => ({ ...prev, [key]: !prev[key] }))
 
-  const onSubmitPasswordChange = (data: PasswordChangeFormValues) => {
+  // Set up interval to log current code every 5 seconds while dialog is open
+  useEffect(() => {
+    if (totpSecret && showQRCode) {
+      // Log immediately
+      generateAndLogTOTPCode(totpSecret)
+      
+      // Then log every 5 seconds
+      const interval = setInterval(() => {
+        generateAndLogTOTPCode(totpSecret)
+      }, 5000)
+      
+      return () => clearInterval(interval)
+    }
+    
+    // Clear secret when dialog closes or verification succeeds
+    if (!showQRCode && totpSecret) {
+      setTotpSecret(null)
+    }
+  }, [totpSecret, showQRCode, generateAndLogTOTPCode])
+
+  const onSubmitPasswordChange = async (data: PasswordChangeFormValues) => {
     console.log("password change:", data)
-    passwordForm.reset()
-    setNewPasswordValue("")
+    setIsChangingPassword(true)
+    
+    try {
+      await AuthApiService.changePassword(data.currentPassword, data.newPassword)
+      
+      toast({
+        title: "Password Changed",
+        description: "Your password has been updated successfully.",
+        duration: 3000,
+      })
+      
+      passwordForm.reset()
+      setNewPasswordValue("")
+    } catch (error: any) {
+      console.error("Error changing password:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to change password. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      })
+    } finally {
+      setIsChangingPassword(false)
+    }
   }
 
   return (
@@ -113,7 +472,9 @@ export default function SecurityTabPage() {
                 </div>
               )}
 
-              <Button type="submit" size="sm" className="bg-teal-600 hover:bg-teal-700 h-8 text-xs">Update Password</Button>
+              <Button type="submit" size="sm" className="bg-teal-600 hover:bg-teal-700 h-8 text-xs" disabled={isChangingPassword}>
+                {isChangingPassword ? "Changing..." : "Update Password"}
+              </Button>
             </form>
           </Form>
         </div>
@@ -136,83 +497,41 @@ export default function SecurityTabPage() {
                 <p className="text-xs text-muted-foreground">Use an app to generate verification codes</p>
               </div>
             </div>
-            <Switch checked={accountSettings.twoFactorAuth} onCheckedChange={() => handleToggle("twoFactorAuth")} />
+            <Switch checked={accountSettings.twoFactorAuth} onCheckedChange={handleToggle2FA} disabled={isLoadingMFA} />
           </div>
         </div>
 
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-start gap-3 mb-4">
-            <div className="rounded-full bg-primary/10 p-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-                <rect width="20" height="14" x="2" y="7" rx="2" />
-                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-              </svg>
+        <Dialog open={showQRCode} onOpenChange={handleDialogClose}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Scan QR Code</DialogTitle>
+              <DialogDescription>
+                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col items-center gap-4 py-4">
+              {qrCodeUrl && (
+                <img src={qrCodeUrl} alt="QR Code" className="w-64 h-64 border rounded-lg" />
+              )}
+              <Input 
+                placeholder="Enter 6-digit code"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+                maxLength={6}
+                className="w-full text-center text-lg tracking-widest"
+              />
             </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-base">Active Sessions</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Manage devices that are logged into your account</p>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="rounded-md bg-background p-2 flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
-                    <rect width="20" height="14" x="2" y="3" rx="2" />
-                    <line x1="8" x2="16" y1="21" y2="21" />
-                    <line x1="12" x2="12" y1="17" y2="21" />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-medium text-sm">Chrome on Windows</h4>
-                    <span className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">Active</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">IP: 192.168.1.1 • Active now</p>
-                </div>
-              </div>
-              <Button variant="outline" size="sm" disabled className="h-7 text-xs flex-shrink-0 ml-2 bg-transparent">Current</Button>
-            </div>
-
-            <div className="flex items-center justify-between rounded-md border p-3 hover:bg-muted/50 transition-colors">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="rounded-md bg-muted p-2 flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
-                    <rect width="7" height="13" x="6" y="4" rx="1" />
-                    <path d="M10.5 1.5v2M13.5 1.5v2M8 4v16M16 7h2M16 11h2M16 15h2" />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-sm">Safari on iPhone</h4>
-                  <p className="text-xs text-muted-foreground truncate">IP: 192.168.1.2 • 2 days ago</p>
-                </div>
-              </div>
-              <Button variant="outline" size="sm" className="h-7 text-xs flex-shrink-0 ml-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 bg-transparent"><X className="mr-1 h-3 w-3" />Revoke</Button>
-            </div>
-
-            <div className="flex items-center justify-between rounded-md border p-3 hover:bg-muted/50 transition-colors">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="rounded-md bg-muted p-2 flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
-                    <circle cx="12" cy="12" r="10" />
-                    <circle cx="12" cy="12" r="4" />
-                    <line x1="21.17" x2="12" y1="8" y2="8" />
-                    <line x1="3.95" x2="8.54" y1="6.06" y2="14" />
-                    <line x1="10.88" x2="15.46" y1="21.94" y2="14" />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-sm">Firefox on MacBook</h4>
-                  <p className="text-xs text-muted-foreground truncate">IP: 192.168.1.5 • 5 days ago</p>
-                </div>
-              </div>
-              <Button variant="outline" size="sm" className="h-7 text-xs flex-shrink-0 ml-2 hover:bg-destructive/10 hover:text-destructive hover;border-destructive/20 bg-transparent"><X className="mr-1 h-3 w-3" />Revoke</Button>
-            </div>
-          </div>
-        </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => handleDialogClose(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleVerifyEnrollment} disabled={verificationCode.length !== 6 || isLoadingMFA}>
+                {isLoadingMFA ? "Verifying..." : "Verify"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   )
 }
-
-

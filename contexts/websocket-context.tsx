@@ -175,12 +175,18 @@ export function WebSocketProvider({ children, userId }: { children: React.ReactN
           console.log('Loaded notification history:', data.length)
           setNotifications(data)
         })
-        .catch(console.error)
+        .catch(error => {
+          // Silently fail - notifications are optional
+          console.debug('Notifications not available:', error.message)
+        })
 
       // Load unread count
       notificationsApiService.getUnreadCount()
         .then(data => setUnreadCount(data.count))
-        .catch(console.error)
+        .catch(error => {
+          // Silently fail - notifications are optional
+          console.debug('Unread count not available:', error.message)
+        })
     })
   }, [userId])
 

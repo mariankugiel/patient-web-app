@@ -18,6 +18,9 @@ import { LocationSearch } from "@/components/ui/location-search"
 import { countryCodes } from "@/lib/country-codes"
 import { timezones } from "@/lib/timezones"
 import { Save } from "lucide-react"
+import { useSelector } from "react-redux"
+import { RootState } from "@/lib/store"
+import { AuthApiService } from "@/lib/api/auth-api"
 
 const profileFormSchema = z.object({
   firstName: z.string().min(2, { message: "First name must be at least 2 characters." }),
@@ -61,6 +64,9 @@ export default function ProfileTabPage() {
   const [selectedLanguage, setSelectedLanguage] = useState(language)
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">("light")
   const [profileImage, setProfileImage] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const { user } = useSelector((state: RootState) => state.auth)
+  const form = useForm<ProfileFormValues>({ resolver: zodResolver(profileFormSchema), defaultValues })
 
   useEffect(() => {
     if (selectedTheme === "dark") document.documentElement.classList.add("dark")
@@ -69,18 +75,155 @@ export default function ProfileTabPage() {
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null
-    if (savedTheme) setSelectedTheme(savedTheme)
+    if (savedTheme) {
+      setSelectedTheme(savedTheme)
+      console.log("🎨 Loaded theme from localStorage:", savedTheme)
+    }
   }, [])
 
-  const form = useForm<ProfileFormValues>({ resolver: zodResolver(profileFormSchema), defaultValues })
+  // Load user profile data
+  useEffect(() => {
+    const loadProfile = async () => {
+      console.log("🔍 loadProfile called, user:", user)
+      if (!user?.id) {
+        console.log("⏭️ Skipping profile load - no user ID")
+        return
+      }
+      
+      try {
+        console.log("📥 Calling AuthApiService.getProfile()...")
+        const profileData = await AuthApiService.getProfile()
+        console.log("📦 Profile data received:", profileData)
+        
+        // Check if profileData has any actual data (not just null values)
+        const hasData = profileData && Object.values(profileData).some(value => value !== null && value !== undefined)
+        console.log("📊 Profile has data:", hasData)
+        
+        if (profileData && hasData) {
+          console.log("📦 Loading profile data from Supabase:", profileData)
+          
+          // Split full_name into first and last name if needed
+          let firstName = ""
+          let lastName = ""
+          if (profileData.full_name) {
+            const nameParts = profileData.full_name.split(' ')
+            firstName = nameParts[0] || ""
+            lastName = nameParts.slice(1).join(' ') || ""
+          }
+          
+          // Find country name from country code
+          const countryCode = profileData.phone_country_code || "+1"
+          const matchingCountry = countryCodes.find(c => c.code === countryCode)
+          const countryName = matchingCountry ? matchingCountry.country : ""
+          
+          // Populate form with existing data
+          form.reset({
+            firstName: firstName || "",
+            lastName: lastName || "",
+            dob: profileData.date_of_birth || "",
+            gender: profileData.gender || "",
+            height: profileData.height ? String(profileData.height) : "",
+            weight: profileData.weight ? String(profileData.weight) : "",
+            waistDiameter: profileData.waist_diameter ? String(profileData.waist_diameter) : "",
+            bloodType: profileData.blood_type || "",
+            email: profileData.email || user.email || "",
+            countryCode: countryCode,
+            countryName: countryName,
+            mobileNumber: profileData.phone_number || "",
+            location: profileData.address || "",
+            timezone: profileData.timezone || "America/Los_Angeles",
+          })
+          
+          // Load theme and language from profile data
+          if (profileData.theme) {
+            setSelectedTheme(profileData.theme as "light" | "dark")
+            console.log("🎨 Loaded theme from profile:", profileData.theme)
+          }
+          if (profileData.language) {
+            setSelectedLanguage(profileData.language as "en" | "es" | "pt")
+            console.log("🌐 Loaded language from profile:", profileData.language)
+          }
+          if (profileData.timezone) {
+            console.log("🌍 Loaded timezone from profile:", profileData.timezone)
+          }
+          
+          console.log("✅ Profile form populated successfully")
+        } else {
+          console.log("⚠️ No profile data found - empty profile or user hasn't saved profile yet")
+        }
+      } catch (error) {
+        console.error("Error loading profile:", error)
+      }
+    }
+    
+    loadProfile()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
-  function onSubmit(data: ProfileFormValues) {
-    console.log(data)
-    toast({
-      title: t("profile.updateSuccess") || "Profile updated",
-      description: t("profile.updateSuccessDesc") || "Your profile has been updated successfully.",
-      duration: 3000,
-    })
+  async function onSubmit(data: ProfileFormValues) {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to update your profile.",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    setIsLoading(true)
+    
+    try {
+      // Prepare update data matching the API schema
+      const updateData: any = {
+        email: data.email || undefined,
+        full_name: `${data.firstName} ${data.lastName}`.trim(),
+        date_of_birth: data.dob || undefined,
+        gender: data.gender || undefined,
+        height: data.height ? data.height : undefined,
+        weight: data.weight ? data.weight : undefined,
+        waist_diameter: data.waistDiameter ? data.waistDiameter : undefined,
+        blood_type: data.bloodType || undefined,
+        phone_country_code: data.countryCode || undefined,
+        phone_number: data.mobileNumber || undefined,
+        address: data.location || undefined,
+        timezone: data.timezone || undefined,
+        theme: selectedTheme || undefined,
+        language: selectedLanguage || undefined,
+      }
+      
+      // Remove undefined values
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === undefined || updateData[key] === null) {
+          delete updateData[key]
+        }
+      })
+      
+      console.log("💾 Saving profile data to Supabase:", updateData)
+      
+      // Save via backend API
+      await AuthApiService.updateProfile(updateData)
+      
+      // Update language context if changed
+      if (selectedLanguage !== language) setLanguage(selectedLanguage as "en" | "es" | "pt")
+      
+      console.log("💾 Saved all profile data including preferences")
+      
+      toast({
+        title: t("profile.updateSuccess") || "Profile updated",
+        description: t("profile.updateSuccessDesc") || "Your profile has been updated successfully.",
+        duration: 3000,
+      })
+    } catch (error: any) {
+      console.error("Error updating profile:", error)
+      toast({
+        title: "Error",
+        description: error.message || "An unexpected error occurred while updating your profile.",
+        variant: "destructive",
+        duration: 3000,
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const savePreferences = () => {
@@ -221,7 +364,7 @@ export default function ProfileTabPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Gender</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="Select" />
@@ -260,7 +403,7 @@ export default function ProfileTabPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Blood Type</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="Select" />
@@ -376,7 +519,7 @@ export default function ProfileTabPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Time Zone</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select timezone" />
@@ -427,9 +570,9 @@ export default function ProfileTabPage() {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700">
+                <Button type="submit" className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700" disabled={isLoading}>
                   <Save className="mr-2 h-4 w-4" />
-                  {t("profile.updateProfile")}
+                  {isLoading ? "Saving..." : t("profile.updateProfile")}
                 </Button>
               </div>
 

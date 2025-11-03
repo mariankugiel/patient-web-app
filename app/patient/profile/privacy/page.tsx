@@ -1,17 +1,86 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { useSelector } from "react-redux"
+import { RootState } from "@/lib/store"
+import { AuthApiService } from "@/lib/api/auth-api"
+import { useToast } from "@/hooks/use-toast"
 
 export default function PrivacyTabPage() {
+  const { toast } = useToast()
+  const user = useSelector((state: RootState) => state.auth.user)
+  const [isLoading, setIsLoading] = useState(false)
+  
   const [settings, setSettings] = useState({ shareAnonymizedData: true, shareAnalytics: false })
   const [dataExportOpen, setDataExportOpen] = useState(false)
 
+  // Load privacy settings on mount
+  useEffect(() => {
+    const loadPrivacy = async () => {
+      if (!user?.id) return
+      
+      try {
+        const privacyData = await AuthApiService.getPrivacy()
+        console.log("📦 Privacy data loaded:", privacyData)
+        
+        if (privacyData) {
+          setSettings({
+            shareAnonymizedData: privacyData.share_anonymized_data ?? true,
+            shareAnalytics: privacyData.share_analytics ?? false,
+          })
+        }
+      } catch (error) {
+        console.error("Error loading privacy settings:", error)
+      }
+    }
+    
+    loadPrivacy()
+  }, [user?.id])
+
   const toggle = (k: keyof typeof settings) => setSettings((p) => ({ ...p, [k]: !p[k] }))
+
+  const save = async () => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to update your privacy settings.",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    setIsLoading(true)
+    
+    try {
+      await AuthApiService.updatePrivacy({
+        share_anonymized_data: settings.shareAnonymizedData,
+        share_analytics: settings.shareAnalytics,
+      })
+      
+      console.log("💾 Privacy settings saved")
+      
+      toast({
+        title: "Settings updated",
+        description: "Your privacy settings have been saved successfully.",
+        duration: 3000,
+      })
+    } catch (error: any) {
+      console.error("Error saving privacy settings:", error)
+      toast({
+        title: "Error",
+        description: error.message || "An unexpected error occurred.",
+        variant: "destructive",
+        duration: 3000,
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleDataExport = () => {
     console.log("request data export")
@@ -111,7 +180,7 @@ export default function PrivacyTabPage() {
           </div>
         </div>
 
-        <Button className="bg-teal-600 hover:bg-teal-700">Save Privacy Settings</Button>
+        <Button className="bg-teal-600 hover:bg-teal-700" onClick={save} disabled={isLoading}>{isLoading ? "Saving..." : "Save Privacy Settings"}</Button>
       </CardContent>
     </Card>
   )
