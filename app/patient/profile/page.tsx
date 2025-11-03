@@ -67,6 +67,7 @@ export default function ProfileTabPage() {
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">("light")
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isProfileLoading, setIsProfileLoading] = useState(true)
   const { user } = useSelector((state: RootState) => state.auth)
   const form = useForm<ProfileFormValues>({ resolver: zodResolver(profileFormSchema), defaultValues })
 
@@ -89,19 +90,18 @@ export default function ProfileTabPage() {
       console.log("🔍 loadProfile called, user:", user)
       if (!user?.id) {
         console.log("⏭️ Skipping profile load - no user ID")
+        setIsProfileLoading(false)
         return
       }
       
+      setIsProfileLoading(true)
       try {
         console.log("📥 Calling AuthApiService.getProfile()...")
         const profileData = await AuthApiService.getProfile()
         console.log("📦 Profile data received:", profileData)
         
-        // Check if profileData has any actual data (not just null values)
-        const hasData = profileData && Object.values(profileData).some(value => value !== null && value !== undefined)
-        console.log("📊 Profile has data:", hasData)
-        
-        if (profileData && hasData) {
+        // Always populate the form with data, even if some fields are null/empty
+        if (profileData) {
           console.log("📦 Loading profile data from Supabase:", profileData)
           
           // Split full_name into first and last name if needed
@@ -118,7 +118,7 @@ export default function ProfileTabPage() {
           const matchingCountry = countryCodes.find(c => c.code === countryCode)
           const countryName = matchingCountry ? matchingCountry.country : ""
           
-          // Populate form with existing data
+          // Populate form with existing data (using empty strings for null/undefined values)
           form.reset({
             firstName: firstName || "",
             lastName: lastName || "",
@@ -128,7 +128,7 @@ export default function ProfileTabPage() {
             weight: profileData.weight ? String(profileData.weight) : "",
             waistDiameter: profileData.waist_diameter ? String(profileData.waist_diameter) : "",
             bloodType: profileData.blood_type || "",
-            email: profileData.email || user.email || "",
+            email: profileData.email || user?.email || "",
             countryCode: countryCode,
             countryName: countryName,
             mobileNumber: profileData.phone_number || "",
@@ -151,10 +151,18 @@ export default function ProfileTabPage() {
           
           console.log("✅ Profile form populated successfully")
         } else {
-          console.log("⚠️ No profile data found - empty profile or user hasn't saved profile yet")
+          console.log("⚠️ No profile data returned from API")
         }
-      } catch (error) {
-        console.error("Error loading profile:", error)
+      } catch (error: any) {
+        console.error("❌ Error loading profile:", error)
+        const errorMessage = error?.response?.data?.detail || error?.message || "Failed to load profile"
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        })
+      } finally {
+        setIsProfileLoading(false)
       }
     }
     

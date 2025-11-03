@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import { toast } from 'react-toastify'
+import { createClient } from '@/lib/supabase-client'
 
 // Flag to prevent multiple session expired notifications
 let sessionExpiredNotificationShown = false
@@ -32,12 +33,87 @@ const apiClient: AxiosInstance = axios.create({
   },
 })
 
-// Request interceptor to add auth token
+// Helper function to check if token is expired or about to expire (within 1 minute)
+const isTokenExpiredOrExpiringSoon = (token: string): boolean => {
+  try {
+    // Decode JWT without verification (we just need the expiration time)
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    const exp = payload.exp
+    if (!exp) return true // No expiration means we should refresh
+    
+    // Check if token expires within the next 1 minute (60 seconds)
+    const currentTime = Math.floor(Date.now() / 1000)
+    const timeUntilExpiry = exp - currentTime
+    
+    // Refresh if expired or expires within 60 seconds
+    return timeUntilExpiry <= 60
+  } catch (error) {
+    // If we can't decode the token, assume it's invalid
+    return true
+  }
+}
+
+// Request interceptor to add auth token and refresh if needed
 apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
+  async (config: InternalAxiosRequestConfig) => {
     // Get token from localStorage (fallback for SSR compatibility)
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('access_token')
+      let token = localStorage.getItem('access_token')
+      const refreshToken = localStorage.getItem('refresh_token')
+      
+      // Check if token is expired or about to expire
+      if (token && isTokenExpiredOrExpiringSoon(token)) {
+        // Token is expired or expiring soon, try to refresh it
+        if (refreshToken) {
+          try {
+            const supabase = createClient()
+            
+            // First, try to set the session with the current tokens to ensure Supabase knows about them
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+              access_token: token,
+              refresh_token: refreshToken
+            })
+            
+            if (!sessionError && sessionData?.session) {
+              // Update tokens in localStorage
+              token = sessionData.session.access_token
+              localStorage.setItem('access_token', token)
+              if (sessionData.session.refresh_token) {
+                localStorage.setItem('refresh_token', sessionData.session.refresh_token)
+              }
+              if (sessionData.session.expires_in) {
+                localStorage.setItem('expires_in', sessionData.session.expires_in.toString())
+              }
+              console.log('✅ Token refreshed successfully via setSession')
+            } else {
+              // If setSession didn't work, try refreshSession
+              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+              
+              if (!refreshError && refreshData?.session) {
+                // Update tokens in localStorage
+                token = refreshData.session.access_token
+                localStorage.setItem('access_token', token)
+                if (refreshData.session.refresh_token) {
+                  localStorage.setItem('refresh_token', refreshData.session.refresh_token)
+                }
+                if (refreshData.session.expires_in) {
+                  localStorage.setItem('expires_in', refreshData.session.expires_in.toString())
+                }
+                console.log('✅ Token refreshed successfully via refreshSession')
+              } else {
+                console.warn('⚠️ Token refresh failed:', refreshError || sessionError)
+                // Continue with the existing token - the response interceptor will handle 401
+              }
+            }
+          } catch (error) {
+            console.error('❌ Token refresh error in interceptor:', error)
+            // Continue with the expired token - the response interceptor will handle it
+          }
+        } else {
+          console.warn('⚠️ No refresh token available, cannot refresh access token')
+        }
+      }
+      
       if (token) {
         config.headers.Authorization = `Bearer ${token}`
       }

@@ -19,7 +19,9 @@ import {
   User, 
   Eye, 
   EyeOff, 
-  Loader2
+  Loader2,
+  CheckCircle2,
+  Circle
 } from "lucide-react"
 import { GoogleIcon, FacebookIcon, TwitterIcon, GitHubIcon } from "./social-icons"
 
@@ -66,6 +68,33 @@ export function AuthModal({ open, onOpenChange, defaultMode = "login" }: AuthMod
     password: "",
     confirmPassword: "",
   })
+
+  // Password validation checks
+  const passwordChecks = {
+    minLength: formData.password.length >= 8,
+    hasLowercase: /[a-z]/.test(formData.password),
+    hasUppercase: /[A-Z]/.test(formData.password),
+    hasNumber: /[0-9]/.test(formData.password),
+    hasSpecial: /[^a-zA-Z0-9]/.test(formData.password),
+    passwordsMatch: formData.password === formData.confirmPassword && formData.password.length > 0,
+  }
+
+  // Check if all password requirements are met (for signup)
+  const isPasswordValid = 
+    passwordChecks.minLength &&
+    passwordChecks.hasLowercase &&
+    passwordChecks.hasUppercase &&
+    passwordChecks.hasNumber &&
+    passwordChecks.hasSpecial &&
+    passwordChecks.passwordsMatch
+
+  // Check if signup form is valid
+  const isSignupFormValid = 
+    formData.name.trim() !== "" &&
+    formData.email.trim() !== "" &&
+    formData.password.trim() !== "" &&
+    formData.confirmPassword.trim() !== "" &&
+    isPasswordValid
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -145,8 +174,29 @@ export function AuthModal({ open, onOpenChange, defaultMode = "login" }: AuthMod
       return
     }
 
-    if (formData.password.length < 6) {
-      toast.error("Password must be at least 6 characters")
+    // Complex password validation
+    if (formData.password.length < 8) {
+      toast.error("Password must be at least 8 characters")
+      return
+    }
+
+    if (!/[a-z]/.test(formData.password)) {
+      toast.error("Password must contain at least one lowercase letter")
+      return
+    }
+
+    if (!/[A-Z]/.test(formData.password)) {
+      toast.error("Password must contain at least one uppercase letter")
+      return
+    }
+
+    if (!/[0-9]/.test(formData.password)) {
+      toast.error("Password must contain at least one number")
+      return
+    }
+
+    if (!/[^a-zA-Z0-9]/.test(formData.password)) {
+      toast.error("Password must contain at least one special character")
       return
     }
 
@@ -316,12 +366,12 @@ export function AuthModal({ open, onOpenChange, defaultMode = "login" }: AuthMod
                       <Input
                         id="password"
                         type={showPassword ? "text" : "password"}
-                        placeholder={mode === "login" ? "Enter your password" : "Create a password (min 6 characters)"}
+                        placeholder={mode === "login" ? "Enter your password" : "Create a strong password"}
                         value={formData.password}
                         onChange={(e) => handleInputChange("password", e.target.value)}
                         className="pl-10 pr-10 h-11 border-gray-200 focus:border-teal-500 focus:ring-teal-500"
                         required
-                        minLength={mode === "signup" ? 6 : undefined}
+                        minLength={mode === "signup" ? 8 : undefined}
                       />
                       <Button
                         type="button"
@@ -337,6 +387,63 @@ export function AuthModal({ open, onOpenChange, defaultMode = "login" }: AuthMod
                         )}
                       </Button>
                     </div>
+                    {mode === "signup" && formData.password && (
+                      <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
+                        <p className="text-xs font-medium mb-2">Password Requirements:</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          <div className="flex items-center gap-2 text-xs">
+                            {passwordChecks.minLength ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" />
+                            ) : (
+                              <Circle className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500" />
+                            )}
+                            <span className={passwordChecks.minLength ? "text-green-600 dark:text-green-500" : "text-gray-500 dark:text-gray-400"}>
+                              At least 8 characters
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            {passwordChecks.hasLowercase ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" />
+                            ) : (
+                              <Circle className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500" />
+                            )}
+                            <span className={passwordChecks.hasLowercase ? "text-green-600 dark:text-green-500" : "text-gray-500 dark:text-gray-400"}>
+                              One lowercase letter
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            {passwordChecks.hasUppercase ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" />
+                            ) : (
+                              <Circle className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500" />
+                            )}
+                            <span className={passwordChecks.hasUppercase ? "text-green-600 dark:text-green-500" : "text-gray-500 dark:text-gray-400"}>
+                              One uppercase letter
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            {passwordChecks.hasNumber ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" />
+                            ) : (
+                              <Circle className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500" />
+                            )}
+                            <span className={passwordChecks.hasNumber ? "text-green-600 dark:text-green-500" : "text-gray-500 dark:text-gray-400"}>
+                              One number
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            {passwordChecks.hasSpecial ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" />
+                            ) : (
+                              <Circle className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500" />
+                            )}
+                            <span className={passwordChecks.hasSpecial ? "text-green-600 dark:text-green-500" : "text-gray-500 dark:text-gray-400"}>
+                              One special character
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -370,12 +477,33 @@ export function AuthModal({ open, onOpenChange, defaultMode = "login" }: AuthMod
                         )}
                       </Button>
                     </div>
+                    {formData.confirmPassword && (
+                      <div className="flex items-center gap-2 text-xs">
+                        {passwordChecks.passwordsMatch ? (
+                          <>
+                            <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" />
+                            <span className="text-green-600 dark:text-green-500">Passwords match</span>
+                          </>
+                        ) : (
+                          <>
+                            <Circle className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500" />
+                            <span className="text-gray-500 dark:text-gray-400">Passwords do not match</span>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 <Button
                   type="submit"
-                  disabled={mode === "login" ? isLoading : mode === "signup" ? isLoading : isResetLoading}
+                  disabled={
+                    mode === "login" 
+                      ? isLoading 
+                      : mode === "signup" 
+                        ? isLoading || !isSignupFormValid
+                        : isResetLoading
+                  }
                   className="w-full h-11 bg-teal-600 hover:bg-teal-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50"
                 >
                   {mode === "login" && isLoading ? (
