@@ -60,9 +60,7 @@ export default function OnboardingCompletePage() {
   }, [dispatch, user])
 
   const handleGoToDashboard = () => {
-    // DEVELOPMENT: Always redirect to onboarding page instead of dashboard
-    router.push('/onboarding')
-    // router.push('/dashboard')
+    router.push('/patient/dashboard')
   }
 
   return (

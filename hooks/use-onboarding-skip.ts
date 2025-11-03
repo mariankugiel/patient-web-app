@@ -48,11 +48,8 @@ export function useOnboardingSkip() {
       
       toast.success("Onboarding skipped successfully. You can complete it later from your profile.")
       
-      // DEVELOPMENT: Always redirect to onboarding page instead of dashboard
-      router.push('/onboarding')
-      
-      // Redirect to dashboard (COMMENTED OUT FOR DEVELOPMENT)
-      // router.push('/patient/dashboard')
+      // Redirect to dashboard
+      router.push('/patient/dashboard')
     } catch (error: any) {
       console.error('Failed to update profile in backend:', error)
       toast.error("Failed to skip onboarding. Please try again.")
