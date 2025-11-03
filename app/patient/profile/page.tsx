@@ -18,8 +18,9 @@ import { LocationSearch } from "@/components/ui/location-search"
 import { countryCodes } from "@/lib/country-codes"
 import { timezones } from "@/lib/timezones"
 import { Save } from "lucide-react"
-import { useSelector } from "react-redux"
+import { useSelector, useDispatch } from "react-redux"
 import { RootState } from "@/lib/store"
+import { updateUser } from "@/lib/features/auth/authSlice"
 import { AuthApiService } from "@/lib/api/auth-api"
 
 const profileFormSchema = z.object({
@@ -59,6 +60,7 @@ const defaultValues: Partial<ProfileFormValues> = {
 }
 
 export default function ProfileTabPage() {
+  const dispatch = useDispatch()
   const { t, language, setLanguage } = useLanguage()
   const { toast } = useToast()
   const [selectedLanguage, setSelectedLanguage] = useState(language)
@@ -205,6 +207,14 @@ export default function ProfileTabPage() {
       
       // Update language context if changed
       if (selectedLanguage !== language) setLanguage(selectedLanguage as "en" | "es" | "pt")
+      
+      // Update Redux state with new profile data (including theme)
+      dispatch(updateUser({
+        user_metadata: {
+          ...user?.user_metadata,
+          ...updateData
+        }
+      }))
       
       console.log("💾 Saved all profile data including preferences")
       
