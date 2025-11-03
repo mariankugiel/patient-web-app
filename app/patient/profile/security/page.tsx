@@ -108,6 +108,26 @@ export default function SecurityTabPage() {
       if (error) throw error
       // listFactors returns { all: Factor[], totp: Factor[], phone: Factor[] }
       const factors = data?.all || []
+      
+      // Log factor data to see what's available
+      if (factors.length > 0) {
+        console.log('📋 Loaded MFA factors:', JSON.stringify(factors, null, 2))
+        
+        // Check if factors contain secret data
+        factors.forEach((factor: any, index: number) => {
+          console.log(`📋 Factor ${index}:`, {
+            id: factor.id,
+            type: factor.type,
+            status: factor.status,
+            friendly_name: factor.friendly_name,
+            hasTotp: !!factor.totp,
+            totpKeys: factor.totp ? Object.keys(factor.totp) : [],
+            hasSecret: !!(factor.totp?.secret || factor.secret || (factor as any).secret),
+            allKeys: Object.keys(factor)
+          })
+        })
+      }
+      
       setMfaFactors(factors as any)
       setAccountSettings({ twoFactorAuth: factors.length > 0 })
     } catch (error: any) {
@@ -140,13 +160,22 @@ export default function SecurityTabPage() {
       const timeRemaining = 30 - (timestamp % 30)
       const currentTimeWindow = Math.floor(timestamp / 30)
       
+      // Always log to console - this is what the user wants to see
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      console.log('🔐 CURRENT TOTP CODE:', currentCode)
       console.log('🔐 Expected TOTP Code (from secret):', currentCode)
       console.log('⏰ Code expires in:', timeRemaining, 'seconds')
       console.log('🕐 Current time window:', currentTimeWindow)
       console.log('📋 Secret (first/last 4):', secret.substring(0, 8) + '...' + secret.substring(secret.length - 4))
       console.log('📋 Full secret length:', secret.length)
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      
+      // Also log a simple, easy-to-spot line
+      console.log('')
+      console.log('═══════════════════════════════════════════')
+      console.log('  🔐 EXPECTED CODE: ' + currentCode + ' (expires in ' + timeRemaining + 's)')
+      console.log('═══════════════════════════════════════════')
+      console.log('')
     } catch (err) {
       console.error('❌ Error generating TOTP code:', err)
       console.error('Secret that failed:', secret?.substring(0, 20) + '...')
@@ -203,6 +232,15 @@ export default function SecurityTabPage() {
         if (secret) {
           console.log('✅ Secret found:', secret.substring(0, 8) + '...' + secret.substring(secret.length - 4))
           setTotpSecret(secret)
+          // Store secret in localStorage for later use (when disabling)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('mfa_totp_secret', secret)
+            localStorage.setItem('mfa_factor_id', data.id)
+            console.log('💾 Secret stored in localStorage for future disabling:', {
+              secretLength: secret.length,
+              factorId: data.id
+            })
+          }
           // Generate and log current TOTP code immediately
           generateAndLogTOTPCode(secret)
         } else {
@@ -221,10 +259,85 @@ export default function SecurityTabPage() {
         const verifiedFactors = mfaFactors.filter(f => f.status === 'verified')
         
         if (verifiedFactors.length > 0) {
+          const currentFactor = verifiedFactors[0]
+          
+          // First, try to get secret from the factor object itself (like when enabling)
+          let secretFromFactor: string | null = null
+          
+          // Check multiple possible locations in the factor object
+          if ((currentFactor as any).totp?.secret) {
+            secretFromFactor = (currentFactor as any).totp.secret
+            console.log('✅ Found secret in factor.totp.secret')
+          } else if ((currentFactor as any).secret) {
+            secretFromFactor = (currentFactor as any).secret
+            console.log('✅ Found secret in factor.secret')
+          } else if ((currentFactor as any).qr_code) {
+            // Try to extract from QR code URL
+            try {
+              const qrCodeUrl = (currentFactor as any).qr_code
+              if (typeof qrCodeUrl === 'string' && qrCodeUrl.startsWith('otpauth://')) {
+                const url = new URL(qrCodeUrl)
+                secretFromFactor = url.searchParams.get('secret')
+                if (secretFromFactor) {
+                  console.log('✅ Extracted secret from factor.qr_code URL')
+                }
+              }
+            } catch (e) {
+              console.warn('Could not extract secret from factor QR code:', e)
+            }
+          }
+          
+          // If no secret from factor, try localStorage
+          let storedSecret: string | null = null
+          if (!secretFromFactor && typeof window !== 'undefined') {
+            // Log all localStorage keys that start with 'mfa' for debugging
+            const allMfaKeys = Object.keys(localStorage).filter(key => key.includes('mfa'))
+            console.log('🔍 All MFA-related localStorage keys:', allMfaKeys)
+            
+            storedSecret = localStorage.getItem('mfa_totp_secret')
+            const storedFactorId = localStorage.getItem('mfa_factor_id')
+            
+            console.log('🔍 Checking stored secret for disabling:', {
+              hasStoredSecret: !!storedSecret,
+              storedSecretLength: storedSecret?.length,
+              storedFactorId,
+              currentFactorId: currentFactor.id,
+              factorsMatch: storedFactorId === currentFactor.id,
+              allMfaKeys
+            })
+          }
+          
+          // Use secret from factor first, then fall back to localStorage
+          const secretToUse = secretFromFactor || storedSecret
+          
+          if (secretToUse) {
+            console.log('✅ Using secret for code generation:', {
+              source: secretFromFactor ? 'factor object' : 'localStorage',
+              secretLength: secretToUse.length
+            })
+            setTotpSecret(secretToUse)
+            // Generate and log current TOTP code immediately for disabling
+            generateAndLogTOTPCode(secretToUse)
+            
+            // If we got it from factor, also store it in localStorage for future use
+            if (secretFromFactor && typeof window !== 'undefined') {
+              localStorage.setItem('mfa_totp_secret', secretFromFactor)
+              localStorage.setItem('mfa_factor_id', currentFactor.id)
+              console.log('💾 Stored secret from factor in localStorage')
+            }
+          } else {
+            console.warn('⚠️ No secret found - neither in factor object nor localStorage', {
+              factorData: currentFactor,
+              factorKeys: Object.keys(currentFactor as any)
+            })
+            setTotpSecret(null)
+          }
+          
           // Show dialog to get verification code for disabling
           setIsDisabling2FA(true)
           setEnrollmentFactorId(verifiedFactors[0].id) // Use first verified factor
           setQrCodeUrl("") // Clear QR code since we're disabling, not enabling
+          // Open dialog AFTER setting secret so useEffect can catch both
           setShowQRCode(true) // Reuse the QR dialog for verification input
         } else {
           // No verified factors, can unenroll directly
@@ -266,33 +379,6 @@ export default function SecurityTabPage() {
   const handleVerifyEnrollment = async () => {
     setIsLoadingMFA(true)
     try {
-      // Log what code we're sending
-      console.log('📤 Attempting verification with code:', verificationCode)
-      console.log('📤 Factor ID:', enrollmentFactorId)
-      console.log('📤 Is disabling 2FA:', isDisabling2FA)
-      
-      // If we have the secret, generate and log the expected code
-      if (totpSecret) {
-        generateAndLogTOTPCode(totpSecret)
-        
-        // Generate expected code and compare
-        try {
-          const totp = new TOTP({
-            issuer: 'YourHealth1Place',
-            label: '2FA',
-            algorithm: 'SHA1',
-            digits: 6,
-            period: 30,
-            secret: totpSecret
-          })
-          const expectedCode = totp.generate()
-          console.log('✅ Expected code from secret:', expectedCode)
-          console.log('📝 Entered code:', verificationCode)
-          console.log('✅ Codes match?', expectedCode === verificationCode.trim())
-        } catch (err) {
-          console.error('Error generating comparison code:', err)
-        }
-      }
       
       if (isDisabling2FA) {
         // Disable 2FA - verify code and unenroll
@@ -305,6 +391,13 @@ export default function SecurityTabPage() {
         setEnrollmentFactorId("")
         setQrCodeUrl("")
         setIsDisabling2FA(false)
+        setTotpSecret(null)
+        
+        // Clear stored secret from localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('mfa_totp_secret')
+          localStorage.removeItem('mfa_factor_id')
+        }
         
         toast({
           title: "2FA Disabled",
@@ -345,40 +438,63 @@ export default function SecurityTabPage() {
         setAccountSettings({ twoFactorAuth: false })
       }
       
-      // Extract error message - check multiple sources
-      let errorMessage = "Invalid verification code. Please try again."
+      // Check multiple possible locations for error status and message
+      // Supabase errors can have different structures
+      const errorObj = error || {}
+      const errorMessage = String(
+        errorObj.message || 
+        errorObj.originalError?.message || 
+        errorObj.msg || 
+        errorObj.error?.message ||
+        ""
+      ).toLowerCase()
       
-      // Try to get error message from various sources
-      if (error?.message) {
-        errorMessage = error.message
-      } else if (error?.originalError?.message) {
-        errorMessage = error.originalError.message
-      } else if (typeof error === 'string') {
-        errorMessage = error
+      // Check for 422 status in multiple locations
+      const errorStatus = 
+        errorObj.status || 
+        errorObj.originalError?.status || 
+        errorObj.statusCode ||
+        errorObj.response?.status ||
+        errorObj.error?.status ||
+        (errorObj as any)?.status
+      
+      // Check if it's a 422 error (Unprocessable Content) - Invalid TOTP code
+      const is422Error = errorStatus === 422 || String(errorStatus) === "422" || errorStatus === "422"
+      const hasInvalidCodeMessage = 
+        errorMessage.includes("invalid totp code") || 
+        errorMessage.includes("invalid code") ||
+        errorMessage.includes("invalid totp") ||
+        errorMessage.includes("unprocessable content") ||
+        errorMessage.includes("422")
+      
+      // Show notification - prioritize 422 errors as "Invalid Verification Code"
+      if (is422Error || hasInvalidCodeMessage) {
+        // Always show notification for 422/invalid code errors
+        toast({
+          title: "Invalid Verification Code",
+          description: "The code you entered is incorrect. Please try again.",
+          variant: "destructive",
+          duration: 3000,
+        })
+      } else {
+        // For other errors, show the error message
+        const displayMessage = errorObj.message || 
+                              errorObj.originalError?.message || 
+                              errorObj.error?.message ||
+                              "An error occurred during verification. Please try again."
+        
+        // If error message suggests invalid code, use that title
+        const isLikelyInvalidCode = String(displayMessage).toLowerCase().includes("code") ||
+                                    String(displayMessage).toLowerCase().includes("totp") ||
+                                    String(displayMessage).toLowerCase().includes("invalid")
+        
+        toast({
+          title: isLikelyInvalidCode ? "Invalid Verification Code" : "Verification Failed",
+          description: displayMessage,
+          variant: "destructive",
+          duration: 3000,
+        })
       }
-      
-      // Provide user-friendly messages for common errors
-      if (errorMessage.includes("Invalid TOTP code") || errorMessage.toLowerCase().includes("invalid code")) {
-        errorMessage = "Invalid verification code. Please check your authenticator app and ensure your device time is correct. Try entering a fresh code."
-      } else if (errorMessage.includes("expired") || errorMessage.includes("timeout")) {
-        errorMessage = "The verification code has expired. Please enter a fresh code from your authenticator app."
-      } else if (errorMessage.includes("422") || error?.status === 422) {
-        errorMessage = "Invalid verification code. This could be due to:\n• Incorrect code\n• Device time not synchronized\n• Code expired\n\nPlease ensure your device time is correct and try with a fresh code."
-      } else if (errorMessage.includes("connection") || errorMessage.includes("network") || errorMessage.includes("failed")) {
-        // If it's a connection error, provide helpful message
-        errorMessage = "Connection error. Please check your internet connection and try again."
-      }
-      
-      // Log the full error for debugging
-      console.error("MFA verification error:", error)
-      
-      // Show user-friendly notification
-      toast({
-        title: "Verification Failed",
-        description: errorMessage,
-        variant: "destructive",
-        duration: 5000,
-      })
       
       // Clear the verification code input so user can try again
       setVerificationCode("")
@@ -413,6 +529,12 @@ export default function SecurityTabPage() {
         setTotpSecret(null)
         setIsDisabling2FA(false)
         setIsLoadingMFA(false)
+        
+        // Clear stored secret if canceling enrollment (not disabling)
+        if (!isDisabling2FA && typeof window !== 'undefined') {
+          localStorage.removeItem('mfa_totp_secret')
+          localStorage.removeItem('mfa_factor_id')
+        }
       }
     }
     setShowQRCode(open)
@@ -421,24 +543,32 @@ export default function SecurityTabPage() {
   const handleToggle = (key: keyof typeof accountSettings) => setAccountSettings((prev) => ({ ...prev, [key]: !prev[key] }))
 
   // Set up interval to log current code every 5 seconds while dialog is open
+  // Works for both enabling and disabling 2FA
   useEffect(() => {
+    console.log('🔔 useEffect triggered:', { hasSecret: !!totpSecret, showQRCode, isDisabling2FA })
+    
     if (totpSecret && showQRCode) {
+      console.log('✅ Starting TOTP code logging interval')
       // Log immediately
       generateAndLogTOTPCode(totpSecret)
       
       // Then log every 5 seconds
       const interval = setInterval(() => {
+        console.log('🔄 Interval tick - generating TOTP code')
         generateAndLogTOTPCode(totpSecret)
       }, 5000)
       
-      return () => clearInterval(interval)
+      return () => {
+        console.log('🧹 Cleaning up TOTP code interval')
+        clearInterval(interval)
+      }
+    } else {
+      console.log('⚠️ Not starting interval:', { hasSecret: !!totpSecret, showQRCode })
     }
     
-    // Clear secret when dialog closes or verification succeeds
-    if (!showQRCode && totpSecret) {
-      setTotpSecret(null)
-    }
-  }, [totpSecret, showQRCode, generateAndLogTOTPCode])
+    // Clear secret when dialog closes (but keep it in localStorage for disabling)
+    // Only clear from state, not from localStorage unless explicitly cleared
+  }, [totpSecret, showQRCode, generateAndLogTOTPCode, isDisabling2FA])
 
   const onSubmitPasswordChange = async (data: PasswordChangeFormValues) => {
     console.log("password change:", data)

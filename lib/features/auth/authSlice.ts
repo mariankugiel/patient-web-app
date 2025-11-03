@@ -72,6 +72,11 @@ const authSlice = createSlice({
       state.user = null
       state.error = action.payload
     },
+    loginMfaRequired: (state) => {
+      // Stop loading state when MFA is required - user needs to enter code
+      state.isLoading = false
+      state.error = null
+    },
     signupStart: (state) => {
       state.isLoading = true
       state.error = null
@@ -136,6 +141,6 @@ const authSlice = createSlice({
   },
 })
 
-export const { loginStart, loginSuccess, loginFailure, signupStart, signupSuccess, signupFailure, logout, updateUser, clearError, sessionRestorationStart, sessionRestorationComplete } = authSlice.actions
+export const { loginStart, loginSuccess, loginFailure, loginMfaRequired, signupStart, signupSuccess, signupFailure, logout, updateUser, clearError, sessionRestorationStart, sessionRestorationComplete } = authSlice.actions
 
 export default authSlice.reducer

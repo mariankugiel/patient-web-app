@@ -4,11 +4,22 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import Link from "next/link"
-import { loginUser } from "@/lib/features/auth/authThunks"
+import { loginUser, verifyMfaLogin } from "@/lib/features/auth/authThunks"
 import { RootState, AppDispatch } from "@/lib/store"
 import { Loader2 } from "lucide-react"
 import { signInWithGoogle } from "@/lib/auth-helpers"
 import { toast } from "react-toastify"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 export function LoginForm() {
   const router = useRouter()
@@ -18,13 +29,21 @@ export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  
+  // MFA verification state
+  const [showMfaDialog, setShowMfaDialog] = useState(false)
+  const [mfaCode, setMfaCode] = useState("")
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null)
+  const [mfaAccessToken, setMfaAccessToken] = useState<string | null>(null)
+  const [mfaEmail, setMfaEmail] = useState("")
 
   useEffect(() => {
-    // If already authenticated, redirect to dashboard
-    if (isAuthenticated) {
+    // Only redirect if authenticated AND MFA dialog is not showing
+    // This prevents redirect while waiting for MFA verification
+    if (isAuthenticated && !showMfaDialog) {
       router.push("/patient/dashboard")
     }
-  }, [isAuthenticated, router])
+  }, [isAuthenticated, showMfaDialog, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,10 +54,46 @@ export function LoginForm() {
 
     try {
       const result = await dispatch(loginUser({ email, password })).unwrap()
-      // Navigation is handled by the useEffect above when isAuthenticated changes
+      
+      // Check if MFA is required
+      if (result && (result as any).mfa_required) {
+        setMfaFactorId((result as any).factor_id)
+        setMfaAccessToken((result as any).access_token)
+        setMfaEmail((result as any).email || email)
+        setShowMfaDialog(true)
+      }
+      // Otherwise, navigation is handled by the useEffect above when isAuthenticated changes
     } catch (err) {
       // Error is already handled by the thunk and shown via toast
       console.error("Login error:", err)
+    }
+  }
+
+  const handleMfaVerify = async () => {
+    if (!mfaCode || !mfaFactorId || !mfaAccessToken) {
+      toast.error("Please enter your verification code")
+      return
+    }
+
+    try {
+      await dispatch(verifyMfaLogin({
+        factor_id: mfaFactorId,
+        code: mfaCode,
+        access_token: mfaAccessToken,
+        email: mfaEmail,
+      })).unwrap()
+      
+      // Close dialog and reset state
+      setShowMfaDialog(false)
+      setMfaCode("")
+      setMfaFactorId(null)
+      setMfaAccessToken(null)
+      setMfaEmail("")
+      
+      // Navigation is handled by the useEffect above when isAuthenticated changes
+    } catch (err) {
+      // Error is already handled by the thunk and shown via toast
+      // No need to log - toast notification is sufficient
     }
   }
 
@@ -162,6 +217,69 @@ export function LoginForm() {
           </>
         )}
       </button>
+      
+      {/* MFA Verification Dialog */}
+      <Dialog open={showMfaDialog} onOpenChange={setShowMfaDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Two-Factor Authentication</DialogTitle>
+            <DialogDescription>
+              Please enter the verification code from your authenticator app to complete login.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="mfa-code">Verification Code</Label>
+              <Input
+                id="mfa-code"
+                type="text"
+                placeholder="000000"
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && mfaCode.length === 6 && !isLoading) {
+                    handleMfaVerify()
+                  }
+                }}
+                maxLength={6}
+                disabled={isLoading}
+                className="text-center text-2xl tracking-widest"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowMfaDialog(false)
+                setMfaCode("")
+                setMfaFactorId(null)
+                setMfaAccessToken(null)
+                setMfaEmail("")
+              }}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleMfaVerify}
+              disabled={isLoading || !mfaCode || mfaCode.length !== 6}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verifying...
+                </>
+              ) : (
+                "Verify"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   )
 }

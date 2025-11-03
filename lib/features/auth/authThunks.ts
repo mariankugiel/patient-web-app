@@ -1,6 +1,6 @@
 import { createAsyncThunk, AsyncThunkPayloadCreator } from "@reduxjs/toolkit"
-import { loginStart, loginSuccess, loginFailure, signupStart, signupSuccess, signupFailure } from "./authSlice"
-import { AuthApiService, UserRegistrationData, UserLoginData } from "@/lib/api/auth-api"
+import { loginStart, loginSuccess, loginFailure, loginMfaRequired, signupStart, signupSuccess, signupFailure } from "./authSlice"
+import { AuthApiService, UserRegistrationData, UserLoginData, LoginResponse } from "@/lib/api/auth-api"
 import { resetSessionExpiredFlag } from "@/lib/api/axios-config"
 import { toast } from "react-toastify"
 import { createClient } from "@/lib/supabase-client"
@@ -16,7 +16,38 @@ export const loginUser = createAsyncThunk(
         password: credentials.password,
       }
 
-      const tokenResponse = await AuthApiService.login(loginData)
+      const loginResponse: LoginResponse = await AuthApiService.login(loginData)
+      
+      // Check if MFA is required - if so, return early WITHOUT setting isAuthenticated
+      if (loginResponse.mfa_required && loginResponse.factor_id && loginResponse.access_token) {
+        // Store temporary token for MFA verification
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('mfa_temp_access_token', loginResponse.access_token)
+          if (loginResponse.refresh_token) {
+            localStorage.setItem('mfa_temp_refresh_token', loginResponse.refresh_token)
+          }
+        }
+        
+        // IMPORTANT: Stop loading state when MFA is required
+        // This allows the user to enter the MFA code
+        dispatch(loginMfaRequired())
+        
+        // Return MFA requirement - don't dispatch loginSuccess yet
+        return {
+          mfa_required: true,
+          factor_id: loginResponse.factor_id,
+          access_token: loginResponse.access_token,
+          refresh_token: loginResponse.refresh_token,
+          email: credentials.email,
+        }
+      }
+      
+      // No MFA required - proceed with normal login
+      const tokenResponse = loginResponse
+      
+      if (!tokenResponse.access_token || !tokenResponse.refresh_token || !tokenResponse.expires_in) {
+        throw new Error("Missing token information from login response")
+      }
       
       // Store token in localStorage so interceptor can use it
       if (typeof window !== 'undefined') {
@@ -105,6 +136,92 @@ export const loginUser = createAsyncThunk(
   },
 )
 
+export const verifyMfaLogin = createAsyncThunk(
+  "auth/verifyMfaLogin",
+  async (data: { factor_id: string; code: string; access_token: string; email: string }, { dispatch, rejectWithValue }: any) => {
+    try {
+      dispatch(loginStart())
+
+      const tokenResponse = await AuthApiService.verifyMfaLogin(
+        { factor_id: data.factor_id, code: data.code },
+        data.access_token
+      )
+      
+      if (!tokenResponse.access_token || !tokenResponse.refresh_token || !tokenResponse.expires_in) {
+        throw new Error("Missing token information from MFA verification")
+      }
+      
+      // Store token in localStorage so interceptor can use it
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('access_token', tokenResponse.access_token)
+        if (tokenResponse.refresh_token) {
+          localStorage.setItem('refresh_token', tokenResponse.refresh_token)
+        }
+        if (tokenResponse.expires_in) {
+          localStorage.setItem('expires_in', tokenResponse.expires_in.toString())
+        }
+        // Clear temporary MFA tokens
+        localStorage.removeItem('mfa_temp_access_token')
+        localStorage.removeItem('mfa_temp_refresh_token')
+      }
+      
+      // Set Supabase session
+      try {
+        const supabase = createClient()
+        const sessionResult = await supabase.auth.setSession({
+          access_token: tokenResponse.access_token,
+          refresh_token: tokenResponse.refresh_token,
+        })
+        if (sessionResult.error) {
+          console.error('Failed to set Supabase session:', sessionResult.error)
+        } else {
+          console.log('Successfully set Supabase session')
+        }
+      } catch (sessionError) {
+        console.error('Failed to set Supabase session (exception):', sessionError)
+      }
+      
+      // Get user profile
+      const userProfile = await AuthApiService.getProfile()
+      
+      const isNewUser = userProfile.is_new_user !== undefined ? userProfile.is_new_user : 
+                       (!userProfile.onboarding_completed && !userProfile.onboarding_skipped)
+      
+      const user = {
+        id: tokenResponse.access_token,
+        email: data.email,
+        user_metadata: {
+          ...userProfile,
+          is_new_user: isNewUser,
+        },
+        access_token: tokenResponse.access_token,
+        refresh_token: tokenResponse.refresh_token,
+        expires_in: tokenResponse.expires_in,
+      }
+
+      // NOW dispatch loginSuccess - this sets isAuthenticated to true
+      dispatch(loginSuccess(user))
+      resetSessionExpiredFlag()
+      toast.success("Login successful! Welcome back!")
+      return user
+    } catch (error: any) {
+      let message = "MFA verification failed"
+      
+      if (error.response?.status === 401) {
+        message = error.response?.data?.detail || "Invalid verification code. Please try again."
+      } else if (error.response?.data?.detail) {
+        message = error.response.data.detail
+      } else if (error.message) {
+        message = error.message
+      }
+      
+      dispatch(loginFailure(message))
+      toast.error(message)
+      return rejectWithValue(message)
+    }
+  },
+)
+
 export const signupUser = createAsyncThunk(
   "auth/signupUser",
   async (userData: { email: string; password: string; fullName?: string; mobile?: string; dateOfBirth?: string; location?: string }, { dispatch, rejectWithValue }: any) => {
@@ -128,7 +245,20 @@ export const signupUser = createAsyncThunk(
         password: userData.password,
       }
 
-      const tokenResponse = await AuthApiService.login(loginData)
+      const loginResponse: LoginResponse = await AuthApiService.login(loginData)
+      
+      // Check if MFA is required (shouldn't happen during signup, but handle it)
+      if (loginResponse.mfa_required && loginResponse.factor_id && loginResponse.access_token) {
+        // This shouldn't happen during signup, but if it does, return error
+        throw new Error("MFA required during signup - this should not occur")
+      }
+      
+      // No MFA required - proceed with normal login
+      const tokenResponse = loginResponse
+      
+      if (!tokenResponse.access_token || !tokenResponse.refresh_token || !tokenResponse.expires_in) {
+        throw new Error("Missing token information from login response")
+      }
       
       // Store token in localStorage so interceptor can use it
       if (typeof window !== 'undefined') {

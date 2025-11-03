@@ -29,6 +29,21 @@ export interface AuthTokenResponse {
   expires_in: number
 }
 
+export interface LoginResponse {
+  access_token?: string
+  refresh_token?: string
+  token_type?: string
+  expires_in?: number
+  mfa_required?: boolean
+  factor_id?: string
+  user_id?: string
+}
+
+export interface MFALoginVerifyRequest {
+  factor_id: string
+  code: string
+}
+
 export interface UserResponse {
   id: number
   email: string
@@ -237,7 +252,7 @@ export class AuthApiService {
   }
 
   // Login user
-  static async login(credentials: UserLoginData): Promise<AuthTokenResponse> {
+  static async login(credentials: UserLoginData): Promise<LoginResponse> {
     try {
       // Backend expects form data for login
       const formData = new FormData()
@@ -252,6 +267,20 @@ export class AuthApiService {
       return response.data
     } catch (error: any) {
       throw handleApiError(error, 'Login failed')
+    }
+  }
+
+  // Verify MFA during login
+  static async verifyMfaLogin(verifyRequest: MFALoginVerifyRequest, accessToken: string): Promise<AuthTokenResponse> {
+    try {
+      const response = await apiClient.post('/auth/login/mfa/verify', verifyRequest, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      })
+      return response.data
+    } catch (error: any) {
+      throw handleApiError(error, 'MFA verification failed')
     }
   }
 

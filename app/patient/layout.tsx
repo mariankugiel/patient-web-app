@@ -8,6 +8,7 @@ import PatientSidebar from "@/components/patient/sidebar"
 import { LanguageProvider, useLanguage } from "@/contexts/language-context"
 import { WebSocketProvider } from "@/contexts/websocket-context"
 import { type RootState } from "@/lib/store"
+import { Toaster } from "@/components/ui/toaster"
 
 export default function PatientLayout({ children }: { children: React.ReactNode }) {
   const user = useSelector((s: RootState) => s.auth.user)
@@ -67,6 +68,7 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
             </div>
           </main>
         </div>
+        <Toaster />
       </WebSocketProvider>
     </LanguageProvider>
   )

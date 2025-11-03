@@ -5,11 +5,11 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { useDispatch, useSelector } from "react-redux"
 import { RootState, AppDispatch } from "@/lib/store"
-import { signupUser, loginUser } from "@/lib/features/auth/authThunks"
+import { signupUser, loginUser, verifyMfaLogin } from "@/lib/features/auth/authThunks"
 import { createClient } from "@/lib/supabase-client"
 import { AuthApiService } from "@/lib/api/auth-api"
 import { toast } from "react-toastify"
@@ -53,6 +53,13 @@ export function AuthModal({ open, onOpenChange, defaultMode = "login" }: AuthMod
   const [isOAuthLoading, setIsOAuthLoading] = useState<string | null>(null)
   const [isResetLoading, setIsResetLoading] = useState(false)
   
+  // MFA verification state
+  const [showMfaDialog, setShowMfaDialog] = useState(false)
+  const [mfaCode, setMfaCode] = useState("")
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null)
+  const [mfaAccessToken, setMfaAccessToken] = useState<string | null>(null)
+  const [mfaEmail, setMfaEmail] = useState("")
+  
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -73,14 +80,55 @@ export function AuthModal({ open, onOpenChange, defaultMode = "login" }: AuthMod
     }
 
     try {
-      await dispatch(loginUser({ 
+      const result = await dispatch(loginUser({ 
         email: formData.email, 
         password: formData.password 
       })).unwrap()
+      
+      // Check if MFA is required
+      if (result && (result as any).mfa_required) {
+        setMfaFactorId((result as any).factor_id)
+        setMfaAccessToken((result as any).access_token)
+        setMfaEmail((result as any).email || formData.email)
+        setShowMfaDialog(true)
+        // Don't close the modal and don't set isAuthenticated yet
+        // Wait for MFA verification to complete
+        return
+      }
+      
+      // No MFA required - login is complete, close modal
+      // The redirect will happen via useAuthRedirect hook when isAuthenticated becomes true
       onOpenChange(false)
     } catch (error: any) {
       // Error handling is done in the Redux thunk, no need to show duplicate notification
       console.error("Login error:", error)
+    }
+  }
+
+  const handleMfaVerify = async () => {
+    if (!mfaCode || !mfaFactorId || !mfaAccessToken) {
+      toast.error("Please enter your verification code")
+      return
+    }
+
+    try {
+      await dispatch(verifyMfaLogin({
+        factor_id: mfaFactorId,
+        code: mfaCode,
+        access_token: mfaAccessToken,
+        email: mfaEmail,
+      })).unwrap()
+      
+      // Close MFA dialog and main modal
+      setShowMfaDialog(false)
+      setMfaCode("")
+      setMfaFactorId(null)
+      setMfaAccessToken(null)
+      setMfaEmail("")
+      onOpenChange(false)
+    } catch (err) {
+      // Error is already handled by the thunk and shown via toast
+      // No need to log - toast notification is sufficient
     }
   }
 
@@ -174,6 +222,7 @@ export function AuthModal({ open, onOpenChange, defaultMode = "login" }: AuthMod
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md border-0 bg-white/95 backdrop-blur-xl p-0 overflow-hidden shadow-2xl">
         <div className="relative">
@@ -469,5 +518,69 @@ export function AuthModal({ open, onOpenChange, defaultMode = "login" }: AuthMod
         </div>
       </DialogContent>
     </Dialog>
+    
+    {/* MFA Verification Dialog */}
+    <Dialog open={showMfaDialog} onOpenChange={setShowMfaDialog}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Two-Factor Authentication</DialogTitle>
+          <DialogDescription>
+            Please enter the verification code from your authenticator app to complete login.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="mfa-code">Verification Code</Label>
+            <Input
+              id="mfa-code"
+              type="text"
+              placeholder="000000"
+              value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && mfaCode.length === 6 && !isLoading) {
+                  handleMfaVerify()
+                }
+              }}
+              maxLength={6}
+              disabled={isLoading}
+              className="text-center text-2xl tracking-widest"
+              autoFocus
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setShowMfaDialog(false)
+              setMfaCode("")
+              setMfaFactorId(null)
+              setMfaAccessToken(null)
+              setMfaEmail("")
+            }}
+            disabled={isLoading}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={handleMfaVerify}
+            disabled={isLoading || !mfaCode || mfaCode.length !== 6}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Verifying...
+              </>
+            ) : (
+              "Verify"
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

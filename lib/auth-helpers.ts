@@ -196,7 +196,6 @@ export async function verifyMFAEnrollment(factorId: string, code: string) {
     
     // Fallback: Create challenge and verify separately
     // Step 1: Create a challenge for the factor
-    const challengeStartTime = Date.now()
     const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
       factorId
     })
@@ -214,82 +213,17 @@ export async function verifyMFAEnrollment(factorId: string, code: string) {
       return { data: null, error: new Error("Failed to create challenge. Please try again.") }
     }
     
-    const challengeDuration = Date.now() - challengeStartTime
-    console.log(`⏱️ Challenge created in ${challengeDuration}ms`)
-    
     // Step 2: Verify IMMEDIATELY after creating challenge
     // Critical: Supabase can reject codes if more than 3 seconds pass since code change
-    const verifyTimestamp = Date.now()
-    console.log('🔍 Verifying MFA (immediately after challenge):', {
-      factorId,
-      challengeId: challengeData.id,
-      code: codeString,
-      codeLength: codeString.length,
-      timestamp: new Date().toISOString(),
-      timeSinceChallengeCreated: `${challengeDuration}ms`
-    })
-    
     const { data, error } = await supabase.auth.mfa.verify({
       factorId,
       challengeId: challengeData.id,
       code: codeString
     })
     
-    const verifyDuration = Date.now() - verifyTimestamp
-    const totalDuration = Date.now() - challengeStartTime
-    console.log(`⏱️ Verification completed in ${verifyDuration}ms (total: ${totalDuration}ms)`)
-    
-    // If verify fails, return detailed error
+    // If verify fails, return error
     if (error) {
-      // Log full error details for debugging
-      console.error("Supabase MFA verify error:", {
-        message: error.message,
-        status: error.status,
-        error: error,
-        factorId,
-        challengeId: challengeData.id,
-        codeLength: codeString.length
-      })
-      
-      // Extract the actual error message from Supabase response
-      let errorMessage = "Verification failed"
-      
-      // Try to get the actual error message from various sources
-      if (error.message) {
-        errorMessage = error.message
-      } else if ((error as any).msg) {
-        errorMessage = (error as any).msg
-      } else if (error.status) {
-        errorMessage = `Verification failed with status ${error.status}`
-      }
-      
-      // Provide more specific error message based on the error type
-      if (errorMessage.toLowerCase().includes("invalid totp code") || 
-          errorMessage.toLowerCase().includes("invalid code") ||
-          errorMessage.toLowerCase().includes("code is invalid")) {
-        errorMessage = "Invalid verification code. Please check your authenticator app and ensure your device time is correct. Try entering a fresh code."
-      } else if (errorMessage.includes("expired") || errorMessage.includes("timeout")) {
-        errorMessage = "The verification code has expired. Please enter a fresh code from your authenticator app."
-      } else if (error.status === 422 || errorMessage.includes("422")) {
-        // 422 usually means invalid code, expired challenge, or wrong factor state
-        // Check if we can get more details from the error response
-        const errorDetails = (error as any).error_description || (error as any).hint || ""
-        if (errorDetails) {
-          errorMessage = `Invalid verification code: ${errorDetails}. Please ensure your device time is correct and try with a fresh code.`
-        } else {
-          errorMessage = "Invalid verification code. This could be due to:\n• Incorrect code from authenticator app\n• Device time not synchronized\n• Code expired (codes change every 30 seconds)\n\nPlease ensure your device time is correct and try with a fresh code."
-        }
-      } else if (errorMessage.includes("Unauthorized") || error.status === 401) {
-        errorMessage = "Authentication failed. Please log in again."
-      }
-      
-      // Create error object with original error details
-      const enhancedError = new Error(errorMessage)
-      ;(enhancedError as any).originalError = error
-      ;(enhancedError as any).status = error.status
-      ;(enhancedError as any).originalMessage = error.message
-      
-      return { data: null, error: enhancedError }
+      return { data: null, error }
     }
     
     return { data, error }
