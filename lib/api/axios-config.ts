@@ -68,49 +68,42 @@ apiClient.interceptors.request.use(
           try {
             const supabase = createClient()
             
-            // First, try to set the session with the current tokens to ensure Supabase knows about them
-            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-              access_token: token,
-              refresh_token: refreshToken
-            })
+            // Try to refresh the session
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
             
-            if (!sessionError && sessionData?.session) {
+            if (!refreshError && refreshData?.session) {
               // Update tokens in localStorage
-              token = sessionData.session.access_token
+              token = refreshData.session.access_token
               localStorage.setItem('access_token', token)
-              if (sessionData.session.refresh_token) {
-                localStorage.setItem('refresh_token', sessionData.session.refresh_token)
+              if (refreshData.session.refresh_token) {
+                localStorage.setItem('refresh_token', refreshData.session.refresh_token)
               }
-              if (sessionData.session.expires_in) {
-                localStorage.setItem('expires_in', sessionData.session.expires_in.toString())
+              if (refreshData.session.expires_in) {
+                localStorage.setItem('expires_in', refreshData.session.expires_in.toString())
               }
-              console.log('✅ Token refreshed successfully via setSession')
-            } else {
-              // If setSession didn't work, try refreshSession
-              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+            } else if (refreshToken) {
+              // If refreshSession() didn't work, try setSession
+              const currentToken = token || ''
+              const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+                access_token: currentToken,
+                refresh_token: refreshToken
+              })
               
-              if (!refreshError && refreshData?.session) {
-                // Update tokens in localStorage
-                token = refreshData.session.access_token
+              if (!sessionError && sessionData?.session) {
+                token = sessionData.session.access_token
                 localStorage.setItem('access_token', token)
-                if (refreshData.session.refresh_token) {
-                  localStorage.setItem('refresh_token', refreshData.session.refresh_token)
+                if (sessionData.session.refresh_token) {
+                  localStorage.setItem('refresh_token', sessionData.session.refresh_token)
                 }
-                if (refreshData.session.expires_in) {
-                  localStorage.setItem('expires_in', refreshData.session.expires_in.toString())
+                if (sessionData.session.expires_in) {
+                  localStorage.setItem('expires_in', sessionData.session.expires_in.toString())
                 }
-                console.log('✅ Token refreshed successfully via refreshSession')
-              } else {
-                console.warn('⚠️ Token refresh failed:', refreshError || sessionError)
-                // Continue with the existing token - the response interceptor will handle 401
               }
             }
           } catch (error) {
-            console.error('❌ Token refresh error in interceptor:', error)
+            console.error('Token refresh error in interceptor:', error)
             // Continue with the expired token - the response interceptor will handle it
           }
-        } else {
-          console.warn('⚠️ No refresh token available, cannot refresh access token')
         }
       }
       
