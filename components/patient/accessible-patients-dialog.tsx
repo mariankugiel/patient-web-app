@@ -33,51 +33,85 @@ import { cn } from '@/lib/utils'
 import { useLanguage } from '@/contexts/language-context'
 import { formatDistanceToNow } from 'date-fns'
 
-// Define available pages for patient access
+// Define available pages for patient access with permission mapping
 const ACCESSIBLE_PAGES = [
   { 
     name: 'dashboard', 
     href: '/patient/dashboard', 
     icon: Home,
     labelKey: 'nav.dashboard',
-    description: 'View patient dashboard'
+    description: 'View patient dashboard',
+    permissionKey: null // Dashboard shown if any permission exists
   },
   { 
     name: 'health-records', 
     href: '/patient/health-records', 
     icon: FileText,
     labelKey: 'nav.healthRecords',
-    description: 'View health records'
+    description: 'View health records',
+    permissionKey: 'can_view_health_records' as const
+  },
+  { 
+    name: 'history', 
+    href: '/patient/health-records/history', 
+    icon: FileText,
+    labelKey: 'Medical History', // Direct label since translation key may not exist
+    description: 'View medical history',
+    permissionKey: 'can_view_medical_history' as const
   },
   { 
     name: 'health-plan', 
     href: '/patient/health-plan', 
     icon: ClipboardList,
     labelKey: 'nav.healthPlan',
-    description: 'View health plan'
+    description: 'View health plan',
+    permissionKey: 'can_view_health_plans' as const
   },
   { 
     name: 'medications', 
     href: '/patient/medications', 
     icon: Pill,
     labelKey: 'nav.medications',
-    description: 'View medications'
+    description: 'View medications',
+    permissionKey: 'can_view_medications' as const
   },
   { 
     name: 'messages', 
     href: '/patient/messages', 
     icon: MessageSquare,
     labelKey: 'nav.messages',
-    description: 'View messages'
+    description: 'View messages',
+    permissionKey: 'can_view_messages' as const
   },
   { 
     name: 'appointments', 
     href: '/patient/appointments', 
     icon: Calendar,
     labelKey: 'nav.appointments',
-    description: 'View appointments'
+    description: 'View appointments',
+    permissionKey: 'can_view_appointments' as const
   },
 ]
+
+// Helper function to get allowed pages for a patient based on permissions
+function getAllowedPages(permissions: AccessiblePatient['permissions']): typeof ACCESSIBLE_PAGES {
+  // Check if user has at least one permission (for dashboard access)
+  const hasAnyPermission = Object.values(permissions).some(value => value === true)
+  
+  return ACCESSIBLE_PAGES.filter(page => {
+    // Dashboard is shown if any permission exists
+    if (page.name === 'dashboard') {
+      return hasAnyPermission
+    }
+    
+    // Other pages require specific permission
+    if (page.permissionKey) {
+      return permissions[page.permissionKey] === true
+    }
+    
+    return false
+  })
+}
 
 interface AccessiblePatientsDialogProps {
   trigger?: React.ReactNode
@@ -227,11 +261,22 @@ export function AccessiblePatientsDialog({
                       expired && "opacity-60"
                     )}
                   >
-                    {/* Patient Header - Clickable to view dashboard */}
+                    {/* Patient Header - Clickable to view dashboard (if permission exists) */}
                     <div 
-                      className="flex items-start gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 p-2 rounded-lg transition-colors -m-2"
-                      onClick={() => handlePageClick(patient.patient_id, '/patient/dashboard')}
-                      title="Click to open this patient's dashboard in a new window"
+                      className={cn(
+                        "flex items-start gap-3 p-2 rounded-lg transition-colors -m-2",
+                        getAllowedPages(patient.permissions).some(page => page.name === 'dashboard') 
+                          ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                          : "cursor-default"
+                      )}
+                      onClick={() => {
+                        if (getAllowedPages(patient.permissions).some(page => page.name === 'dashboard')) {
+                          handlePageClick(patient.patient_id, '/patient/dashboard')
+                        }
+                      }}
+                      title={getAllowedPages(patient.permissions).some(page => page.name === 'dashboard')
+                        ? "Click to open this patient's dashboard in a new window"
+                        : "No permission to access dashboard"}
                     >
                       <Avatar className="h-12 w-12">
                         <AvatarImage src={`/api/avatar/${patient.patient_supabase_id}`} />
@@ -307,17 +352,19 @@ export function AccessiblePatientsDialog({
 
                     {/* Quick Actions */}
                     <div className="mt-4 flex gap-2">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => handlePageClick(patient.patient_id, '/patient/dashboard')}
-                        className="flex-1 bg-teal-600 hover:bg-teal-700 text-white"
-                        title="Open dashboard in a new window"
-                      >
-                        <Home className="h-4 w-4 mr-2" />
-                        View Dashboard
-                        <ExternalLink className="h-3 w-3 ml-2" />
-                      </Button>
+                      {getAllowedPages(patient.permissions).some(page => page.name === 'dashboard') && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handlePageClick(patient.patient_id, '/patient/dashboard')}
+                          className="flex-1 bg-teal-600 hover:bg-teal-700 text-white"
+                          title="Open dashboard in a new window"
+                        >
+                          <Home className="h-4 w-4 mr-2" />
+                          View Dashboard
+                          <ExternalLink className="h-3 w-3 ml-2" />
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -335,34 +382,46 @@ export function AccessiblePatientsDialog({
                       </Button>
                     </div>
 
-                    {/* Expandable Pages List */}
-                    {isExpanded && (
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        {ACCESSIBLE_PAGES.map((page) => {
-                          const Icon = page.icon
-                          return (
-                            <Button
-                              key={page.name}
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handlePageClick(patient.patient_id, page.href)}
-                              className="justify-start h-auto py-2 px-3 text-xs"
-                            >
-                              <Icon className="h-4 w-4 mr-2 shrink-0" />
-                              <div className="text-left flex-1 min-w-0">
-                                <div className="font-medium truncate">
-                                  {t(page.labelKey)}
+                    {/* Expandable Pages List - Only show allowed pages */}
+                    {isExpanded && (() => {
+                      const allowedPages = getAllowedPages(patient.permissions)
+                      
+                      if (allowedPages.length === 0) {
+                        return (
+                          <div className="mt-2 text-center text-sm text-gray-500 dark:text-gray-400 py-4">
+                            No pages available. Permission required to access patient data.
+                          </div>
+                        )
+                      }
+                      
+                      return (
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          {allowedPages.map((page) => {
+                            const Icon = page.icon
+                            return (
+                              <Button
+                                key={page.name}
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePageClick(patient.patient_id, page.href)}
+                                className="justify-start h-auto py-2 px-3 text-xs"
+                              >
+                                <Icon className="h-4 w-4 mr-2 shrink-0" />
+                                <div className="text-left flex-1 min-w-0">
+                                  <div className="font-medium truncate">
+                                    {page.labelKey.startsWith('nav.') ? t(page.labelKey) || page.labelKey.replace('nav.', '') : page.labelKey}
+                                  </div>
+                                  <div className="text-[10px] text-gray-500 dark:text-gray-500 truncate">
+                                    {page.description}
+                                  </div>
                                 </div>
-                                <div className="text-[10px] text-gray-500 dark:text-gray-500 truncate">
-                                  {page.description}
-                                </div>
-                              </div>
-                              <ExternalLink className="h-3 w-3 ml-2 shrink-0" />
-                            </Button>
-                          )
-                        })}
-                      </div>
-                    )}
+                                <ExternalLink className="h-3 w-3 ml-2 shrink-0" />
+                              </Button>
+                            )
+                          })}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })}
