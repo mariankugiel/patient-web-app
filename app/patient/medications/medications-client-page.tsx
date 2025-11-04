@@ -32,6 +32,8 @@ import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-di
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { toast } from "react-toastify"
 import { formatDate } from "@/lib/utils/date-formatter"
+import { usePatientContext } from "@/hooks/use-patient-context"
+import { PatientViewBanner } from "@/components/patient/patient-view-banner"
 
 const daysOfWeek = [
   { id: "monday", label: "Mon" },
@@ -108,10 +110,13 @@ export default function MedicationsClientPage() {
   const [showCloseConfirmation, setShowCloseConfirmation] = useState(false)
   const [pendingDialogClose, setPendingDialogClose] = useState<'add' | 'edit' | null>(null)
 
-  // Load medications on component mount
+  // Get patientId from URL if viewing another patient
+  const { patientId } = usePatientContext()
+
+  // Load medications on component mount and when patientId changes
   useEffect(() => {
     loadMedications()
-  }, [])
+  }, [patientId])
 
   const loadMedications = async () => {
     try {
@@ -119,11 +124,11 @@ export default function MedicationsClientPage() {
       setError(null)
       
       // Load current medications
-      const current = await medicationsApiService.getMedications('current')
+      const current = await medicationsApiService.getMedications('current', patientId || undefined)
       setCurrentMeds(current)
       
       // Load previous medications
-      const previous = await medicationsApiService.getMedications('previous')
+      const previous = await medicationsApiService.getMedications('previous', patientId || undefined)
       setPreviousMeds(previous)
       
     } catch (err) {
@@ -536,6 +541,7 @@ export default function MedicationsClientPage() {
 
   return (
     <div className="container mx-auto py-4">
+      <PatientViewBanner />
       <div className="flex items-center justify-between mb-2">
         <div />
         <Dialog 

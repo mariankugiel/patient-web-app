@@ -10,7 +10,7 @@ import {
   MetricWithData
 } from '@/lib/api/health-records-api'
 
-export function useHealthRecordsDashboard(healthRecordTypeId: number) {
+export function useHealthRecordsDashboard(healthRecordTypeId: number, patientId?: number | null) {
   const [dashboard, setDashboard] = useState<AnalysisDashboardResponse | null>(null)
   const [sections, setSections] = useState<SectionWithMetrics[]>([])
   const [loading, setLoading] = useState(true)
@@ -21,11 +21,13 @@ export function useHealthRecordsDashboard(healthRecordTypeId: number) {
       setLoading(true)
       setError(null)
       
+      console.log('🔍 [Hook] useHealthRecordsDashboard.loadDashboard - patientId:', patientId, 'healthRecordTypeId:', healthRecordTypeId)
+      
       // Get the actual dashboard data with metrics and health records
-      const dashboardData = await HealthRecordsApiService.getAnalysisDashboard()
+      const dashboardData = await HealthRecordsApiService.getAnalysisDashboard(patientId || undefined)
       
       // Also get combined sections and templates for creating new sections
-      const response = await HealthRecordsApiService.getSectionsCombined(healthRecordTypeId)
+      const response = await HealthRecordsApiService.getSectionsCombined(healthRecordTypeId, patientId || undefined)
       const userSections = response.user_sections || []
       const adminTemplates = response.admin_templates || []
       const allSections = [...userSections, ...adminTemplates]
@@ -153,7 +155,7 @@ export function useHealthRecordsDashboard(healthRecordTypeId: number) {
 
   useEffect(() => {
     loadDashboard()
-  }, [healthRecordTypeId])
+  }, [healthRecordTypeId, patientId])
 
   return {
     dashboard,

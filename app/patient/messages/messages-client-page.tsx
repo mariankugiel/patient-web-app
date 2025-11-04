@@ -59,6 +59,8 @@ import type { MessageFilters, MessageType, MessageAttachment, Message, MessagePr
 import type { FileUploadItem } from "@/types/files"
 import { messagesApiService } from "@/lib/api/messages-api"
 import { s3UploadService } from "@/lib/api/s3-upload-api"
+import { usePatientContext } from "@/hooks/use-patient-context"
+import { PatientViewBanner } from "@/components/patient/patient-view-banner"
 
 // Sample conversation data
 const conversations = [
@@ -316,6 +318,7 @@ const conversations = [
 
 export default function MessagesClientPage() {
   const { t } = useLanguage()
+  const { patientId, isViewingOtherPatient } = usePatientContext()
   
   // Get current user from Redux state
   const { user } = useSelector((state: RootState) => state.auth)
@@ -355,7 +358,7 @@ export default function MessagesClientPage() {
   // Get WebSocket context for real-time updates
   const { onUserStatusChange } = useWebSocketContext()
 
-  // Use the messages hook
+  // Use the messages hook with patientId
   const {
     selectedConversation,
     messages,
@@ -385,7 +388,7 @@ export default function MessagesClientPage() {
     clearFilters,
     currentFilters,
     refreshConversations
-  } = useMessages()
+  } = useMessages(patientId)
   
   // Use global conversations state
   const { conversations, unreadCount } = useGlobalConversations()
@@ -928,6 +931,7 @@ export default function MessagesClientPage() {
 
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      <PatientViewBanner />
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden min-w-0">
         {/* Left Panel - User List */}
@@ -1065,15 +1069,16 @@ export default function MessagesClientPage() {
             </div>
           </ScrollArea>
 
-          {/* New Message Button */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <Dialog open={newMessageDialogOpen} onOpenChange={handleNewMessageDialogOpenChange}>
-              <DialogTrigger asChild>
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  New Message
-                </Button>
-              </DialogTrigger>
+          {/* New Message Button - Hide when viewing another patient's messages */}
+          {!isViewingOtherPatient && (
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+              <Dialog open={newMessageDialogOpen} onOpenChange={handleNewMessageDialogOpenChange}>
+                <DialogTrigger asChild>
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    New Message
+                  </Button>
+                </DialogTrigger>
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                   <DialogTitle>New Message</DialogTitle>
@@ -1128,6 +1133,7 @@ export default function MessagesClientPage() {
               </DialogContent>
             </Dialog>
           </div>
+          )}
         </div>
 
         {/* Middle Panel - Conversation View */}
@@ -1339,8 +1345,8 @@ export default function MessagesClientPage() {
                 onSend={handleSendMessage}
                 onFileUpload={handleFileUpload}
                 onVoiceRecord={handleVoiceMessage}
-                placeholder="Type a message..."
-                disabled={!isConnected}
+                placeholder={isViewingOtherPatient ? "Viewing another patient's messages. You cannot send messages." : "Type a message..."}
+                disabled={!isConnected || isViewingOtherPatient}
                 loading={sendingMessage}
               />
             </>

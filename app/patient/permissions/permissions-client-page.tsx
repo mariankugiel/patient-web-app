@@ -28,6 +28,7 @@ import {
   UsersIcon,
   UserPlusIcon,
   AlertTriangleIcon,
+  Trash2Icon,
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -56,6 +57,8 @@ import {
 
 // Import the useLanguage hook at the top of the file, near other hooks
 import { useLanguage } from "@/contexts/language-context"
+import { messagesApiService } from "@/lib/api/messages-api"
+import { RecipientAutocomplete, type Contact as MessageContact } from "@/components/messages/recipient-autocomplete"
 
 type Contact = {
   id: string
@@ -114,8 +117,18 @@ export default function PermissionsClientPage() {
   const [isGrantAccessDialogOpen, setIsGrantAccessDialogOpen] = useState(false)
   const [isManageDialogOpen, setIsManageDialogOpen] = useState(false)
   const [isRevokeDialogOpen, setIsRevokeDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [contactFilter, setContactFilter] = useState<"all" | "professional" | "personal">("all")
+  
+  // Contact picker state for adding contacts from messages
+  const [availableContacts, setAvailableContacts] = useState<MessageContact[]>([])
+  const [loadingContacts, setLoadingContacts] = useState(false)
+  const [selectedMessageContact, setSelectedMessageContact] = useState<MessageContact | null>(null)
+  const [contactsOffset, setContactsOffset] = useState(0)
+  const [hasMoreContacts, setHasMoreContacts] = useState(false)
+  const [loadingMoreContacts, setLoadingMoreContacts] = useState(false)
+  const [contactsSearchQuery, setContactsSearchQuery] = useState("")
 
   const [newContact, setNewContact] = useState({
     id: "",
@@ -186,6 +199,79 @@ export default function PermissionsClientPage() {
     }
   }
 
+  // Load available contacts from messages
+  const loadAvailableContacts = async (reset = false, searchQuery = "") => {
+    try {
+      const isInitialLoad = reset || contactsOffset === 0
+      if (isInitialLoad) {
+        setLoadingContacts(true)
+        setContactsOffset(0)
+      } else {
+        setLoadingMoreContacts(true)
+      }
+      
+      const offset = reset ? 0 : contactsOffset
+      const contacts = await messagesApiService.getAvailableContacts({
+        search: searchQuery || undefined,
+        offset,
+        limit: 20
+      })
+      
+      // Check if there are more contacts to load
+      const hasMore = contacts.length >= 20
+      setHasMoreContacts(hasMore)
+      
+      if (isInitialLoad) {
+        setAvailableContacts(contacts)
+        setContactsOffset(contacts.length)
+      } else {
+        setAvailableContacts(prev => [...prev, ...contacts])
+        setContactsOffset(prev => prev + contacts.length)
+      }
+    } catch (error) {
+      console.error("Failed to load contacts:", error)
+      if (reset || contactsOffset === 0) {
+        setAvailableContacts([])
+      }
+      setHasMoreContacts(false)
+    } finally {
+      setLoadingContacts(false)
+      setLoadingMoreContacts(false)
+    }
+  }
+
+  // Load contacts when dialog opens
+  useEffect(() => {
+    if (isGrantAccessDialogOpen) {
+      loadAvailableContacts(true)
+    }
+  }, [isGrantAccessDialogOpen])
+
+  // Handle contact selection from messages
+  const handleSelectMessageContact = (contact: MessageContact | null) => {
+    setSelectedMessageContact(contact)
+    if (contact) {
+      // Auto-fill name and email from selected contact
+      setNewContact({
+        ...newContact,
+        name: contact.name,
+        email: contact.email || contact.id, // Use email if available, fallback to ID
+      })
+    }
+  }
+
+  // Handle search in contact picker
+  const handleSearchContacts = (query: string) => {
+    setContactsSearchQuery(query)
+    loadAvailableContacts(true, query)
+  }
+
+  // Load more contacts (pagination)
+  const handleLoadMoreContacts = () => {
+    if (loadingMoreContacts || !hasMoreContacts) return
+    loadAvailableContacts(false, contactsSearchQuery)
+  }
+
   const handleAddContact = () => {
     // Here you would typically send the data to your backend
     console.log("Adding new contact:", newContact)
@@ -243,6 +329,10 @@ export default function PermissionsClientPage() {
       },
     })
     
+    // Reset contact picker
+    setSelectedMessageContact(null)
+    setContactsSearchQuery("")
+    
     // Auto-save after adding
     saveSharedAccess(updatedData)
   }
@@ -295,6 +385,30 @@ export default function PermissionsClientPage() {
     setIsRevokeDialogOpen(false)
     setSelectedContact(null)
     saveSharedAccess(updatedData)
+  }
+
+  const handleDeletePrompt = (contact: Contact) => {
+    setSelectedContact(contact)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleDeleteContact = () => {
+    if (!selectedContact) return
+
+    // Remove the contact completely from the list
+    const updatedData = sharedAccessData.filter(
+      (contact) => contact.id !== selectedContact.id
+    )
+
+    setSharedAccessData(updatedData)
+    setIsDeleteDialogOpen(false)
+    setSelectedContact(null)
+    saveSharedAccess(updatedData)
+    
+    toast({
+      title: t("permissions.contactDeleted") || "Contact Deleted",
+      description: t("permissions.contactDeletedDesc") || "The contact has been permanently removed.",
+    })
   }
 
   const saveSharedAccess = async (contacts: Contact[]) => {
@@ -738,6 +852,14 @@ export default function PermissionsClientPage() {
                               >
                                 {t("permissions.revoke")}
                               </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => handleDeletePrompt(provider)}
+                              >
+                                <Trash2Icon className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
                         </CardContent>
@@ -856,6 +978,14 @@ export default function PermissionsClientPage() {
                               >
                                 {t("permissions.revoke")}
                               </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => handleDeletePrompt(provider)}
+                              >
+                                <Trash2Icon className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
                         </CardContent>
@@ -932,6 +1062,14 @@ export default function PermissionsClientPage() {
                           }}
                         >
                           {t("permissions.restoreAccess")}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleDeletePrompt(provider)}
+                        >
+                          <Trash2Icon className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
@@ -1109,6 +1247,25 @@ export default function PermissionsClientPage() {
             <DialogTitle className="text-xl">{t("permissions.addNewContact")}</DialogTitle>
             <DialogDescription>{t("permissions.addNewContactDesc")}</DialogDescription>
           </DialogHeader>
+
+          {/* Contact Picker from Messages */}
+          <div className="space-y-2 py-4 border-b">
+            <Label>{t("permissions.selectFromContacts") || "Select from contacts"}</Label>
+            <RecipientAutocomplete
+              selectedRecipient={selectedMessageContact}
+              onSelectRecipient={handleSelectMessageContact}
+              onSearch={handleSearchContacts}
+              contacts={availableContacts}
+              loading={loadingContacts}
+              placeholder={t("permissions.searchContacts") || "Search contacts from messages..."}
+              hasMore={hasMoreContacts}
+              onLoadMore={handleLoadMoreContacts}
+              loadingMore={loadingMoreContacts}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t("permissions.selectContactOrTypeManually") || "Select a contact or type manually below"}
+            </p>
+          </div>
 
           <div className="grid grid-cols-2 gap-4 py-4">
             <div className="space-y-2">
@@ -1673,6 +1830,37 @@ export default function PermissionsClientPage() {
             >
               <AlertTriangleIcon className="h-4 w-4 mr-2" />
               {t("permissions.revokeAccess")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("permissions.deleteContact") || "Delete Contact"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedContact && (
+                <>
+                  {t("permissions.deleteContactDesc") || "Are you sure you want to permanently delete"} <strong>{selectedContact.name}</strong>?{" "}
+                  {t("permissions.deleteContactWarning") || "This action cannot be undone and will remove all access permissions."}
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {t("action.cancel") || "Cancel"}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteContact}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              <Trash2Icon className="h-4 w-4 mr-2" />
+              {t("permissions.delete") || "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

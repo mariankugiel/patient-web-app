@@ -140,6 +140,25 @@ export interface UserPrivacy {
   share_analytics?: boolean
 }
 
+export interface AccessiblePatient {
+  patient_id: number
+  patient_supabase_id: string
+  patient_name: string
+  patient_email: string
+  permissions: {
+    can_view_health_records: boolean
+    can_view_medical_history: boolean
+    can_view_health_plans: boolean
+    can_view_medications: boolean
+    can_view_appointments: boolean
+    can_view_messages: boolean
+    can_view_lab_results: boolean
+    can_view_imaging: boolean
+  }
+  granted_for: string
+  expires_at: string | null
+}
+
 export interface UserSharedAccess {
   health_professionals?: Array<{
     id: string
@@ -435,6 +454,16 @@ export class AuthApiService {
     }
   }
 
+  // Get accessible patients (patients that current user has permission to access)
+  static async getAccessiblePatients(): Promise<{ accessible_patients: AccessiblePatient[] }> {
+    try {
+      const response = await apiClient.get('/auth/accessible-patients')
+      return response.data
+    } catch (error: any) {
+      throw handleApiError(error, 'Failed to get accessible patients')
+    }
+  }
+
   // Update user data sharing (token automatically added by interceptor)
   static async updateDataSharing(dataSharingData: Partial<UserDataSharing>): Promise<UserDataSharing> {
     try {
@@ -520,4 +549,7 @@ export class AuthApiService {
     }
   }
 }
+
+// Export alias for backward compatibility
+export const AuthAPI = AuthApiService
 

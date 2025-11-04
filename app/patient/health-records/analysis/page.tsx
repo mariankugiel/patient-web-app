@@ -31,10 +31,16 @@ import { LabDocumentDialog } from "@/components/lab-documents/lab-document-dialo
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { toast } from "react-toastify"
 import { medicalDocumentsApiService, MedicalDocument } from "@/lib/api/medical-documents-api"
+import { usePatientContext } from "@/hooks/use-patient-context"
+import { PatientViewBanner } from "@/components/patient/patient-view-banner"
 
 export default function AnalysisPage() {
   const { t } = useLanguage()
-  const { sections, loading, createSection, updateSection, createMetric, updateMetric, createRecord, refresh } = useAnalysisDashboard()
+  const { patientId, isViewingOtherPatient } = usePatientContext()
+  
+  console.log('🔍 [Analysis Page] patientId from context:', patientId, 'isViewingOtherPatient:', isViewingOtherPatient)
+  
+  const { sections, loading, createSection, updateSection, createMetric, updateMetric, createRecord, refresh } = useAnalysisDashboard(1, patientId)
   
   const { analysis: aiAnalysis, loading: aiLoading, generateAnalysis, checkForUpdates, error: aiError } = useAIAnalysis()
 
@@ -184,6 +190,7 @@ export default function AnalysisPage() {
 
   return (
     <div className="space-y-6">
+      <PatientViewBanner />
       {/* AI Summary and Lab Document Management in one row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* AI Summary Card */}

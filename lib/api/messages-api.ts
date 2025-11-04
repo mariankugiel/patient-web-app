@@ -16,9 +16,9 @@ import type {
 
 export class MessagesApiService {
   // Get all conversations with optional filtering
-  async getConversations(filters?: MessageFilters): Promise<MessagesResponse> {
+  async getConversations(filters?: MessageFilters, patientId?: number): Promise<MessagesResponse> {
     try {
-      console.log('📋 API: Getting conversations with filters:', filters)
+      console.log('📋 API: Getting conversations with filters:', filters, 'patientId:', patientId)
       const params = new URLSearchParams()
       
       if (filters?.type?.length) {
@@ -36,6 +36,9 @@ export class MessagesApiService {
       if (filters?.dateRange) {
         params.append('startDate', filters.dateRange.start)
         params.append('endDate', filters.dateRange.end)
+      }
+      if (patientId) {
+        params.append('patient_id', patientId.toString())
       }
 
       // Use longer timeout for conversations endpoint (60 seconds)
@@ -269,6 +272,7 @@ export class MessagesApiService {
     avatar?: string
     isOnline: boolean
     specialty?: string
+    email?: string
   }>> {
     try {
       const response = await apiClient.get('/messages/contacts', { params })

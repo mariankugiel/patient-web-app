@@ -68,7 +68,7 @@ interface UseMessagesReturn {
   getMessageStats: () => Promise<any>
 }
 
-export function useMessages(): UseMessagesReturn {
+export function useMessages(patientId?: number | null): UseMessagesReturn {
   const dispatch = useDispatch()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
@@ -207,10 +207,10 @@ export function useMessages(): UseMessagesReturn {
   // Load conversations on mount and when filters change
   const loadConversations = useCallback(async (filters?: MessageFilters) => {
     try {
-      console.log('📋 Loading conversations with filters:', filters)
+      console.log('📋 Loading conversations with filters:', filters, 'patientId:', patientId)
       setLoadingConversations(true)
       setError(null)
-      const response = await messagesApiService.getConversations(filters)
+      const response = await messagesApiService.getConversations(filters, patientId || undefined)
       console.log('📋 Conversations loaded:', response.conversations)
       console.log('📋 Conversations count:', response.conversations.length)
       console.log('📋 Current user ID from backend:', response.current_user_id)
@@ -247,7 +247,7 @@ export function useMessages(): UseMessagesReturn {
     } finally {
       setLoadingConversations(false)
     }
-  }, [])
+  }, [patientId])
 
   // Load unread count by type
   const loadUnreadCount = useCallback(async () => {

@@ -80,8 +80,14 @@ export interface MedicationUpdate {
 }
 
 class MedicationsApiService {
-  async getMedications(statusFilter?: 'current' | 'previous'): Promise<Medication[]> {
-    const params = statusFilter ? { status_filter: statusFilter } : {}
+  async getMedications(statusFilter?: 'current' | 'previous', patientId?: number): Promise<Medication[]> {
+    const params: any = {}
+    if (statusFilter) {
+      params.status_filter = statusFilter
+    }
+    if (patientId) {
+      params.patient_id = patientId
+    }
     const response = await apiClient.get('/medications', { params })
     return response.data
   }

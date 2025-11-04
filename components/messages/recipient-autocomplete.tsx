@@ -18,6 +18,7 @@ export interface Contact {
   avatar?: string
   isOnline: boolean
   specialty?: string
+  email?: string
 }
 
 interface RecipientAutocompleteProps {

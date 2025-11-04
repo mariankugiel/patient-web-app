@@ -1,4 +1,5 @@
 "use client"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -20,156 +21,99 @@ import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useLanguage } from "@/contexts/language-context"
+import { usePatientContext } from "@/hooks/use-patient-context"
+import { PatientViewBanner } from "@/components/patient/patient-view-banner"
+import { medicationsApiService, Medication } from "@/lib/api/medications-api"
+import { messagesApiService, Conversation } from "@/lib/api/messages-api"
+import { HealthRecordsApiService } from "@/lib/api/health-records-api"
 
 export default function PatientDashboardClient() {
   const { t, language } = useLanguage()
+  const { patientId, isViewingOtherPatient } = usePatientContext()
+  
+  // State for real data
+  const [medications, setMedications] = useState<Medication[]>([])
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [loading, setLoading] = useState(true)
+  const [healthRecords, setHealthRecords] = useState<any[]>([])
 
-  // Sample data
-  const upcomingAppointments = [
-    {
-      id: "1",
-      doctor: "Dr. Sarah Johnson",
-      specialty: "Primary Care",
-      date: "May 15, 2023",
-      time: "10:30 AM",
-      status: "confirmed",
-    },
-    {
-      id: "2",
-      doctor: "Dr. Michael Chen",
-      specialty: "Cardiologist",
-      date: "May 22, 2023",
-      time: "2:15 PM",
-      status: "confirmed",
-    },
-  ]
+  // Fetch real data
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      setLoading(true)
+      try {
+        // Fetch medications
+        const meds = await medicationsApiService.getMedications('current', patientId || undefined)
+        setMedications(meds.slice(0, 3)) // Show only first 3
 
-  const medications = [
-    {
-      id: "1",
-      name: "Lisinopril",
-      dosage: "10mg",
-      frequency: "Once daily",
-      time: "Morning",
-      refillDate: "June 5, 2023",
-      forgotten: false,
-    },
-    {
-      id: "2",
-      name: "Metformin",
-      dosage: "500mg",
-      frequency: "Twice daily",
-      time: "Morning and Evening",
-      refillDate: "May 28, 2023",
-      forgotten: true,
-      lastTaken: "2 days ago",
-    },
-    {
-      id: "3",
-      name: "Atorvastatin",
-      dosage: "20mg",
-      frequency: "Once daily",
-      time: "Evening",
-      refillDate: "June 15, 2023",
-      forgotten: false,
-    },
-  ]
+        // Fetch conversations
+        const convsResponse = await messagesApiService.getConversations(undefined, patientId || undefined)
+        setConversations(convsResponse.conversations.slice(0, 3)) // Show only first 3
 
-  const messages = [
-    {
-      id: "1",
-      sender: "Dr. Sarah Johnson",
-      subject: "Follow-up Appointment",
-      preview: "I'd like to schedule a follow-up to discuss your recent test results...",
-      date: "2023-05-15T10:30:00",
-      isRead: false,
-    },
-    {
-      id: "2",
-      sender: "Lab Results",
-      subject: "Your Test Results Are Ready",
-      preview: "Your recent laboratory test results are now available for review...",
-      date: "2023-05-14T14:45:00",
-      isRead: true,
-    },
-    {
-      id: "3",
-      sender: "Dr. Michael Chen",
-      subject: "Medication Adjustment",
-      preview: "Based on your latest blood pressure readings, I recommend adjusting your dosage...",
-      date: "2023-05-13T09:15:00",
-      isRead: true,
-    },
-  ]
+        // Fetch health records dashboard data
+        try {
+          const dashboardData = await HealthRecordsApiService.getAnalysisDashboard(patientId || undefined)
+          // Transform dashboard data to health records format
+          const transformedRecords: any[] = []
+          if (dashboardData.sections) {
+            dashboardData.sections.forEach((section: any) => {
+              if (section.metrics && section.metrics.length > 0) {
+                section.metrics.forEach((metric: any) => {
+                  if (metric.latest_value) {
+                    transformedRecords.push({
+                      id: metric.id,
+                      name: metric.display_name || metric.name,
+                      value: `${metric.latest_value} ${metric.default_unit || ''}`,
+                      previousValue: metric.previous_value ? `${metric.previous_value} ${metric.default_unit || ''}` : undefined,
+                      trend: metric.trend || "stable",
+                      status: metric.status || "normal",
+                      reference: metric.reference_data?.normal_range || "",
+                      date: metric.latest_date || new Date().toISOString(),
+                      category: "health",
+                    })
+                  }
+                })
+              }
+            })
+          }
+          setHealthRecords(transformedRecords.slice(0, 6)) // Show only first 6
+        } catch (error) {
+          console.error('Failed to load health records:', error)
+          setHealthRecords([])
+        }
+      } catch (error) {
+        console.error('Failed to load dashboard data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  const healthRecords = [
-    {
-      id: "1",
-      name: t("dashboard.bloodPressure"),
-      value: "132/85 mmHg",
-      previousValue: "138/88 mmHg",
-      trend: "improving",
-      status: "abnormal",
-      reference: t("dashboard.normalBP"),
-      date: "May 15, 2023",
-      category: "health",
-    },
-    {
-      id: "2",
-      name: t("dashboard.bloodGlucose"),
-      value: "98 mg/dL",
-      previousValue: "105 mg/dL",
-      trend: "improving",
-      status: "normal",
-      reference: t("dashboard.normalGlucose"),
-      date: "May 15, 2023",
-      category: "health",
-    },
-    {
-      id: "3",
-      name: t("dashboard.totalCholesterol"),
-      value: "195 mg/dL",
-      previousValue: "210 mg/dL",
-      trend: "improving",
-      status: "normal",
-      reference: t("dashboard.normalCholesterol"),
-      date: "May 10, 2023",
-      category: "health",
-    },
-    {
-      id: "4",
-      name: t("dashboard.dailySteps"),
-      value: "8,450 steps",
-      previousValue: "7,200 steps",
-      trend: "improving",
-      status: "fair",
-      reference: t("dashboard.targetSteps"),
-      date: "May 15, 2023",
-      category: "wellness",
-    },
-    {
-      id: "5",
-      name: t("dashboard.sleepDuration"),
-      value: "6.5 hours",
-      previousValue: "6.2 hours",
-      trend: "improving",
-      status: "fair",
-      reference: t("dashboard.targetSleep"),
-      date: "May 15, 2023",
-      category: "wellness",
-    },
-    {
-      id: "6",
-      name: t("dashboard.stressLevel"),
-      value: t("dashboard.medium"),
-      previousValue: t("dashboard.high"),
-      trend: "improving",
-      status: "fair",
-      reference: t("dashboard.targetStress"),
-      date: "May 14, 2023",
-      category: "wellness",
-    },
-  ]
+    loadDashboardData()
+  }, [patientId])
+
+  // Sample data for appointments (no API available yet)
+  const upcomingAppointments: any[] = []
+
+  // Transform conversations to messages format
+  const messages = conversations.map((conv) => ({
+    id: conv.id.toString(),
+    sender: conv.contact_name || "Unknown",
+    subject: conv.last_message?.subject || conv.last_message?.content?.substring(0, 50) || "No subject",
+    preview: conv.last_message?.content?.substring(0, 100) || "",
+    date: conv.last_message?.created_at || conv.updated_at,
+    isRead: !conv.unread_count || conv.unread_count === 0,
+  }))
+
+  // Transform medications to dashboard format
+  const medicationsForDashboard = medications.map((med) => ({
+    id: med.id.toString(),
+    name: med.medication_name,
+    dosage: med.dosage || "",
+    frequency: med.frequency || "",
+    time: med.instructions || "",
+    refillDate: med.last_filled_date || "",
+    forgotten: false,
+  }))
 
   const healthPlanKeyMetrics = [
     {
@@ -277,12 +221,21 @@ export default function PatientDashboardClient() {
     }
   }
 
-  const unreadMessages = messages.filter((msg) => !msg.isRead).length
-  const forgottenMeds = medications.filter((med) => med.forgotten).length
-
   // Filter records by category
   const healthMetrics = healthRecords.filter((record) => record.category === "health")
   const wellnessMetrics = healthRecords.filter((record) => record.category === "wellness")
+
+  // Calculate counts
+  const forgottenMeds = medicationsForDashboard.filter((m) => m.forgotten).length
+  const unreadMessages = messages.filter((m) => !m.isRead).length
+
+  // Build links with patientId if viewing another patient
+  const buildLink = (href: string) => {
+    if (patientId) {
+      return `${href}?patientId=${patientId}`
+    }
+    return href
+  }
 
   // Get health status based on score
   const getHealthStatus = (score) => {
@@ -315,6 +268,12 @@ export default function PatientDashboardClient() {
 
   return (
     <div className="container py-6">
+      <PatientViewBanner />
+      {loading && (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-gray-500">Loading dashboard data...</div>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:grid-cols-4">
         {/* Main content - left side (spans 3 columns on large screens) */}
         <div className="space-y-6 md:col-span-2 lg:col-span-3">
@@ -483,7 +442,7 @@ export default function PatientDashboardClient() {
               </div>
             </CardContent>
             <CardFooter>
-              <Link href="/patient/health-records" className="w-full">
+              <Link href={buildLink("/patient/health-records")} className="w-full">
                 <Button variant="outline" className="w-full">
                   <FileText className="mr-2 h-4 w-4" />
                   {t("dashboard.viewAllHealthRecords")}
@@ -595,7 +554,12 @@ export default function PatientDashboardClient() {
                 </Alert>
               )}
               <div className="space-y-3">
-                {medications.map((medication) => (
+                {medicationsForDashboard.length === 0 && !loading && (
+                  <div className="text-center text-sm text-muted-foreground py-4">
+                    {t("dashboard.noMedications") || "No medications found"}
+                  </div>
+                )}
+                {medicationsForDashboard.map((medication) => (
                   <div
                     key={medication.id}
                     className={cn(
@@ -623,7 +587,7 @@ export default function PatientDashboardClient() {
               </div>
             </CardContent>
             <CardFooter>
-              <Link href="/patient/medications" className="w-full">
+              <Link href={buildLink("/patient/medications")} className="w-full">
                 <Button variant="outline" size="sm" className="w-full">
                   {t("dashboard.viewAll")}
                 </Button>
@@ -644,6 +608,11 @@ export default function PatientDashboardClient() {
             </CardHeader>
             <CardContent className="max-h-[300px] overflow-y-auto">
               <div className="space-y-3">
+                {messages.length === 0 && !loading && (
+                  <div className="text-center text-sm text-muted-foreground py-4">
+                    {t("dashboard.noMessages") || "No messages found"}
+                  </div>
+                )}
                 {messages.map((message) => (
                   <div
                     key={message.id}
@@ -667,7 +636,7 @@ export default function PatientDashboardClient() {
               </div>
             </CardContent>
             <CardFooter>
-              <Link href="/patient/messages" className="w-full">
+              <Link href={buildLink("/patient/messages")} className="w-full">
                 <Button variant="outline" size="sm" className="w-full">
                   {t("dashboard.viewAll")}
                 </Button>

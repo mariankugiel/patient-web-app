@@ -166,11 +166,14 @@ export class HealthRecordsApiService {
   }
 
   // Get combined sections and templates in one call
-  static async getSectionsCombined(typeId?: number): Promise<{
+  static async getSectionsCombined(typeId?: number, patientId?: number): Promise<{
     user_sections: HealthRecordSection[]
     admin_templates: HealthRecordSection[]
   }> {
-    const params = typeId ? { health_record_type_id: typeId } : {}
+    const params: any = typeId ? { health_record_type_id: typeId } : {}
+    if (patientId) {
+      params.patient_id = patientId
+    }
     const response = await apiClient.get('/health-records/sections/combined', { params })
     return response.data
   }
@@ -225,8 +228,12 @@ export class HealthRecordsApiService {
   }
 
   // Health Records (Data Points)
-  static async getHealthRecords(metricId: number): Promise<HealthRecord[]> {
-    const response = await apiClient.get(`/health-records/metrics/${metricId}/records`)
+  static async getHealthRecords(metricId: number, patientId?: number): Promise<HealthRecord[]> {
+    const params: any = {}
+    if (patientId) {
+      params.patient_id = patientId
+    }
+    const response = await apiClient.get(`/health-records/metrics/${metricId}/records`, { params })
     return response.data
   }
 
@@ -280,14 +287,26 @@ export class HealthRecordsApiService {
   }
 
   // Analysis Dashboard
-  static async getAnalysisDashboard(): Promise<AnalysisDashboardResponse> {
-    const response = await apiClient.get('/health-metrics/dashboard')
+  static async getAnalysisDashboard(patientId?: number): Promise<AnalysisDashboardResponse> {
+    const params: any = {}
+    if (patientId) {
+      params.patient_id = patientId
+      console.log('🔍 [Frontend API] getAnalysisDashboard called with patientId:', patientId)
+    } else {
+      console.log('📋 [Frontend API] getAnalysisDashboard called without patientId (using current user)')
+    }
+    const response = await apiClient.get('/health-records/dashboard', { params })
+    console.log('📊 [Frontend API] Dashboard response:', response.data)
     return response.data
   }
 
   // Get all user metrics for health plan dialog
-  static async getAllUserMetrics(): Promise<HealthRecordMetric[]> {
-    const response = await apiClient.get('/health-records/metrics/all')
+  static async getAllUserMetrics(patientId?: number): Promise<HealthRecordMetric[]> {
+    const params: any = {}
+    if (patientId) {
+      params.patient_id = patientId
+    }
+    const response = await apiClient.get('/health-records/metrics/all', { params })
     return response.data
   }
 
