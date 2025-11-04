@@ -86,6 +86,20 @@ export default function PermissionsClientPage() {
   const user = useSelector((state: RootState) => state.auth.user)
   const [isSaving, setIsSaving] = useState(false)
 
+  // Helper function to convert formatted date to YYYY-MM-DD for date input
+  const parseDateForInput = (dateStr: string): string => {
+    if (!dateStr || dateStr === "Never") return ""
+    try {
+      const parsed = new Date(dateStr)
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString().split('T')[0]
+      }
+    } catch (e) {
+      // If parsing fails, return empty string
+    }
+    return ""
+  }
+
   const [permissions, setPermissions] = useState({
     shareHealthData: true,
     shareWithProviders: true,
@@ -109,6 +123,7 @@ export default function PermissionsClientPage() {
     name: "",
     email: "",
     relationship: "",
+    expires: "",
     permissions: {
       medicalHistory: { view: false, download: false, edit: false },
       healthRecords: { view: false, download: false, edit: false },
@@ -198,7 +213,9 @@ export default function PermissionsClientPage() {
       accessLevel: "Limited",
       status: "Active",
       lastAccessed: "Never",
-      expires: "Dec 31, 2024",
+      expires: newContact.expires 
+        ? new Date(newContact.expires).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        : "Never",
       email: newContact.email,
       relationship: newContact.relationship,
       permissions: newContact.permissions,
@@ -215,6 +232,7 @@ export default function PermissionsClientPage() {
       name: "",
       email: "",
       relationship: "",
+      expires: "",
       permissions: {
         medicalHistory: { view: false, download: false, edit: false },
         healthRecords: { view: false, download: false, edit: false },
@@ -237,9 +255,19 @@ export default function PermissionsClientPage() {
   const handleUpdateContact = () => {
     if (!selectedContact) return
 
+    // Format the expires date if it's in YYYY-MM-DD format
+    let formattedContact = { ...selectedContact }
+    if (formattedContact.expires && formattedContact.expires.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      formattedContact.expires = new Date(formattedContact.expires).toLocaleDateString("en-US", { 
+        month: "short", 
+        day: "numeric", 
+        year: "numeric" 
+      })
+    }
+
     // Update the contact in the sharedAccessData array
     const updatedData = sharedAccessData.map((contact) =>
-      contact.id === selectedContact.id ? selectedContact : contact,
+      contact.id === formattedContact.id ? formattedContact : contact,
     )
 
     setSharedAccessData(updatedData)
@@ -1129,6 +1157,16 @@ export default function PermissionsClientPage() {
                 onChange={(e) => setNewContact({ ...newContact, relationship: e.target.value })}
               />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="expires">{t("permissions.expires")}</Label>
+              <Input
+                id="expires"
+                type="date"
+                value={newContact.expires}
+                onChange={(e) => setNewContact({ ...newContact, expires: e.target.value })}
+              />
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -1376,6 +1414,15 @@ export default function PermissionsClientPage() {
                   <Input
                     value={selectedContact.relationship || ""}
                     onChange={(e) => setSelectedContact({ ...selectedContact, relationship: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>{t("permissions.expires")}</Label>
+                  <Input
+                    type="date"
+                    value={parseDateForInput(selectedContact.expires)}
+                    onChange={(e) => setSelectedContact({ ...selectedContact, expires: e.target.value })}
                   />
                 </div>
               </div>

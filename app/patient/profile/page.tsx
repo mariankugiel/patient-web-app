@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator"
 import { useLanguage } from "@/contexts/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { ProfilePictureUpload } from "@/components/profile-picture-upload"
 import { LocationSearch } from "@/components/ui/location-search"
 import { countryCodes } from "@/lib/country-codes"
 import { timezones } from "@/lib/timezones"
@@ -22,6 +23,7 @@ import { useSelector, useDispatch } from "react-redux"
 import { RootState } from "@/lib/store"
 import { updateUser } from "@/lib/features/auth/authSlice"
 import { AuthApiService } from "@/lib/api/auth-api"
+import { getProfilePictureUrl } from "@/lib/profile-utils"
 
 const profileFormSchema = z.object({
   firstName: z.string().min(2, { message: "First name must be at least 2 characters." }),
@@ -149,6 +151,23 @@ export default function ProfileTabPage() {
             console.log("🌍 Loaded timezone from profile:", profileData.timezone)
           }
           
+          // Load profile picture from Supabase Storage
+          try {
+            const avatarUrl = await getProfilePictureUrl(user.id)
+            if (avatarUrl && avatarUrl.startsWith('http')) {
+              // Add cache-busting timestamp to force reload
+              const urlWithCacheBust = `${avatarUrl}${avatarUrl.includes('?') ? '&' : '?'}t=${Date.now()}`
+              setProfileImage(urlWithCacheBust)
+              console.log("✅ Loaded profile picture from Supabase Storage:", urlWithCacheBust)
+            } else {
+              console.log("⚠️ Invalid avatar URL, using placeholder:", avatarUrl)
+              setProfileImage("/placeholder-user.jpg")
+            }
+          } catch (error) {
+            console.log("⚠️ Error loading profile picture, using placeholder:", error)
+            setProfileImage("/placeholder-user.jpg")
+          }
+          
           console.log("✅ Profile form populated successfully")
         } else {
           console.log("⚠️ No profile data returned from API")
@@ -262,41 +281,13 @@ export default function ProfileTabPage() {
             <div className="flex flex-col lg:flex-row gap-6">
               <div className="lg:w-64 flex justify-center lg:justify-start order-first">
                 <div className="sticky top-6">
-                  <div className="relative">
-                    <Avatar className="h-28 w-28 border">
-                      {profileImage ? (<AvatarImage src={profileImage} alt="Profile" />) : null}
-                      <AvatarFallback>
-                        {(() => {
-                          const f = form.watch("firstName") || ""
-                          const l = form.watch("lastName") || ""
-                          const initials = `${f[0] || ""}${l[0] || ""}`.toUpperCase() || "?"
-                          return initials
-                        })()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <label
-                      className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-white shadow ring-1 ring-black/5 flex items-center justify-center cursor-pointer"
-                    >
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (!file) return
-                          const reader = new FileReader()
-                          reader.onload = () => {
-                            if (typeof reader.result === "string") setProfileImage(reader.result)
-                          }
-                          reader.readAsDataURL(file)
-                        }}
-                      />
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"/>
-                        <circle cx="12" cy="13" r="4"/>
-                      </svg>
-                    </label>
-                  </div>
+                  {user?.id && (
+                    <ProfilePictureUpload 
+                      currentImage={profileImage || "/placeholder-user.jpg"} 
+                      onImageChange={setProfileImage}
+                      userId={user.id}
+                    />
+                  )}
                 </div>
               </div>
               <div className="flex-1 space-y-6 order-last">

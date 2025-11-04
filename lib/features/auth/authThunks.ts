@@ -61,6 +61,7 @@ export const loginUser = createAsyncThunk(
       }
       
       // Set Supabase session for MFA to work
+      let supabaseUserId = null
       try {
         const supabase = createClient()
         const sessionResult = await supabase.auth.setSession({
@@ -71,6 +72,9 @@ export const loginUser = createAsyncThunk(
           console.error('Failed to set Supabase session:', sessionResult.error)
         } else {
           console.log('Successfully set Supabase session')
+          // Get the Supabase user ID from the session
+          supabaseUserId = sessionResult.data.session?.user?.id
+          console.log('Supabase user ID:', supabaseUserId)
         }
       } catch (sessionError) {
         console.error('Failed to set Supabase session (exception):', sessionError)
@@ -86,8 +90,11 @@ export const loginUser = createAsyncThunk(
                        (!userProfile.onboarding_completed && !userProfile.onboarding_skipped)
       
       // Create complete user object with profile data
+      // Use user_id from login response first, then Supabase session, then fallback to token
+      const userId = tokenResponse.user_id || supabaseUserId || tokenResponse.access_token
+      
       const user = {
-        id: tokenResponse.access_token, // Use token as temporary ID
+        id: userId,
         email: credentials.email,
         user_metadata: {
           ...userProfile,
@@ -166,6 +173,7 @@ export const verifyMfaLogin = createAsyncThunk(
       }
       
       // Set Supabase session
+      let supabaseUserId = null
       try {
         const supabase = createClient()
         const sessionResult = await supabase.auth.setSession({
@@ -176,6 +184,9 @@ export const verifyMfaLogin = createAsyncThunk(
           console.error('Failed to set Supabase session:', sessionResult.error)
         } else {
           console.log('Successfully set Supabase session')
+          // Get the Supabase user ID from the session
+          supabaseUserId = sessionResult.data.session?.user?.id
+          console.log('Supabase user ID:', supabaseUserId)
         }
       } catch (sessionError) {
         console.error('Failed to set Supabase session (exception):', sessionError)
@@ -187,8 +198,11 @@ export const verifyMfaLogin = createAsyncThunk(
       const isNewUser = userProfile.is_new_user !== undefined ? userProfile.is_new_user : 
                        (!userProfile.onboarding_completed && !userProfile.onboarding_skipped)
       
+      // Use user_id from tokenResponse if available (from MFA verification), then Supabase session, then fallback to token
+      const userId = tokenResponse.user_id || supabaseUserId || tokenResponse.access_token
+      
       const user = {
-        id: tokenResponse.access_token,
+        id: userId,
         email: data.email,
         user_metadata: {
           ...userProfile,
@@ -272,6 +286,7 @@ export const signupUser = createAsyncThunk(
       }
       
       // Set Supabase session for MFA to work
+      let supabaseUserId = null
       try {
         const supabase = createClient()
         const sessionResult = await supabase.auth.setSession({
@@ -282,6 +297,9 @@ export const signupUser = createAsyncThunk(
           console.error('Failed to set Supabase session:', sessionResult.error)
         } else {
           console.log('Successfully set Supabase session')
+          // Get the Supabase user ID from the session
+          supabaseUserId = sessionResult.data.session?.user?.id
+          console.log('Supabase user ID:', supabaseUserId)
         }
       } catch (sessionError) {
         console.error('Failed to set Supabase session (exception):', sessionError)
@@ -296,8 +314,11 @@ export const signupUser = createAsyncThunk(
                        (!userProfile.onboarding_completed && !userProfile.onboarding_skipped)
       
       // Create complete user object with profile data and tokens
+      // Use user_id from login response first, then Supabase session, then fallback to token
+      const userId = tokenResponse.user_id || supabaseUserId || tokenResponse.access_token
+      
       const user = {
-        id: tokenResponse.access_token,
+        id: userId,
         email: userProfile.email || userResponse.email,
         user_metadata: {
           ...userProfile,

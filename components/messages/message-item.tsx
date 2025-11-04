@@ -1,6 +1,6 @@
 "use client"
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { MessageAttachments } from './message-attachments'
 import { FileMessageItem } from './file-message-item'
+import { getProfilePictureUrl, getContactImgUrl } from '@/lib/profile-utils'
 import type { Message, MessageType } from '@/types/messages'
 import type { FileMessageAttachment } from '@/types/files'
 
@@ -95,11 +96,199 @@ const getPriorityColor = (priority: string) => {
 
 export function MessageItem({ message, isOwn, onActionClick }: MessageItemProps) {
   const { participants } = useSelector((state: RootState) => state.messageParticipants)
+  const { user } = useSelector((state: RootState) => state.auth)
+  const { conversations } = useSelector((state: RootState) => state.conversations)
   const isUnread = message.status === 'sent' || message.status === 'delivered'
   const hasAction = message.message_metadata?.actionRequired
 
-  // Get sender info from participants
+  // Get the current conversation to access contact_supabase_user_id
+  const currentConversation = conversations.find(c => c.id === message.conversation_id)
+
+  // Get sender info from participants (includes both contact and current user)
   const senderInfo = participants[message.sender_id]
+  
+  // Also try to find sender by iterating through participants (fallback)
+  const foundSenderInfo = senderInfo || Object.values(participants).find(
+    p => p.id === message.sender_id || String(p.id) === String(message.sender_id)
+  )
+  
+  // Get sender display name and initials
+  const senderName = foundSenderInfo?.name || 'Unknown'
+  const senderInitials = foundSenderInfo?.initials || foundSenderInfo?.name?.charAt(0) || 'U'
+  
+  // Debug: Log participant lookup
+  useEffect(() => {
+    if (!isOwn && !senderInfo) {
+      console.log(`🔍 Looking for sender_id ${message.sender_id} in participants`)
+      console.log(`🔍 Available participant IDs:`, Object.keys(participants))
+      console.log(`🔍 All participants:`, Object.entries(participants).map(([id, p]) => ({ id, name: p.name, avatar: p.avatar })))
+      console.log(`🔍 Message sender_id type: ${typeof message.sender_id}, value: ${message.sender_id}`)
+    } else if (!isOwn && senderInfo) {
+      console.log(`✅ Found senderInfo for sender_id ${message.sender_id}:`, {
+        name: senderInfo.name,
+        avatar: senderInfo.avatar,
+        supabase_user_id: (senderInfo as any).supabase_user_id
+      })
+    }
+  }, [message.sender_id, participants, isOwn, senderInfo])
+  
+  // Get current user info from participants (for own messages)
+  const currentUserParticipant = Object.values(participants).find(
+    p => String(p.id) === String(user?.id)
+  )
+  
+  // State for profile pictures
+  const [senderAvatar, setSenderAvatar] = useState<string | undefined>(undefined)
+  const [currentUserAvatar, setCurrentUserAvatar] = useState<string | undefined>(undefined)
+
+  // Update sender avatar when senderInfo changes (for received messages)
+  useEffect(() => {
+    if (!isOwn) {
+      console.log(`📋 Loading contact avatar for sender_id: ${message.sender_id}`)
+      
+      // Use foundSenderInfo (which is senderInfo or found by iteration)
+      const sender = foundSenderInfo
+      
+      if (sender) {
+        console.log(`📋 Found sender info for sender_id ${message.sender_id}:`, {
+          sender_id: message.sender_id,
+          contact_user_id: sender.id,
+          contact_supabase_user_id: (sender as any).supabase_user_id,
+          contact_name: sender.name,
+          contact_avatar_from_backend: sender.avatar
+        })
+        
+        // First, use backend-provided avatar from sender (from img_url in user_profiles)
+        if (sender.avatar && sender.avatar.trim() !== "" && sender.avatar !== "null") {
+          // Backend provided avatar from img_url - use it directly
+          console.log(`✅ Using sender avatar from participants for sender_id ${message.sender_id}:`, sender.avatar)
+          console.log(`📋 Contact User ID: ${sender.id}, Contact User img_url: ${sender.avatar}`)
+          setSenderAvatar(sender.avatar)
+        } else if ((sender as any).supabase_user_id) {
+          // Fallback 1: Query user_profiles table directly for img_url using Supabase UUID
+          const supabaseUserId = (sender as any).supabase_user_id
+          console.log(`🔄 Fallback 1: Querying user_profiles for img_url for sender_id ${message.sender_id}`)
+          console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}`)
+          getContactImgUrl(supabaseUserId)
+            .then(imgUrl => {
+              if (imgUrl) {
+                console.log(`✅ Got contact img_url from user_profiles:`, imgUrl)
+                console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User img_url: ${imgUrl}`)
+                setSenderAvatar(imgUrl)
+              } else {
+                // Fallback 2: Try loading from Supabase Storage
+                console.log(`🔄 Fallback 2: No img_url in user_profiles, trying Supabase Storage for UUID: ${supabaseUserId}`)
+                console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User img_url: (trying Supabase Storage)`)
+                return getProfilePictureUrl(supabaseUserId)
+                  .then(storageUrl => {
+                    if (storageUrl && storageUrl !== '/placeholder-user.jpg') {
+                      console.log(`✅ Loaded sender avatar from Supabase Storage:`, storageUrl)
+                      console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User img_url: ${storageUrl}`)
+                      setSenderAvatar(storageUrl)
+                    } else {
+                      console.log(`⚠️ No avatar found in Supabase Storage for UUID: ${supabaseUserId}`)
+                      console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User img_url: null`)
+                    }
+                  })
+                  .catch((error) => {
+                    console.error(`❌ Error loading from Supabase Storage:`, error)
+                    console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User img_url: error`)
+                  })
+              }
+            })
+            .catch((error) => {
+              console.error(`❌ Error loading contact img_url:`, error)
+              // Keep undefined, will show fallback initials
+            })
+        } else if (currentConversation?.contact_supabase_user_id) {
+          // Fallback: Try using contact_supabase_user_id from conversation
+          const contactSupabaseUserId = currentConversation.contact_supabase_user_id
+          console.log(`🔄 Fallback: Using contact_supabase_user_id from conversation: ${contactSupabaseUserId}`)
+          console.log(`📋 Contact User ID: ${sender?.id || 'unknown'}, Contact Supabase User ID from conversation: ${contactSupabaseUserId}`)
+          getContactImgUrl(contactSupabaseUserId)
+            .then(imgUrl => {
+              if (imgUrl) {
+                console.log(`✅ Got contact img_url from conversation contact_supabase_user_id:`, imgUrl)
+                console.log(`📋 Contact User ID: ${sender?.id || 'unknown'}, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User img_url: ${imgUrl}`)
+                setSenderAvatar(imgUrl)
+              } else {
+                console.log(`📋 Contact User ID: ${sender?.id || 'unknown'}, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User img_url: null`)
+              }
+            })
+            .catch((error) => {
+              console.error(`❌ Error loading contact img_url from conversation:`, error)
+              console.log(`📋 Contact User ID: ${sender?.id || 'unknown'}, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User img_url: error`)
+            })
+        } else {
+          // No sender info or Supabase UUID, clear avatar
+          console.log(`⚠️ No avatar source found for sender_id ${message.sender_id}`)
+          setSenderAvatar(undefined)
+        }
+      } else {
+        console.log(`⚠️ No senderInfo found for sender_id ${message.sender_id}`)
+        // No senderInfo found - try using conversation's contact_supabase_user_id as last resort
+        if (currentConversation?.contact_supabase_user_id) {
+          const contactSupabaseUserId = currentConversation.contact_supabase_user_id
+          console.log(`🔄 No senderInfo found, trying conversation contact_supabase_user_id: ${contactSupabaseUserId}`)
+          console.log(`📋 Contact User ID: unknown, Contact Supabase User ID from conversation: ${contactSupabaseUserId}`)
+          getContactImgUrl(contactSupabaseUserId)
+            .then(imgUrl => {
+              if (imgUrl) {
+                console.log(`✅ Got contact img_url from conversation when senderInfo not found:`, imgUrl)
+                console.log(`📋 Contact User ID: unknown, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User img_url: ${imgUrl}`)
+                setSenderAvatar(imgUrl)
+              } else {
+                console.log(`📋 Contact User ID: unknown, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User img_url: null`)
+              }
+            })
+            .catch((error) => {
+              console.error(`❌ Error loading contact img_url when senderInfo not found:`, error)
+              console.log(`📋 Contact User ID: unknown, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User img_url: error`)
+              setSenderAvatar(undefined)
+            })
+        } else {
+          console.log(`⚠️ No senderInfo and no contact_supabase_user_id for sender_id ${message.sender_id}`)
+          console.log(`📋 Contact User ID: unknown, Contact Supabase User ID: null, Contact User img_url: null`)
+          setSenderAvatar(undefined)
+        }
+      }
+    }
+  }, [isOwn, foundSenderInfo, message.sender_id, participants, currentConversation])
+
+  // Update current user avatar when participant changes (for sent messages)
+  useEffect(() => {
+    if (isOwn && currentUserParticipant) {
+      // Use backend-provided avatar from participant (from img_url in user_profiles)
+      if (currentUserParticipant.avatar && currentUserParticipant.avatar.trim() !== "" && currentUserParticipant.avatar !== "null") {
+        console.log(`✅ Using current user avatar from participants:`, currentUserParticipant.avatar)
+        setCurrentUserAvatar(currentUserParticipant.avatar)
+      } else if (user?.id) {
+        // Fallback: Try loading from Supabase Storage if backend didn't provide avatar
+        console.log(`🔄 Fallback: Loading current user avatar from Supabase`)
+        getProfilePictureUrl(user.id)
+          .then(url => {
+            if (url && url !== '/placeholder-user.jpg') {
+              setCurrentUserAvatar(url)
+            }
+          })
+          .catch(() => {
+            // Silently fail, use fallback initials
+          })
+      }
+    } else if (isOwn && user?.id) {
+      // No participant but we have user ID, try loading directly
+      console.log(`🔄 Loading current user avatar from Supabase (no participant found)`)
+      getProfilePictureUrl(user.id)
+        .then(url => {
+          if (url && url !== '/placeholder-user.jpg') {
+            setCurrentUserAvatar(url)
+          }
+        })
+        .catch(() => {
+          // Silently fail, use fallback initials
+        })
+    }
+  }, [isOwn, currentUserParticipant, user?.id])
 
   const handleActionClick = (action: string) => {
     if (onActionClick) {
@@ -112,15 +301,15 @@ export function MessageItem({ message, isOwn, onActionClick }: MessageItemProps)
     <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4`}>
       {/* Message bubble: flex-row-reverse for sent (right), flex-row for received (left) */}
       <div className={`flex max-w-[80%] ${isOwn ? 'flex-row-reverse' : 'flex-row'} items-start gap-2`}>
-        {/* Avatar for received messages with status indicator */}
-        {!isOwn && senderInfo && (
-          <div className="relative">
-            <Avatar className="h-8 w-8 flex-shrink-0">
-              <AvatarImage src={senderInfo.avatar} alt={senderInfo.name || "Unknown"} />
-              <AvatarFallback className="bg-blue-600 text-white">
-                {senderInfo.initials || senderInfo.name?.charAt(0) || "U"}
-              </AvatarFallback>
-            </Avatar>
+                  {/* Avatar for received messages with status indicator */}
+          {!isOwn && (
+            <div className="relative">
+              <Avatar className="h-8 w-8 flex-shrink-0">
+                <AvatarImage src={senderAvatar} alt={senderName} />
+                <AvatarFallback className="bg-blue-600 text-white">
+                  {senderInitials}
+                </AvatarFallback>
+              </Avatar>
             {/* Status indicator - red X for unavailable, green dot for available */}
             <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${message.status === 'failed' ? 'bg-red-500' : 'bg-green-500'
               }`}>
@@ -130,6 +319,18 @@ export function MessageItem({ message, isOwn, onActionClick }: MessageItemProps)
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Avatar for own (sent) messages */}
+        {isOwn && user && (
+          <div className="relative">
+            <Avatar className="h-8 w-8 flex-shrink-0">
+              <AvatarImage src={currentUserAvatar} alt={user.user_metadata?.full_name || user.email || "You"} />
+              <AvatarFallback className="bg-teal-600 text-white">
+                {user.user_metadata?.full_name?.charAt(0) || user.email?.charAt(0).toUpperCase() || "U"}
+              </AvatarFallback>
+            </Avatar>
           </div>
         )}
 

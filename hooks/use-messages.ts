@@ -214,6 +214,26 @@ export function useMessages(): UseMessagesReturn {
       console.log('📋 Conversations loaded:', response.conversations)
       console.log('📋 Conversations count:', response.conversations.length)
       console.log('📋 Current user ID from backend:', response.current_user_id)
+      
+      // Log detailed img_url/avatar_url information for each conversation
+      console.log('🔍 [WEB CONSOLE] Detailed img_url/avatar_url analysis:')
+      response.conversations.forEach((conv: Conversation, index: number) => {
+        console.log(`  📋 Conversation ${index + 1}:`, {
+          id: conv.id,
+          contact_id: conv.contact_id,
+          contact_supabase_user_id: conv.contact_supabase_user_id,
+          contact_avatar: conv.contact_avatar,
+          contact_name: conv.contact_name,
+          contact_avatar_type: typeof conv.contact_avatar,
+          contact_avatar_length: conv.contact_avatar?.length,
+          contact_avatar_is_null: conv.contact_avatar === null,
+          contact_avatar_is_undefined: conv.contact_avatar === undefined,
+          contact_avatar_is_empty_string: conv.contact_avatar === '',
+          current_user_avatar: conv.current_user_avatar,
+          allConversationKeys: Object.keys(conv)
+        })
+      })
+      
       setConversations(response.conversations)
       setUnreadCount(response.unreadCount) // ✅ Already included in response
       setCurrentUserId(response.current_user_id) // ✅ Store actual database user ID
@@ -254,13 +274,41 @@ export function useMessages(): UseMessagesReturn {
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       )
       setMessages(sortedMessages)
+      
+      // Ensure participants are set for this conversation (in case they weren't set during selectConversation)
+      const conversation = conversations.find(c => c.id === conversationId)
+      if (conversation) {
+        const participants = [
+          {
+            id: conversation.user_id,
+            name: conversation.current_user_name || 'Unknown',
+            role: conversation.current_user_role || 'PATIENT',
+            avatar: conversation.current_user_avatar,
+            initials: conversation.current_user_initials || 'U',
+            supabase_user_id: undefined  // Current user's Supabase UUID not needed here (we use user.id from auth)
+          },
+          {
+            id: conversation.contact_id,
+            name: conversation.contact_name || 'Unknown',
+            role: conversation.contact_role || 'PATIENT',
+            avatar: conversation.contact_avatar,
+            initials: conversation.contact_initials || 'U',
+            supabase_user_id: conversation.contact_supabase_user_id  // Add Supabase UUID for contact
+          }
+        ]
+        console.log('📥 Setting participants for conversation:', participants)
+        dispatch(setConversationParticipants({
+          conversationId,
+          participants
+        }))
+      }
     } catch (err) {
       console.error('📥 Failed to load messages:', err)
       setError(err instanceof Error ? err.message : 'Failed to load messages')
     } finally {
       setLoadingMessages(false)
     }
-  }, [])
+  }, [conversations, dispatch])
 
   // Select conversation
   const selectConversation = useCallback((conversationId: string) => {

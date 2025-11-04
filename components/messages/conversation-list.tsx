@@ -1,6 +1,6 @@
 "use client"
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { 
   Pin, 
@@ -25,6 +25,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { getProfilePictureUrl } from '@/lib/profile-utils'
 import type { Conversation, MessageType } from '@/types/messages'
 
 interface ConversationListProps {
@@ -99,6 +100,56 @@ export function ConversationList({
   onTogglePin,
   onMarkAsRead
 }: ConversationListProps) {
+  // Store loaded avatars for conversations
+  const [loadedAvatars, setLoadedAvatars] = useState<Record<string, string>>({})
+
+  // Load profile pictures for conversations
+  useEffect(() => {
+    conversations.forEach(conversation => {
+      // Only load if we don't have it cached
+      if (conversation.id && !loadedAvatars[conversation.id]) {
+        // Use backend provided avatar URL if available (from img_url in user_profiles)
+        console.log(`🔍 [WEB CONSOLE] Processing avatar for conversation ${conversation.id}:`, {
+          contact_avatar: conversation.contact_avatar,
+          contact_avatar_type: typeof conversation.contact_avatar,
+          contact_avatar_is_null: conversation.contact_avatar === null,
+          contact_avatar_is_undefined: conversation.contact_avatar === undefined,
+          contact_avatar_trimmed: conversation.contact_avatar?.trim(),
+          contact_supabase_user_id: conversation.contact_supabase_user_id,
+          contact_id: conversation.contact_id
+        })
+        
+        if (conversation.contact_avatar && 
+            conversation.contact_avatar.trim() !== "" && 
+            conversation.contact_avatar !== "null") {
+          // Backend provided avatar URL from img_url - use it directly
+          console.log(`✅ [WEB CONSOLE] Using backend avatar (img_url) for conversation ${conversation.id}:`, conversation.contact_avatar)
+          setLoadedAvatars(prev => ({
+            ...prev,
+            [conversation.id]: conversation.contact_avatar!
+          }))
+        } else if (conversation.contact_supabase_user_id) {
+          // Fallback: If no backend avatar URL, try loading from Supabase Storage
+          console.log(`🔄 Fallback: Loading avatar from Supabase Storage for conversation ${conversation.id}`)
+          getProfilePictureUrl(conversation.contact_supabase_user_id)
+            .then(url => {
+              if (url && url !== '/placeholder-user.jpg') {
+                setLoadedAvatars(prev => ({
+                  ...prev,
+                  [conversation.id]: url
+                }))
+              }
+            })
+            .catch(error => {
+              console.error(`❌ Error loading avatar from Supabase Storage for conversation ${conversation.id}:`, error)
+            })
+        } else {
+          console.log(`⚠️ No avatar URL or Supabase UUID for conversation ${conversation.id}, contact_id:`, conversation.contact_id)
+        }
+      }
+    })
+  }, [conversations, loadedAvatars])
+
   const handleConversationClick = (conversationId: string) => {
     onSelectConversation(conversationId)
   }
@@ -146,7 +197,7 @@ export function ConversationList({
                 <div className="relative">
                   <Avatar className="h-12 w-12">
                     <AvatarImage
-                      src={conversation.contact_avatar && conversation.contact_avatar.trim() !== "" ? conversation.contact_avatar : undefined}
+                      src={loadedAvatars[conversation.id] || (conversation.contact_avatar && conversation.contact_avatar.trim() !== "" && conversation.contact_avatar !== "null" ? conversation.contact_avatar : undefined)}
                       alt={conversation.contact_name || "Unknown"}
                     />
                     <AvatarFallback className="bg-blue-600 text-white">

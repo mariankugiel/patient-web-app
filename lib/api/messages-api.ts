@@ -44,6 +44,22 @@ export class MessagesApiService {
         timeout: 60000
       })
       console.log('📋 API: Conversations response:', response.data)
+      
+      // Log img_url/avatar_url for each conversation
+      if (response.data?.conversations) {
+        console.log('🔍 [WEB CONSOLE] Conversations img_url/avatar_url data:')
+        response.data.conversations.forEach((conv: any, index: number) => {
+          console.log(`  Conversation ${index + 1} (ID: ${conv.id}):`, {
+            contact_id: conv.contact_id,
+            contact_supabase_user_id: conv.contact_supabase_user_id,
+            contact_avatar: conv.contact_avatar,
+            contact_name: conv.contact_name,
+            current_user_avatar: conv.current_user_avatar,
+            allKeys: Object.keys(conv)
+          })
+        })
+      }
+      
       return response.data
     } catch (error) {
       console.error('📋 API: Failed to fetch conversations:', error)

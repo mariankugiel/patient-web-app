@@ -6,6 +6,7 @@ export interface MessageParticipant {
   role: string
   avatar?: string
   initials?: string
+  supabase_user_id?: string  // Add Supabase UUID for loading avatars from Storage
 }
 
 interface MessageParticipantsState {

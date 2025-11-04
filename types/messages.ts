@@ -95,6 +95,7 @@ export interface Conversation {
   id: string
   user_id: number
   contact_id: number
+  contact_supabase_user_id?: string  // Supabase UUID for direct bucket access
   contact_name?: string
   contact_role?: string
   contact_avatar?: string
