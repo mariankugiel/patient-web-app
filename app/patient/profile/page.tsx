@@ -17,7 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ProfilePictureUpload } from "@/components/profile-picture-upload"
 import { LocationSearch } from "@/components/ui/location-search"
 import { countryCodes } from "@/lib/country-codes"
-import { timezones } from "@/lib/timezones"
+import { TimezoneSelector } from "@/components/ui/timezone-selector"
 import { Save } from "lucide-react"
 import { useSelector, useDispatch } from "react-redux"
 import { RootState } from "@/lib/store"
@@ -528,20 +528,13 @@ export default function ProfileTabPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Time Zone</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select timezone" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent className="max-h-[300px]">
-                            {timezones.map((tz) => (
-                              <SelectItem key={tz.value} value={tz.value}>
-                                {tz.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <TimezoneSelector
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            placeholder="Select timezone"
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}

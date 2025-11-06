@@ -238,7 +238,7 @@ export const verifyMfaLogin = createAsyncThunk(
 
 export const signupUser = createAsyncThunk(
   "auth/signupUser",
-  async (userData: { email: string; password: string; fullName?: string; mobile?: string; dateOfBirth?: string; location?: string }, { dispatch, rejectWithValue }: any) => {
+  async (userData: { email: string; password: string; fullName?: string; mobile?: string; dateOfBirth?: string; location?: string; timezone?: string }, { dispatch, rejectWithValue }: any) => {
     try {
       dispatch(signupStart())
 
@@ -249,6 +249,7 @@ export const signupUser = createAsyncThunk(
         phone_number: userData.mobile,
         date_of_birth: userData.dateOfBirth,
         address: userData.location,
+        timezone: userData.timezone,
       }
 
       const userResponse = await AuthApiService.register(registrationData)

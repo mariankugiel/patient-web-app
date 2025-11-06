@@ -8,6 +8,7 @@ export interface UserRegistrationData {
   date_of_birth?: string
   phone_number?: string
   address?: string
+  timezone?: string
   emergency_contact_name?: string
   emergency_contact_phone?: string
   gender?: string

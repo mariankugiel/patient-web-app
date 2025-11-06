@@ -30,7 +30,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ProfilePictureUpload } from "@/components/profile-picture-upload"
 import { LocationSearch } from "@/components/ui/location-search"
 import { countryCodes } from "@/lib/country-codes"
-import { timezones } from "@/lib/timezones"
+import { TimezoneSelector } from "@/components/ui/timezone-selector"
 
 const profileFormSchema = z.object({
   firstName: z.string().min(2, {
@@ -635,24 +635,17 @@ export default function ProfileClientPage() {
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>Time Zone</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select timezone" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent className="max-h-[300px]">
-                                  {timezones.map((tz) => (
-                                    <SelectItem key={tz.value} value={tz.value}>
-                                      {tz.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                              <FormControl>
+                                <TimezoneSelector
+                                  value={field.value}
+                                  onValueChange={field.onChange}
+                                  placeholder="Select timezone"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                     </div>
 
                       <Separator />

@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { Shield, Bell, Globe, User, Lock, Smartphone } from "lucide-react"
 import { type Language, getTranslation } from "@/lib/translations"
+import { TimezoneSelector } from "@/components/ui/timezone-selector"
 
 interface SettingsData {
   // Safety & Security
@@ -40,33 +41,6 @@ interface SettingsStepProps {
   language: Language
 }
 
-const timezones = [
-  "UTC-12:00 (Baker Island)",
-  "UTC-11:00 (American Samoa)",
-  "UTC-10:00 (Hawaii)",
-  "UTC-09:00 (Alaska)",
-  "UTC-08:00 (Pacific Time)",
-  "UTC-07:00 (Mountain Time)",
-  "UTC-06:00 (Central Time)",
-  "UTC-05:00 (Eastern Time)",
-  "UTC-04:00 (Atlantic Time)",
-  "UTC-03:00 (Brazil)",
-  "UTC-02:00 (Mid-Atlantic)",
-  "UTC-01:00 (Azores)",
-  "UTC+00:00 (Greenwich Mean Time)",
-  "UTC+01:00 (Central European Time)",
-  "UTC+02:00 (Eastern European Time)",
-  "UTC+03:00 (Moscow Time)",
-  "UTC+04:00 (Gulf Standard Time)",
-  "UTC+05:00 (Pakistan Standard Time)",
-  "UTC+06:00 (Bangladesh Standard Time)",
-  "UTC+07:00 (Indochina Time)",
-  "UTC+08:00 (China Standard Time)",
-  "UTC+09:00 (Japan Standard Time)",
-  "UTC+10:00 (Australian Eastern Time)",
-  "UTC+11:00 (Solomon Islands)",
-  "UTC+12:00 (New Zealand Standard Time)"
-]
 
 const dateFormats = [
   "MM/DD/YYYY",
@@ -327,21 +301,11 @@ export function SettingsStep({ formData, updateFormData, language }: SettingsSte
           {/* Timezone */}
           <div>
             <Label htmlFor="timezone">Timezone</Label>
-            <Select
-              value={formData.settings?.timezone || "UTC+00:00"}
+            <TimezoneSelector
+              value={formData.settings?.timezone || "UTC"}
               onValueChange={(value) => updateSetting('timezone', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select timezone" />
-              </SelectTrigger>
-              <SelectContent>
-                {timezones.map((timezone) => (
-                  <SelectItem key={timezone} value={timezone}>
-                    {timezone}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder="Select timezone"
+            />
           </div>
 
           {/* Date Format */}
