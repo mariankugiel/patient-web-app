@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import PatientDashboardClient from "./patient-dashboard-client"
+import { DashboardGuard } from "./dashboard-guard"
 
 export const metadata: Metadata = {
   title: "Painel | Saluso",
@@ -7,5 +8,9 @@ export const metadata: Metadata = {
 }
 
 export default function PatientDashboardPage() {
-  return <PatientDashboardClient />
+  return (
+    <DashboardGuard>
+      <PatientDashboardClient />
+    </DashboardGuard>
+  )
 }

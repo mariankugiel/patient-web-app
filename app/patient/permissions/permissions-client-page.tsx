@@ -59,6 +59,9 @@ import {
 import { useLanguage } from "@/contexts/language-context"
 import { messagesApiService } from "@/lib/api/messages-api"
 import { RecipientAutocomplete, type Contact as MessageContact } from "@/components/messages/recipient-autocomplete"
+import { usePatientContext } from "@/hooks/use-patient-context"
+import { AuthAPI } from "@/lib/api/auth-api"
+import { useRouter } from "next/navigation"
 
 type Contact = {
   id: string
@@ -86,8 +89,31 @@ export default function PermissionsClientPage() {
   // Add this line at the beginning of the function, with other useState declarations
   const { t } = useLanguage()
   const { toast } = useToast()
+  const router = useRouter()
   const user = useSelector((state: RootState) => state.auth.user)
+  const { patientId, isViewingOtherPatient } = usePatientContext()
   const [isSaving, setIsSaving] = useState(false)
+  const [currentPatientPermissions, setCurrentPatientPermissions] = useState<any>(null)
+  
+  // Redirect away from permissions page if viewing another patient
+  useEffect(() => {
+    if (isViewingOtherPatient && patientId) {
+      console.log('🚫 Blocking permissions page access - redirecting away')
+      router.replace(`/patient/health-records?patientId=${patientId}`)
+    }
+  }, [isViewingOtherPatient, patientId, router])
+  
+  // Don't render anything if viewing another patient (redirect will happen)
+  if (isViewingOtherPatient) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center gap-2 text-gray-500">
+          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+          <span>Redirecting...</span>
+        </div>
+      </div>
+    )
+  }
 
   // Helper function to convert formatted date to YYYY-MM-DD for date input
   const parseDateForInput = (dateStr: string): string => {
@@ -342,7 +368,7 @@ export default function PermissionsClientPage() {
     setIsManageDialogOpen(true)
   }
 
-  const handleUpdateContact = () => {
+  const handleUpdateContact = async () => {
     if (!selectedContact) return
 
     // Format the expires date if it's in YYYY-MM-DD format
@@ -365,7 +391,18 @@ export default function PermissionsClientPage() {
     setSelectedContact(null)
     
     // Auto-save after updating
-    saveSharedAccess(updatedData)
+    await saveSharedAccess(updatedData)
+    
+    // Reload data from backend to ensure consistency
+    const reloadedContacts = await loadAndTransformSharedAccess()
+    if (reloadedContacts.length > 0 || updatedData.length === 0) {
+      setSharedAccessData(reloadedContacts.length > 0 ? reloadedContacts : updatedData)
+    }
+    
+    toast({
+      title: t("permissions.contactUpdated") || "Contact Updated",
+      description: t("permissions.contactUpdatedDesc") || "The contact permissions have been updated successfully.",
+    })
   }
 
   const handleRevokePrompt = (contact: Contact) => {
@@ -486,6 +523,83 @@ export default function PermissionsClientPage() {
     }
   }
 
+  // Helper function to transform backend contact data to Contact type
+  const transformContactData = (contact: any, type: "professional" | "personal"): Contact => {
+    return {
+      id: contact.id,
+      name: contact.profile_fullname || "",
+      role: contact.permissions_contact_type || "",
+      type: type,
+      accessLevel: contact.accessLevel || "Limited",
+      status: (contact.status || "Active") as "Active" | "Pending" | "Revoked",
+      lastAccessed: contact.lastAccessed || "Never",
+      expires: contact.expires || "",
+      email: contact.profile_email,
+      relationship: contact.permissions_relationship,
+      permissions: {
+        medicalHistory: {
+          view: contact.medical_history_view || false,
+          download: contact.medical_history_download || false,
+          edit: contact.medical_history_edit || false,
+        },
+        healthRecords: {
+          view: contact.health_records_view || false,
+          download: contact.health_records_download || false,
+          edit: contact.health_records_edit || false,
+        },
+        healthPlan: {
+          view: contact.health_plan_view || false,
+          download: contact.health_plan_download || false,
+          edit: contact.health_plan_edit || false,
+        },
+        medications: {
+          view: contact.medications_view || false,
+          download: contact.medications_download || false,
+          edit: contact.medications_edit || false,
+        },
+        appointments: {
+          view: contact.appointments_view || false,
+          edit: contact.appointments_edit || false,
+        },
+        messages: {
+          view: contact.messages_view || false,
+          edit: contact.messages_edit || false,
+        },
+      },
+    }
+  }
+
+  // Helper function to load and transform shared access data
+  const loadAndTransformSharedAccess = async () => {
+    if (!user?.id) return []
+    
+    try {
+      const sharedAccessData = await AuthApiService.getSharedAccess()
+      if (!sharedAccessData) return []
+      
+      const allContacts: Contact[] = []
+      
+      // Add professionals
+      if (sharedAccessData.health_professionals && sharedAccessData.health_professionals.length > 0) {
+        sharedAccessData.health_professionals.forEach((contact: any) => {
+          allContacts.push(transformContactData(contact, "professional"))
+        })
+      }
+      
+      // Add family/friends
+      if (sharedAccessData.family_friends && sharedAccessData.family_friends.length > 0) {
+        sharedAccessData.family_friends.forEach((contact: any) => {
+          allContacts.push(transformContactData(contact, "personal"))
+        })
+      }
+      
+      return allContacts
+    } catch (error) {
+      console.error("Error loading shared access:", error)
+      return []
+    }
+  }
+
   // Load shared access data from Supabase
   useEffect(() => {
     const loadSharedAccess = async () => {
@@ -495,117 +609,10 @@ export default function PermissionsClientPage() {
         return
       }
       
-      try {
-        const sharedAccessData = await AuthApiService.getSharedAccess()
-        console.log("📦 Shared access data loaded:", sharedAccessData)
-        
-        if (sharedAccessData) {
-          // Combine health_professionals and family_friends into one array
-          const allContacts: Contact[] = []
-          
-          // Add professionals
-          if (sharedAccessData.health_professionals && sharedAccessData.health_professionals.length > 0) {
-            sharedAccessData.health_professionals.forEach((contact: any) => {
-              allContacts.push({
-                id: contact.id,
-                name: contact.profile_fullname || "",
-                role: contact.permissions_contact_type || "",
-                type: "professional",
-                accessLevel: contact.accessLevel || "Limited",
-                status: (contact.status || "Active") as "Active" | "Pending" | "Revoked",
-                lastAccessed: contact.lastAccessed || "Never",
-                expires: contact.expires || "",
-                email: contact.profile_email,
-                relationship: contact.permissions_relationship,
-                permissions: {
-                  medicalHistory: {
-                    view: contact.medical_history_view || false,
-                    download: contact.medical_history_download || false,
-                    edit: contact.medical_history_edit || false,
-                  },
-                  healthRecords: {
-                    view: contact.health_records_view || false,
-                    download: contact.health_records_download || false,
-                    edit: contact.health_records_edit || false,
-                  },
-                  healthPlan: {
-                    view: contact.health_plan_view || false,
-                    download: contact.health_plan_download || false,
-                    edit: contact.health_plan_edit || false,
-                  },
-                  medications: {
-                    view: contact.medications_view || false,
-                    download: contact.medications_download || false,
-                    edit: contact.medications_edit || false,
-                  },
-                  appointments: {
-                    view: contact.appointments_view || false,
-                    edit: contact.appointments_edit || false,
-                  },
-                  messages: {
-                    view: contact.messages_view || false,
-                    edit: contact.messages_edit || false,
-                  },
-                },
-              })
-            })
-          }
-          
-          // Add family/friends
-          if (sharedAccessData.family_friends && sharedAccessData.family_friends.length > 0) {
-            sharedAccessData.family_friends.forEach((contact: any) => {
-              allContacts.push({
-                id: contact.id,
-                name: contact.profile_fullname || "",
-                role: contact.permissions_contact_type || "",
-                type: "personal",
-                accessLevel: contact.accessLevel || "Limited",
-                status: (contact.status || "Active") as "Active" | "Pending" | "Revoked",
-                lastAccessed: contact.lastAccessed || "Never",
-                expires: contact.expires || "",
-                email: contact.profile_email,
-                relationship: contact.permissions_relationship,
-                permissions: {
-                  medicalHistory: {
-                    view: contact.medical_history_view || false,
-                    download: contact.medical_history_download || false,
-                    edit: contact.medical_history_edit || false,
-                  },
-                  healthRecords: {
-                    view: contact.health_records_view || false,
-                    download: contact.health_records_download || false,
-                    edit: contact.health_records_edit || false,
-                  },
-                  healthPlan: {
-                    view: contact.health_plan_view || false,
-                    download: contact.health_plan_download || false,
-                    edit: contact.health_plan_edit || false,
-                  },
-                  medications: {
-                    view: contact.medications_view || false,
-                    download: contact.medications_download || false,
-                    edit: contact.medications_edit || false,
-                  },
-                  appointments: {
-                    view: contact.appointments_view || false,
-                    edit: contact.appointments_edit || false,
-                  },
-                  messages: {
-                    view: contact.messages_view || false,
-                    edit: contact.messages_edit || false,
-                  },
-                },
-              })
-            })
-          }
-          
-          if (allContacts.length > 0) {
-            setSharedAccessData(allContacts)
-            console.log("✅ Loaded", allContacts.length, "contacts from Supabase")
-          }
-        }
-      } catch (error) {
-        console.error("Error loading shared access:", error)
+      const allContacts = await loadAndTransformSharedAccess()
+      if (allContacts.length > 0) {
+        setSharedAccessData(allContacts)
+        console.log("✅ Loaded", allContacts.length, "contacts from Supabase")
       }
     }
     
@@ -674,6 +681,28 @@ export default function PermissionsClientPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
+  // Load patient permissions when viewing another patient
+  useEffect(() => {
+    const loadPatientPermissions = async () => {
+      if (!isViewingOtherPatient || !patientId) {
+        setCurrentPatientPermissions(null)
+        return
+      }
+      
+      try {
+        const response = await AuthAPI.getAccessiblePatients()
+        const patient = response.accessible_patients?.find(p => p.patient_id === patientId)
+        if (patient) {
+          setCurrentPatientPermissions(patient.permissions)
+        }
+      } catch (error) {
+        console.error('Failed to load patient permissions:', error)
+      }
+    }
+    
+    loadPatientPermissions()
+  }, [isViewingOtherPatient, patientId])
+
   const [sharedAccessData, setSharedAccessData] = useState<Contact[]>([])
   const [accessLogsData, setAccessLogsData] = useState<Array<{ id: string; name: string; role: string; action: string; date: string; authorized: boolean }>>([])
 
@@ -690,9 +719,36 @@ export default function PermissionsClientPage() {
   const userName = user?.user_metadata?.full_name || "User"
   const firstName = userName.split(' ')[0] || "User"
 
+  // Build the list of accessible sections based on permissions
+  const accessibleSections: string[] = []
+  if (currentPatientPermissions) {
+    if (currentPatientPermissions.can_view_health_records) accessibleSections.push("Health Records")
+    if (currentPatientPermissions.can_view_health_plans) accessibleSections.push("Health Plan")
+    if (currentPatientPermissions.can_view_medications) accessibleSections.push("Medications")
+    if (currentPatientPermissions.can_view_appointments) accessibleSections.push("Appointments")
+    if (currentPatientPermissions.can_view_messages) accessibleSections.push("Messages")
+  }
+
   // Replace all hardcoded text with t function calls in the return statement
   return (
     <div className="space-y-4 px-4">
+      {/* Informational message when viewing another patient */}
+      {isViewingOtherPatient && currentPatientPermissions && (
+        <Alert>
+          <InfoIcon className="h-4 w-4" />
+          <AlertTitle>Access Information</AlertTitle>
+          <AlertDescription>
+            {accessibleSections.length > 0 ? (
+              <>
+                You may have access to {accessibleSections.join(", ")}. 
+                No one else has access to your profile or dashboard.
+              </>
+            ) : (
+              "You have limited access to this patient's data. No one else has access to your profile or dashboard."
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Tabs defaultValue="shared-access">
         <TabsList className="grid w-full grid-cols-4">
@@ -753,119 +809,179 @@ export default function PermissionsClientPage() {
                   <UserIcon className="h-5 w-5 text-primary" />
                   <h3 className="text-lg font-medium">{t("permissions.healthProfessionals")}</h3>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredContacts
-                    .filter((contact) => contact.type === "professional")
-                    .map((provider) => (
-                      <Card key={provider.id} className="overflow-hidden">
-                        <div className="bg-muted/30 px-4 py-2 flex justify-between items-center">
-                          <div className="flex items-center gap-3">
-                            <Avatar>
-                              <AvatarFallback>{provider.name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <h3 className="font-medium">{provider.name}</h3>
-                              <p className="text-sm text-muted-foreground">{provider.role}</p>
-                            </div>
-                          </div>
-                          <Badge
-                            variant={
-                              provider.status === "Active"
-                                ? "default"
-                                : provider.status === "Pending"
-                                  ? "outline"
-                                  : "secondary"
-                            }
-                          >
-                            {t(`permissions.statusOptions.${provider.status.toLowerCase()}`)}
-                          </Badge>
-                        </div>
-                        <CardContent className="p-4">
-                          <div className="space-y-4">
-                            <div>
-                              <p className="text-sm text-muted-foreground mb-1">{t("permissions.accessLevel")}</p>
-                              <p className="font-medium">{provider.accessLevel}</p>
-                            </div>
-
-                            <div>
-                              <p className="text-sm text-muted-foreground mb-1">{t("permissions.permissionsLabel")}</p>
-                              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <Card>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[200px]">{t("permissions.name") || "Name"}</TableHead>
+                        <TableHead className="w-[150px]">{t("permissions.status") || "Status"}</TableHead>
+                        <TableHead>{t("permissions.permissionsLabel") || "Permissions"}</TableHead>
+                        <TableHead className="w-[200px] text-right">{t("permissions.actions") || "Actions"}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredContacts
+                        .filter((contact) => contact.type === "professional")
+                        .map((provider) => (
+                          <TableRow key={provider.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarFallback>{provider.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <div className="font-medium">{provider.name}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {provider.role} {provider.relationship ? `• ${provider.relationship}` : ""}
+                                  </div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  provider.status === "Active"
+                                    ? "default"
+                                    : provider.status === "Pending"
+                                      ? "outline"
+                                      : "secondary"
+                                }
+                              >
+                                {t(`permissions.statusOptions.${provider.status.toLowerCase()}`)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap items-center gap-3 text-sm">
                                 {provider.permissions?.medicalHistory.view && (
                                   <div className="flex items-center gap-1">
-                                    <CheckIcon className="h-3 w-3 text-green-600" />
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
                                     <span>{t("permissions.viewMedicalHistory")}</span>
                                   </div>
                                 )}
-                                {provider.permissions?.medicalHistory.download && (
+                                {provider.permissions?.medicalHistory.edit && (
                                   <div className="flex items-center gap-1">
-                                    <CheckIcon className="h-3 w-3 text-green-600" />
-                                    <span>{t("permissions.downloadMedicalHistory")}</span>
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.editMedicalHistory")}</span>
                                   </div>
                                 )}
                                 {provider.permissions?.healthRecords.view && (
                                   <div className="flex items-center gap-1">
-                                    <CheckIcon className="h-3 w-3 text-green-600" />
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
                                     <span>{t("permissions.viewHealthRecords")}</span>
                                   </div>
                                 )}
                                 {provider.permissions?.healthRecords.download && (
                                   <div className="flex items-center gap-1">
-                                    <CheckIcon className="h-3 w-3 text-green-600" />
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
                                     <span>{t("permissions.downloadHealthRecords")}</span>
+                                  </div>
+                                )}
+                                {provider.permissions?.healthRecords.edit && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.editHealthRecords")}</span>
+                                  </div>
+                                )}
+                                {provider.permissions?.healthPlan.view && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.viewHealthPlan")}</span>
+                                  </div>
+                                )}
+                                {provider.permissions?.healthPlan.edit && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.editHealthPlan")}</span>
                                   </div>
                                 )}
                                 {provider.permissions?.medications.view && (
                                   <div className="flex items-center gap-1">
-                                    <CheckIcon className="h-3 w-3 text-green-600" />
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
                                     <span>{t("permissions.viewMedications")}</span>
+                                  </div>
+                                )}
+                                {provider.permissions?.medications.download && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.downloadMedications")}</span>
+                                  </div>
+                                )}
+                                {provider.permissions?.medications.edit && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.editMedications")}</span>
                                   </div>
                                 )}
                                 {provider.permissions?.appointments.view && (
                                   <div className="flex items-center gap-1">
-                                    <CheckIcon className="h-3 w-3 text-green-600" />
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
                                     <span>{t("permissions.viewAppointments")}</span>
                                   </div>
                                 )}
+                                {provider.permissions?.appointments.edit && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.editAppointments")}</span>
+                                  </div>
+                                )}
+                                {provider.permissions?.messages.view && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.viewMessages")}</span>
+                                  </div>
+                                )}
+                                {provider.permissions?.messages.edit && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.editMessages")}</span>
+                                  </div>
+                                )}
+                                {!provider.permissions?.medicalHistory.view && 
+                                 !provider.permissions?.medicalHistory.edit &&
+                                 !provider.permissions?.healthRecords.view && 
+                                 !provider.permissions?.healthRecords.download &&
+                                 !provider.permissions?.healthRecords.edit &&
+                                 !provider.permissions?.healthPlan.view && 
+                                 !provider.permissions?.healthPlan.edit &&
+                                 !provider.permissions?.medications.view && 
+                                 !provider.permissions?.medications.download &&
+                                 !provider.permissions?.medications.edit &&
+                                 !provider.permissions?.appointments.view && 
+                                 !provider.permissions?.appointments.edit &&
+                                 !provider.permissions?.messages.view && 
+                                 !provider.permissions?.messages.edit && (
+                                  <span className="text-muted-foreground text-sm">No permissions granted</span>
+                                )}
                               </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                              <div>
-                                <p className="text-muted-foreground">{t("permissions.lastAccessed")}</p>
-                                <p className="font-medium">{provider.lastAccessed}</p>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button variant="outline" size="sm" onClick={() => handleManageContact(provider)}>
+                                  {t("permissions.manage")}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => handleRevokePrompt(provider)}
+                                >
+                                  {t("permissions.revoke")}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => handleDeletePrompt(provider)}
+                                >
+                                  <Trash2Icon className="h-4 w-4" />
+                                </Button>
                               </div>
-                              <div>
-                                <p className="text-muted-foreground">{t("permissions.expires")}</p>
-                                <p className="font-medium">{provider.expires}</p>
-                              </div>
-                            </div>
-
-                            <div className="flex justify-end gap-2 pt-2">
-                              <Button variant="outline" size="sm" onClick={() => handleManageContact(provider)}>
-                                {t("permissions.manage")}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => handleRevokePrompt(provider)}
-                              >
-                                {t("permissions.revoke")}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => handleDeletePrompt(provider)}
-                              >
-                                <Trash2Icon className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </Card>
               </div>
             )}
 
@@ -877,121 +993,179 @@ export default function PermissionsClientPage() {
                   <UsersIcon className="h-5 w-5 text-primary" />
                   <h3 className="text-lg font-medium">{t("permissions.familyFriends")}</h3>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredContacts
-                    .filter((contact) => contact.type === "personal")
-                    .map((provider) => (
-                      <Card key={provider.id} className="overflow-hidden">
-                        <div className="bg-muted/30 px-4 py-2 flex justify-between items-center">
-                          <div className="flex items-center gap-3">
-                            <Avatar>
-                              <AvatarFallback>{provider.name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <h3 className="font-medium">{provider.name}</h3>
-                              <p className="text-sm text-muted-foreground">
-                                {provider.role} {provider.relationship ? `• ${provider.relationship}` : ""}
-                              </p>
-                            </div>
-                          </div>
-                          <Badge
-                            variant={
-                              provider.status === "Active"
-                                ? "default"
-                                : provider.status === "Pending"
-                                  ? "outline"
-                                  : "secondary"
-                            }
-                          >
-                            {t(`permissions.statusOptions.${provider.status.toLowerCase()}`)}
-                          </Badge>
-                        </div>
-                        <CardContent className="p-4">
-                          <div className="space-y-4">
-                            <div>
-                              <p className="text-sm text-muted-foreground mb-1">{t("permissions.accessLevel")}</p>
-                              <p className="font-medium">{provider.accessLevel}</p>
-                            </div>
-
-                            <div>
-                              <p className="text-sm text-muted-foreground mb-1">{t("permissions.permissionsLabel")}</p>
-                              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <Card>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[200px]">{t("permissions.name") || "Name"}</TableHead>
+                        <TableHead className="w-[150px]">{t("permissions.status") || "Status"}</TableHead>
+                        <TableHead>{t("permissions.permissionsLabel") || "Permissions"}</TableHead>
+                        <TableHead className="w-[200px] text-right">{t("permissions.actions") || "Actions"}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredContacts
+                        .filter((contact) => contact.type === "personal")
+                        .map((provider) => (
+                          <TableRow key={provider.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarFallback>{provider.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <div className="font-medium">{provider.name}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {provider.role} {provider.relationship ? `• ${provider.relationship}` : ""}
+                                  </div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  provider.status === "Active"
+                                    ? "default"
+                                    : provider.status === "Pending"
+                                      ? "outline"
+                                      : "secondary"
+                                }
+                              >
+                                {t(`permissions.statusOptions.${provider.status.toLowerCase()}`)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap items-center gap-3 text-sm">
                                 {provider.permissions?.medicalHistory.view && (
                                   <div className="flex items-center gap-1">
-                                    <CheckIcon className="h-3 w-3 text-green-600" />
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
                                     <span>{t("permissions.viewMedicalHistory")}</span>
                                   </div>
                                 )}
-                                {provider.permissions?.medicalHistory.download && (
+                                {provider.permissions?.medicalHistory.edit && (
                                   <div className="flex items-center gap-1">
-                                    <CheckIcon className="h-3 w-3 text-green-600" />
-                                    <span>{t("permissions.downloadMedicalHistory")}</span>
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.editMedicalHistory")}</span>
                                   </div>
                                 )}
                                 {provider.permissions?.healthRecords.view && (
                                   <div className="flex items-center gap-1">
-                                    <CheckIcon className="h-3 w-3 text-green-600" />
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
                                     <span>{t("permissions.viewHealthRecords")}</span>
                                   </div>
                                 )}
                                 {provider.permissions?.healthRecords.download && (
                                   <div className="flex items-center gap-1">
-                                    <CheckIcon className="h-3 w-3 text-green-600" />
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
                                     <span>{t("permissions.downloadHealthRecords")}</span>
+                                  </div>
+                                )}
+                                {provider.permissions?.healthRecords.edit && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.editHealthRecords")}</span>
+                                  </div>
+                                )}
+                                {provider.permissions?.healthPlan.view && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.viewHealthPlan")}</span>
+                                  </div>
+                                )}
+                                {provider.permissions?.healthPlan.edit && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.editHealthPlan")}</span>
                                   </div>
                                 )}
                                 {provider.permissions?.medications.view && (
                                   <div className="flex items-center gap-1">
-                                    <CheckIcon className="h-3 w-3 text-green-600" />
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
                                     <span>{t("permissions.viewMedications")}</span>
+                                  </div>
+                                )}
+                                {provider.permissions?.medications.download && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.downloadMedications")}</span>
+                                  </div>
+                                )}
+                                {provider.permissions?.medications.edit && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.editMedications")}</span>
                                   </div>
                                 )}
                                 {provider.permissions?.appointments.view && (
                                   <div className="flex items-center gap-1">
-                                    <CheckIcon className="h-3 w-3 text-green-600" />
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
                                     <span>{t("permissions.viewAppointments")}</span>
                                   </div>
                                 )}
+                                {provider.permissions?.appointments.edit && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.editAppointments")}</span>
+                                  </div>
+                                )}
+                                {provider.permissions?.messages.view && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.viewMessages")}</span>
+                                  </div>
+                                )}
+                                {provider.permissions?.messages.edit && (
+                                  <div className="flex items-center gap-1">
+                                    <CheckIcon className="h-4 w-4 text-green-600" />
+                                    <span>{t("permissions.editMessages")}</span>
+                                  </div>
+                                )}
+                                {!provider.permissions?.medicalHistory.view && 
+                                 !provider.permissions?.medicalHistory.edit &&
+                                 !provider.permissions?.healthRecords.view && 
+                                 !provider.permissions?.healthRecords.download &&
+                                 !provider.permissions?.healthRecords.edit &&
+                                 !provider.permissions?.healthPlan.view && 
+                                 !provider.permissions?.healthPlan.edit &&
+                                 !provider.permissions?.medications.view && 
+                                 !provider.permissions?.medications.download &&
+                                 !provider.permissions?.medications.edit &&
+                                 !provider.permissions?.appointments.view && 
+                                 !provider.permissions?.appointments.edit &&
+                                 !provider.permissions?.messages.view && 
+                                 !provider.permissions?.messages.edit && (
+                                  <span className="text-muted-foreground text-sm">No permissions granted</span>
+                                )}
                               </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                              <div>
-                                <p className="text-muted-foreground">{t("permissions.lastAccessed")}</p>
-                                <p className="font-medium">{provider.lastAccessed}</p>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button variant="outline" size="sm" onClick={() => handleManageContact(provider)}>
+                                  {t("permissions.manage")}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => handleRevokePrompt(provider)}
+                                >
+                                  {t("permissions.revoke")}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => handleDeletePrompt(provider)}
+                                >
+                                  <Trash2Icon className="h-4 w-4" />
+                                </Button>
                               </div>
-                              <div>
-                                <p className="text-muted-foreground">{t("permissions.expires")}</p>
-                                <p className="font-medium">{provider.expires}</p>
-                              </div>
-                            </div>
-
-                            <div className="flex justify-end gap-2 pt-2">
-                              <Button variant="outline" size="sm" onClick={() => handleManageContact(provider)}>
-                                {t("permissions.manage")}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => handleRevokePrompt(provider)}
-                              >
-                                {t("permissions.revoke")}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => handleDeletePrompt(provider)}
-                              >
-                                <Trash2Icon className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </Card>
               </div>
             )}
         </TabsContent>

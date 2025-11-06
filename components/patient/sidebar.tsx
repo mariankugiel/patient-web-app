@@ -2,14 +2,13 @@
 
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Calendar,
   FileText,
   Home,
   MessageSquare,
-  LogOut,
   Pill,
   ClipboardList,
   ShieldCheck,
@@ -21,12 +20,20 @@ import { AddDropdown } from "@/components/add-dropdown"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Logo } from "@/components/logo"
 import { useLanguage } from "@/contexts/language-context"
-import { useDispatch } from "react-redux"
-import { AppDispatch } from "@/lib/store"
+import { useDispatch, useSelector } from "react-redux"
+import { AppDispatch, RootState } from "@/lib/store"
 import { logout } from "@/lib/features/auth/authSlice"
 import { useRouter } from "next/navigation"
-import { toast } from "react-toastify"
-import { AccessiblePatientsDialog } from "./accessible-patients-dialog"
+import { UserMenuDropdown } from "./user-menu-dropdown"
+import { AuthAPI, AccessiblePatient } from "@/lib/api/auth-api"
+
+interface NavigationItem {
+  name: string
+  href: string
+  icon: any
+  permissionKey?: keyof AccessiblePatient['permissions']
+  alwaysShow?: boolean
+}
 
 export default function PatientSidebar() {
   const pathname = usePathname()
@@ -35,9 +42,67 @@ export default function PatientSidebar() {
   const { t } = useLanguage()
   const dispatch = useDispatch<AppDispatch>()
   const router = useRouter()
+  const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated)
+  const isRestoringSession = useSelector((s: RootState) => s.auth.isRestoringSession)
+  const [accessiblePatients, setAccessiblePatients] = useState<AccessiblePatient[]>([])
+  const [loadingPermissions, setLoadingPermissions] = useState(false)
   
   // Get patientId from URL to preserve it when navigating
   const patientId = searchParams.get('patientId')
+  const parsedPatientId = patientId ? parseInt(patientId, 10) : null
+  const isViewingOtherPatient = !!parsedPatientId
+  
+  // Load accessible patients to get permissions
+  useEffect(() => {
+    // Wait for authentication to be restored before making API calls
+    if (isRestoringSession || !isAuthenticated) {
+      return
+    }
+
+    if (isViewingOtherPatient) {
+      const loadAccessiblePatients = async () => {
+        try {
+          setLoadingPermissions(true)
+          const response = await AuthAPI.getAccessiblePatients()
+          const patients = response?.accessible_patients || []
+          setAccessiblePatients(patients)
+        } catch (error: any) {
+          // Check if it's a connection error
+          const errorMessage = typeof error === 'string' ? error : (error?.message || String(error || ''))
+          const isConnectionError = error?.code === 'ECONNABORTED' || 
+                                    error?.code === 'ERR_NETWORK' ||
+                                    error?.code === 'ECONNRESET' ||
+                                    error?.code === 'ECONNREFUSED' ||
+                                    errorMessage.includes('Connection failed') ||
+                                    errorMessage.includes('timeout') ||
+                                    errorMessage.includes('connection closed') ||
+                                    errorMessage.includes('Unable to connect') ||
+                                    errorMessage.includes('Connection closed') ||
+                                    errorMessage.includes('socket hang up')
+          
+          // Only log non-connection errors to avoid console spam
+          if (!isConnectionError) {
+            console.error('Failed to load accessible patients:', error)
+          }
+          // Keep existing accessiblePatients on connection error (don't clear)
+          if (!isConnectionError) {
+            setAccessiblePatients([])
+          }
+        } finally {
+          setLoadingPermissions(false)
+        }
+      }
+      loadAccessiblePatients()
+    } else {
+      setAccessiblePatients([])
+    }
+  }, [isViewingOtherPatient, parsedPatientId, isAuthenticated, isRestoringSession])
+  
+  // Get permissions for the currently viewed patient
+  const currentPatientPermissions = useMemo(() => {
+    if (!isViewingOtherPatient || !parsedPatientId) return null
+    return accessiblePatients.find(p => p.patient_id === parsedPatientId)?.permissions || null
+  }, [accessiblePatients, parsedPatientId, isViewingOtherPatient])
   
   // Helper function to build href with patientId if present
   const buildHref = (baseHref: string) => {
@@ -52,16 +117,81 @@ export default function PatientSidebar() {
     router.push('/')
   }
 
-  const navigation = [
-    { name: t("nav.dashboard"), href: "/patient/dashboard", icon: Home },
-    { name: t("nav.healthRecords"), href: "/patient/health-records", icon: FileText },
-    { name: t("nav.healthPlan"), href: "/patient/health-plan", icon: ClipboardList },
-    { name: t("nav.medications"), href: "/patient/medications", icon: Pill },
-    { name: t("nav.messages"), href: "/patient/messages", icon: MessageSquare },
-    { name: t("nav.appointments"), href: "/patient/appointments", icon: Calendar },
-    { name: t("nav.permissions"), href: "/patient/permissions", icon: ShieldCheck },
-    { name: t("nav.profileSettings"), href: "/patient/profile", icon: UserCog },
-  ]
+  // Filter navigation items based on permissions when viewing another patient
+  const navigation = useMemo(() => {
+    // Define all navigation items with permission mappings
+    const allNavigationItems: NavigationItem[] = [
+      { 
+        name: t("nav.dashboard"), 
+        href: "/patient/dashboard", 
+        icon: Home
+      },
+      { 
+        name: t("nav.healthRecords"), 
+        href: "/patient/health-records", 
+        icon: FileText,
+        permissionKey: 'can_view_health_records'
+      },
+      { 
+        name: t("nav.healthPlan"), 
+        href: "/patient/health-plan", 
+        icon: ClipboardList,
+        permissionKey: 'can_view_health_plans'
+      },
+      { 
+        name: t("nav.medications"), 
+        href: "/patient/medications", 
+        icon: Pill,
+        permissionKey: 'can_view_medications'
+      },
+      { 
+        name: t("nav.messages"), 
+        href: "/patient/messages", 
+        icon: MessageSquare,
+        permissionKey: 'can_view_messages'
+      },
+      { 
+        name: t("nav.appointments"), 
+        href: "/patient/appointments", 
+        icon: Calendar,
+        permissionKey: 'can_view_appointments'
+      },
+      { 
+        name: t("nav.permissions"), 
+        href: "/patient/permissions", 
+        icon: ShieldCheck
+        // Only show for current user, not when viewing another patient
+      },
+      { 
+        name: t("nav.profileSettings"), 
+        href: "/patient/profile", 
+        icon: UserCog
+        // Only show for current user, not when viewing another patient
+      },
+    ]
+    
+    if (!isViewingOtherPatient || !currentPatientPermissions) {
+      // Not viewing another patient, show all items
+      return allNavigationItems
+    }
+    
+    // Filter based on permissions when viewing another patient
+    return allNavigationItems.filter(item => {
+      // Dashboard, Profile, and Permissions: NEVER show when viewing another patient (only for own data)
+      if (item.href === '/patient/dashboard' || 
+          item.href === '/patient/profile' || 
+          item.href === '/patient/permissions') {
+        return false
+      }
+      
+      // Check permission for the item
+      if (item.permissionKey) {
+        return currentPatientPermissions[item.permissionKey] === true
+      }
+      
+      return false
+    })
+  }, [isViewingOtherPatient, currentPatientPermissions, t])
 
   return (
     <>
@@ -73,7 +203,6 @@ export default function PatientSidebar() {
               <div className="flex items-center">
                 <AddDropdown />
                 <NotificationBell userId={1} />
-                <AccessiblePatientsDialog />
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="ml-2">
@@ -88,37 +217,36 @@ export default function PatientSidebar() {
                     <Logo size="md" className="max-w-[180px]" />
                   </div>
                   <nav className="space-y-1">
-                    {navigation.map((item) => {
-                      // Check if pathname matches (ignore query params for active state)
-                      const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-                      const hrefWithPatientId = buildHref(item.href)
-                      return (
-                        <Link key={item.href} href={hrefWithPatientId} onClick={() => setOpen(false)}>
-                          <Button
-                            variant={isActive ? "default" : "ghost"}
-                            className={`w-full justify-start ${
-                              isActive
-                                ? "bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900 dark:text-teal-300 dark:hover:bg-teal-800"
-                                : ""
-                            }`}
-                          >
-                            <item.icon className="h-5 w-5 shrink-0" />
-                            <span className="ml-3">{item.name}</span>
-                          </Button>
-                        </Link>
-                      )
-                    })}
+                    {loadingPermissions && isViewingOtherPatient ? (
+                      <div className="flex items-center justify-center py-4">
+                        <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    ) : (
+                      navigation.map((item) => {
+                        // Check if pathname matches (ignore query params for active state)
+                        const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                        const hrefWithPatientId = buildHref(item.href)
+                        return (
+                          <Link key={item.href} href={hrefWithPatientId} onClick={() => setOpen(false)}>
+                            <Button
+                              variant={isActive ? "default" : "ghost"}
+                              className={`w-full justify-start ${
+                                isActive
+                                  ? "bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900 dark:text-teal-300 dark:hover:bg-teal-800"
+                                  : ""
+                              }`}
+                            >
+                              <item.icon className="h-5 w-5 shrink-0" />
+                              <span className="ml-3">{item.name}</span>
+                            </Button>
+                          </Link>
+                        )
+                      })
+                    )}
                   </nav>
                 </div>
                 <div className="p-4 border-t border-gray-200 dark:border-gray-800">
-                  <Button 
-                    variant="ghost" 
-                    className="w-full justify-start text-red-600 dark:text-red-400"
-                    onClick={handleLogout}
-                  >
-                    <LogOut className="h-5 w-5 shrink-0" />
-                    <span className="ml-3">{t("nav.logout")}</span>
-                  </Button>
+                  <UserMenuDropdown onLogout={handleLogout} />
                 </div>
               </div>
             </SheetContent>
@@ -135,44 +263,40 @@ export default function PatientSidebar() {
           <div className="flex items-center justify-start mb-4 space-x-1 shrink-0">
             <AddDropdown />
             <NotificationBell userId={1} />
-            <div className="relative">
-              <AccessiblePatientsDialog />
-            </div>
           </div>
           <nav className="space-y-1 shrink-0">
-            {navigation.map((item) => {
-              // Check if pathname matches (ignore query params for active state)
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-              const hrefWithPatientId = buildHref(item.href)
-              return (
-                <Link key={item.href} href={hrefWithPatientId}>
-                  <Button
-                    variant={isActive ? "default" : "ghost"}
-                    className={`w-full justify-start ${
-                      isActive
-                        ? "bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900 dark:text-teal-300 dark:hover:bg-teal-800"
-                        : ""
-                    }`}
-                  >
-                    <item.icon className="h-5 w-5 shrink-0" />
-                    <span className="ml-3">{item.name}</span>
-                  </Button>
-                </Link>
-              )
-            })}
+            {loadingPermissions && isViewingOtherPatient ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : (
+              navigation.map((item) => {
+                // Check if pathname matches (ignore query params for active state)
+                const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                const hrefWithPatientId = buildHref(item.href)
+                return (
+                  <Link key={item.href} href={hrefWithPatientId}>
+                    <Button
+                      variant={isActive ? "default" : "ghost"}
+                      className={`w-full justify-start ${
+                        isActive
+                          ? "bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900 dark:text-teal-300 dark:hover:bg-teal-800"
+                          : ""
+                      }`}
+                    >
+                      <item.icon className="h-5 w-5 shrink-0" />
+                      <span className="ml-3">{item.name}</span>
+                    </Button>
+                  </Link>
+                )
+              })
+            )}
           </nav>
         </div>
         
-        {/* Logout button at bottom */}
+        {/* User menu dropdown with accessible patients and logout */}
         <div className="shrink-0 pt-4 border-t border-gray-200 dark:border-gray-800">
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start text-red-600 dark:text-red-400"
-            onClick={handleLogout}
-          >
-            <LogOut className="h-5 w-5 shrink-0" />
-            <span className="ml-3">{t("nav.logout")}</span>
-          </Button>
+          <UserMenuDropdown onLogout={handleLogout} />
         </div>
       </div>
     </>

@@ -48,6 +48,7 @@ import { useRealtimeMessages } from "@/hooks/use-realtime-messages"
 import { ConversationList } from "@/components/messages/conversation-list"
 import { FileUploadDialog } from "@/components/messages/file-upload-dialog"
 import { UploadProgressItem } from "@/components/messages/upload-progress-item"
+import { PermissionGuard } from "@/components/patient/permission-guard"
 import { FileMessageItem } from "@/components/messages/file-message-item"
 import { MessageAttachments } from "@/components/messages/message-attachments"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -60,7 +61,6 @@ import type { FileUploadItem } from "@/types/files"
 import { messagesApiService } from "@/lib/api/messages-api"
 import { s3UploadService } from "@/lib/api/s3-upload-api"
 import { usePatientContext } from "@/hooks/use-patient-context"
-import { PatientViewBanner } from "@/components/patient/patient-view-banner"
 
 // Sample conversation data
 const conversations = [
@@ -317,8 +317,21 @@ const conversations = [
 ]
 
 export default function MessagesClientPage() {
+  return (
+    <PermissionGuard requiredPermission="can_view_messages">
+      <MessagesClientPageContent />
+    </PermissionGuard>
+  )
+}
+
+function MessagesClientPageContent() {
   const { t } = useLanguage()
   const { patientId, isViewingOtherPatient } = usePatientContext()
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 [MessagesClientPage] patientId from context:', patientId, 'isViewingOtherPatient:', isViewingOtherPatient)
+  }, [patientId, isViewingOtherPatient])
   
   // Get current user from Redux state
   const { user } = useSelector((state: RootState) => state.auth)
@@ -931,7 +944,6 @@ export default function MessagesClientPage() {
 
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900 overflow-hidden">
-      <PatientViewBanner />
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden min-w-0">
         {/* Left Panel - User List */}

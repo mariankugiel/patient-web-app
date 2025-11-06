@@ -51,8 +51,37 @@ export function useOnboardingSkip() {
       // Redirect to dashboard
       router.push('/patient/dashboard')
     } catch (error: any) {
-      console.error('Failed to update profile in backend:', error)
-      toast.error("Failed to skip onboarding. Please try again.")
+      // Check if it's a connection error
+      const isConnectionError = error?.code === 'ECONNABORTED' || 
+                                error?.code === 'ERR_NETWORK' ||
+                                error?.code === 'ECONNRESET' ||
+                                error?.code === 'ECONNREFUSED' ||
+                                error?.message?.includes('Connection failed') ||
+                                error?.message?.includes('timeout') ||
+                                error?.message?.includes('connection closed') ||
+                                error?.message?.includes('Unable to connect')
+      
+      if (isConnectionError) {
+        // Backend is unavailable, but still update local state and allow user to proceed
+        // Update Redux store with the new user data (local only)
+        dispatch(updateUser({
+          user_metadata: {
+            ...user.user_metadata,
+            onboarding_completed: profileData.onboarding_completed,
+            onboarding_skipped: profileData.onboarding_skipped,
+            onboarding_skipped_at: profileData.onboarding_skipped_at,
+            is_new_user: profileData.is_new_user
+          }
+        }))
+        
+        // Silently proceed - user can still use the app
+        toast.success("Onboarding skipped. Changes will sync when connection is restored.")
+        router.push('/patient/dashboard')
+      } else {
+        // Non-connection error - log and show error message
+        console.error('Failed to update profile in backend:', error)
+        toast.error("Failed to skip onboarding. Please try again.")
+      }
     } finally {
       setIsSkipping(false)
     }

@@ -33,7 +33,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { toast } from "react-toastify"
 import { formatDate } from "@/lib/utils/date-formatter"
 import { usePatientContext } from "@/hooks/use-patient-context"
-import { PatientViewBanner } from "@/components/patient/patient-view-banner"
+import { PermissionGuard } from "@/components/patient/permission-guard"
 
 const daysOfWeek = [
   { id: "monday", label: "Mon" },
@@ -46,6 +46,14 @@ const daysOfWeek = [
 ]
 
 export default function MedicationsClientPage() {
+  return (
+    <PermissionGuard requiredPermission="can_view_medications">
+      <MedicationsClientPageContent />
+    </PermissionGuard>
+  )
+}
+
+function MedicationsClientPageContent() {
   const { t, language } = useLanguage()
   
   // State for dynamic data
@@ -541,7 +549,6 @@ export default function MedicationsClientPage() {
 
   return (
     <div className="container mx-auto py-4">
-      <PatientViewBanner />
       <div className="flex items-center justify-between mb-2">
         <div />
         <Dialog 

@@ -1,13 +1,14 @@
 "use client"
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { usePathname, useRouter } from "next/navigation"
-import { useMemo } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useMemo, Suspense } from "react"
 import { useLanguage } from "@/contexts/language-context"
 
-export default function ProfileSectionLayout({ children }: { children: React.ReactNode }) {
+function ProfileSectionLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { t } = useLanguage()
 
   const active = useMemo(() => {
@@ -20,7 +21,9 @@ export default function ProfileSectionLayout({ children }: { children: React.Rea
   }, [pathname])
 
   const go = (tab: string) => {
-    router.replace(`/patient/profile${tab === "profile" ? "" : `/${tab}`}`)
+    const patientId = searchParams.get('patientId')
+    const queryString = patientId ? `?patientId=${patientId}` : ''
+    router.replace(`/patient/profile${tab === "profile" ? "" : `/${tab}`}${queryString}`)
   }
 
   return (
@@ -51,6 +54,21 @@ export default function ProfileSectionLayout({ children }: { children: React.Rea
         {children}
       </TabsContent>
     </Tabs>
+  )
+}
+
+export default function ProfileSectionLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[200px]">
+        <div className="flex items-center gap-2 text-gray-500">
+          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+          <span>Loading...</span>
+        </div>
+      </div>
+    }>
+      <ProfileSectionLayoutContent>{children}</ProfileSectionLayoutContent>
+    </Suspense>
   )
 }
 

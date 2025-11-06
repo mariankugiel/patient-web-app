@@ -82,7 +82,34 @@ export const loginUser = createAsyncThunk(
       }
       
       // Get user profile (token automatically added by interceptor)
-      const userProfile = await AuthApiService.getProfile()
+      // Handle connection errors gracefully - if backend is down, use minimal user data
+      let userProfile
+      try {
+        userProfile = await AuthApiService.getProfile()
+      } catch (profileError: any) {
+        // If profile fetch fails due to connection error, use minimal data
+        const isConnectionError = profileError?.code === 'ECONNABORTED' || 
+                                  profileError?.code === 'ERR_NETWORK' ||
+                                  profileError?.code === 'ECONNRESET' ||
+                                  profileError?.code === 'ECONNREFUSED' ||
+                                  profileError?.message?.includes('Connection failed') ||
+                                  profileError?.message?.includes('timeout') ||
+                                  profileError?.message?.includes('connection closed')
+        
+        if (isConnectionError) {
+          console.warn('Backend unavailable during login - using minimal user profile')
+          // Use minimal profile data - user can still access the app
+          userProfile = {
+            email: credentials.email,
+            is_new_user: true,
+            onboarding_completed: false,
+            onboarding_skipped: false,
+          }
+        } else {
+          // Re-throw non-connection errors
+          throw profileError
+        }
+      }
       
       // Use the onboarding status directly from the backend profile
       // Don't override the backend values with our own logic
@@ -116,6 +143,25 @@ export const loginUser = createAsyncThunk(
       return user
     } catch (error: any) {
       let message = "Login failed"
+      
+      // Check if this is a connection error
+      const isConnectionError = error?.code === 'ECONNABORTED' || 
+                                error?.code === 'ERR_NETWORK' ||
+                                error?.code === 'ECONNRESET' ||
+                                error?.code === 'ECONNREFUSED' ||
+                                error?.message?.includes('Connection failed') ||
+                                error?.message?.includes('timeout') ||
+                                error?.message?.includes('connection closed') ||
+                                error?.message?.includes('Connection closed') ||
+                                error?.message?.includes('socket hang up')
+      
+      // Handle connection errors
+      if (isConnectionError) {
+        message = "Unable to connect to the server. Please check if the backend is running and try again."
+        dispatch(loginFailure(message))
+        toast.error(message)
+        return rejectWithValue(message)
+      }
       
       // Handle different error types
       if (error.response?.status === 401) {
@@ -193,7 +239,34 @@ export const verifyMfaLogin = createAsyncThunk(
       }
       
       // Get user profile
-      const userProfile = await AuthApiService.getProfile()
+      // Handle connection errors gracefully - if backend is down, use minimal user data
+      let userProfile
+      try {
+        userProfile = await AuthApiService.getProfile()
+      } catch (profileError: any) {
+        // If profile fetch fails due to connection error, use minimal data
+        const isConnectionError = profileError?.code === 'ECONNABORTED' || 
+                                  profileError?.code === 'ERR_NETWORK' ||
+                                  profileError?.code === 'ECONNRESET' ||
+                                  profileError?.code === 'ECONNREFUSED' ||
+                                  profileError?.message?.includes('Connection failed') ||
+                                  profileError?.message?.includes('timeout') ||
+                                  profileError?.message?.includes('connection closed')
+        
+        if (isConnectionError) {
+          console.warn('Backend unavailable during MFA login - using minimal user profile')
+          // Use minimal profile data - user can still access the app
+          userProfile = {
+            email: data.email,
+            is_new_user: true,
+            onboarding_completed: false,
+            onboarding_skipped: false,
+          }
+        } else {
+          // Re-throw non-connection errors
+          throw profileError
+        }
+      }
       
       const isNewUser = userProfile.is_new_user !== undefined ? userProfile.is_new_user : 
                        (!userProfile.onboarding_completed && !userProfile.onboarding_skipped)
@@ -307,7 +380,34 @@ export const signupUser = createAsyncThunk(
       }
       
       // Get user profile (token automatically added by interceptor)
-      const userProfile = await AuthApiService.getProfile()
+      // Handle connection errors gracefully - if backend is down, use minimal user data
+      let userProfile
+      try {
+        userProfile = await AuthApiService.getProfile()
+      } catch (profileError: any) {
+        // If profile fetch fails due to connection error, use minimal data
+        const isConnectionError = profileError?.code === 'ECONNABORTED' || 
+                                  profileError?.code === 'ERR_NETWORK' ||
+                                  profileError?.code === 'ECONNRESET' ||
+                                  profileError?.code === 'ECONNREFUSED' ||
+                                  profileError?.message?.includes('Connection failed') ||
+                                  profileError?.message?.includes('timeout') ||
+                                  profileError?.message?.includes('connection closed')
+        
+        if (isConnectionError) {
+          console.warn('Backend unavailable during signup - using minimal user profile')
+          // Use minimal profile data - user can still access the app
+          userProfile = {
+            email: userData.email,
+            is_new_user: true,
+            onboarding_completed: false,
+            onboarding_skipped: false,
+          }
+        } else {
+          // Re-throw non-connection errors
+          throw profileError
+        }
+      }
       
       // Use the onboarding status directly from the backend profile
       const isNewUser = userProfile.is_new_user !== undefined ? userProfile.is_new_user : 

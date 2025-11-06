@@ -207,10 +207,12 @@ export function useMessages(patientId?: number | null): UseMessagesReturn {
   // Load conversations on mount and when filters change
   const loadConversations = useCallback(async (filters?: MessageFilters) => {
     try {
-      console.log('📋 Loading conversations with filters:', filters, 'patientId:', patientId)
+      // Convert null to undefined for API call
+      const apiPatientId = patientId !== null && patientId !== undefined ? patientId : undefined
+      console.log('📋 Loading conversations with filters:', filters, 'patientId:', apiPatientId)
       setLoadingConversations(true)
       setError(null)
-      const response = await messagesApiService.getConversations(filters, patientId || undefined)
+      const response = await messagesApiService.getConversations(filters, apiPatientId)
       console.log('📋 Conversations loaded:', response.conversations)
       console.log('📋 Conversations count:', response.conversations.length)
       console.log('📋 Current user ID from backend:', response.current_user_id)
@@ -247,7 +249,7 @@ export function useMessages(patientId?: number | null): UseMessagesReturn {
     } finally {
       setLoadingConversations(false)
     }
-  }, [patientId])
+  }, [patientId, dispatch])
 
   // Load unread count by type
   const loadUnreadCount = useCallback(async () => {
@@ -713,11 +715,15 @@ export function useMessages(patientId?: number | null): UseMessagesReturn {
     }
   }, [])
 
-  // Load initial data
+  // Load initial data and reload when patientId changes
   useEffect(() => {
+    // Clear selected conversation and messages when switching patients
+    if (patientId !== undefined) {
+      setSelectedConversation(null)
+      setMessages([])
+    }
     loadConversations() // ✅ This already includes unread count
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Only run on mount
+  }, [loadConversations, patientId]) // Reload when patientId changes
 
   // Handle WebSocket messages
   useEffect(() => {

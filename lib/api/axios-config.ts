@@ -143,8 +143,33 @@ apiClient.interceptors.response.use(
     }
     
     // Handle network errors
-    if (error.code === 'NETWORK_ERROR' || error.code === 'ERR_NETWORK') {
-      toast.error("Unable to connect to server. Please check your internet connection.")
+    if (error.code === 'NETWORK_ERROR' || error.code === 'ERR_NETWORK' || 
+        error.code === 'ECONNRESET' || error.code === 'ECONNREFUSED' ||
+        error.code === 'ECONNABORTED' ||
+        error.message?.includes('connection closed') || error.message?.includes('Connection closed') ||
+        error.message?.includes('socket hang up') || error.message?.includes('ECONNRESET') ||
+        error.message?.includes('Connection failed') || error.message?.includes('timeout')) {
+      // Only show toast for non-auth endpoints and non-profile endpoints to avoid spam during login/session restore
+      const isAuthEndpoint = error.config?.url?.includes('/login') || 
+                             error.config?.url?.includes('/register') ||
+                             error.config?.url?.includes('/auth/login') ||
+                             error.config?.url?.includes('/auth/register')
+      
+      const isProfileEndpoint = error.config?.url?.includes('/auth/profile') ||
+                                error.config?.url?.includes('/auth/accessible-patients') ||
+                                error.config?.url?.includes('/auth/patient-profile')
+      
+      // Don't show toast for auth endpoints or profile endpoints (session restoration/user switching)
+      // These are handled gracefully by the components
+      if (!isAuthEndpoint && !isProfileEndpoint) {
+        // Only show toast if we haven't shown one recently (prevent spam)
+        const lastErrorTime = (window as any).__lastConnectionErrorTime || 0
+        const now = Date.now()
+        if (now - lastErrorTime > 5000) { // Only show once every 5 seconds
+          (window as any).__lastConnectionErrorTime = now
+          toast.error("Unable to connect to server. Please check your internet connection.")
+        }
+      }
       return Promise.reject(error)
     }
     

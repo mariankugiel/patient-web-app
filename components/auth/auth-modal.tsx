@@ -129,8 +129,28 @@ export function AuthModal({ open, onOpenChange, defaultMode = "login" }: AuthMod
       // The redirect will happen via useAuthRedirect hook when isAuthenticated becomes true
       onOpenChange(false)
     } catch (error: any) {
-      // Error handling is done in the Redux thunk, no need to show duplicate notification
-      console.error("Login error:", error)
+      // Redux thunks can reject with either Error objects or string values
+      // Check if error is a string or has a message property
+      const errorString = typeof error === 'string' ? error : (error?.message || String(error || ''))
+      
+      // Check if it's a connection error
+      const isConnectionError = error?.code === 'ECONNABORTED' || 
+                                error?.code === 'ERR_NETWORK' ||
+                                error?.code === 'ECONNRESET' ||
+                                error?.code === 'ECONNREFUSED' ||
+                                errorString.includes('Connection failed') ||
+                                errorString.includes('timeout') ||
+                                errorString.includes('connection closed') ||
+                                errorString.includes('Unable to connect') ||
+                                errorString.includes('Unable to connect to the server') ||
+                                errorString.includes('check if the backend is running')
+      
+      // Error handling is done in the Redux thunk (toast notification shown)
+      // Only log non-connection errors to avoid console spam
+      if (!isConnectionError) {
+        console.error("Login error:", error)
+      }
+      // Connection errors are silently handled - toast already shown by thunk
     }
   }
 

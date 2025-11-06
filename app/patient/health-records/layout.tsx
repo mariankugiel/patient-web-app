@@ -6,8 +6,21 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePathname, useRouter } from "next/navigation"
 import { Activity, Calendar, LineChart, Scale, Dumbbell, Heart, FileImage } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
+import { PermissionGuard } from "@/components/patient/permission-guard"
 
 export default function HealthRecordsLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <PermissionGuard requiredPermission="can_view_health_records">
+      <HealthRecordsLayoutContent>{children}</HealthRecordsLayoutContent>
+    </PermissionGuard>
+  )
+}
+
+function HealthRecordsLayoutContent({
   children,
 }: {
   children: React.ReactNode

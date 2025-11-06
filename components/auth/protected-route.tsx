@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
 
@@ -17,14 +17,21 @@ export function ProtectedRoute({
   redirectTo = '/patient/dashboard' 
 }: ProtectedRouteProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, isAuthenticated, isLoading, isRestoringSession } = useSelector((state: RootState) => state.auth)
+  
+  // Check if viewing another patient (patientId in URL)
+  const patientId = searchParams.get('patientId')
+  const isViewingOtherPatient = !!patientId
 
   useEffect(() => {
     if (!isLoading && !isRestoringSession) {
       if (requireAuth && !isAuthenticated) {
         // User not authenticated, redirect to login page
         router.push('/auth/login')
-      } else if (isAuthenticated && user) {
+      } else if (isAuthenticated && user && !isViewingOtherPatient) {
+        // Only check onboarding for the current user, not when viewing another patient
+        // When viewing another patient, they are treated as already registered
         // DEVELOPMENT: Always allow access to onboarding (commented out redirect logic)
         // Check if user needs onboarding (has is_new_user flag or hasn't completed/skipped onboarding)
         // const needsOnboarding = user.user_metadata?.is_new_user || 
@@ -39,7 +46,7 @@ export function ProtectedRoute({
         // }
       }
     }
-  }, [isAuthenticated, user, isLoading, isRestoringSession, router, requireAuth, redirectTo])
+  }, [isAuthenticated, user, isLoading, isRestoringSession, router, requireAuth, redirectTo, isViewingOtherPatient])
 
   if (isLoading || isRestoringSession) {
     return (

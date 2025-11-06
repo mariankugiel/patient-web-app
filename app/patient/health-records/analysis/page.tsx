@@ -32,7 +32,6 @@ import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-di
 import { toast } from "react-toastify"
 import { medicalDocumentsApiService, MedicalDocument } from "@/lib/api/medical-documents-api"
 import { usePatientContext } from "@/hooks/use-patient-context"
-import { PatientViewBanner } from "@/components/patient/patient-view-banner"
 
 export default function AnalysisPage() {
   const { t } = useLanguage()
@@ -190,7 +189,6 @@ export default function AnalysisPage() {
 
   return (
     <div className="space-y-6">
-      <PatientViewBanner />
       {/* AI Summary and Lab Document Management in one row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* AI Summary Card */}

@@ -22,7 +22,6 @@ import { formatDistanceToNow } from "date-fns"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useLanguage } from "@/contexts/language-context"
 import { usePatientContext } from "@/hooks/use-patient-context"
-import { PatientViewBanner } from "@/components/patient/patient-view-banner"
 import { medicationsApiService, Medication } from "@/lib/api/medications-api"
 import { messagesApiService, Conversation } from "@/lib/api/messages-api"
 import { HealthRecordsApiService } from "@/lib/api/health-records-api"
@@ -77,12 +76,28 @@ export default function PatientDashboardClient() {
             })
           }
           setHealthRecords(transformedRecords.slice(0, 6)) // Show only first 6
-        } catch (error) {
-          console.error('Failed to load health records:', error)
+        } catch (error: any) {
+          // Silently handle connection/timeout errors
+          const isConnectionError = error?.code === 'ECONNABORTED' || 
+                                    error?.code === 'ERR_NETWORK' ||
+                                    error?.message?.includes('Connection failed') ||
+                                    error?.message?.includes('timeout')
+          
+          if (!isConnectionError) {
+            console.error('Failed to load health records:', error)
+          }
           setHealthRecords([])
         }
-      } catch (error) {
-        console.error('Failed to load dashboard data:', error)
+      } catch (error: any) {
+        // Silently handle connection/timeout errors
+        const isConnectionError = error?.code === 'ECONNABORTED' || 
+                                  error?.code === 'ERR_NETWORK' ||
+                                  error?.message?.includes('Connection failed') ||
+                                  error?.message?.includes('timeout')
+        
+        if (!isConnectionError) {
+          console.error('Failed to load dashboard data:', error)
+        }
       } finally {
         setLoading(false)
       }
@@ -268,7 +283,6 @@ export default function PatientDashboardClient() {
 
   return (
     <div className="container py-6">
-      <PatientViewBanner />
       {loading && (
         <div className="flex items-center justify-center py-8">
           <div className="text-gray-500">Loading dashboard data...</div>

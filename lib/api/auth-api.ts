@@ -91,6 +91,9 @@ export interface UserProfile {
   onboarding_completed_at?: string
   onboarding_skipped_at?: string
   is_new_user?: boolean
+  img_url?: string
+  avatar_url?: string
+  supabase_user_id?: string
 }
 
 export interface UserEmergency {
@@ -461,6 +464,16 @@ export class AuthApiService {
       return response.data
     } catch (error: any) {
       throw handleApiError(error, 'Failed to get accessible patients')
+    }
+  }
+
+  // Get another patient's profile (requires permission)
+  static async getPatientProfile(patientId: number): Promise<UserProfile> {
+    try {
+      const response = await apiClient.get(`/auth/profile/${patientId}`)
+      return response.data
+    } catch (error: any) {
+      throw handleApiError(error, 'Failed to get patient profile')
     }
   }
 

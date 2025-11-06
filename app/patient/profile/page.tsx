@@ -22,8 +22,10 @@ import { Save } from "lucide-react"
 import { useSelector, useDispatch } from "react-redux"
 import { RootState } from "@/lib/store"
 import { updateUser } from "@/lib/features/auth/authSlice"
-import { AuthApiService } from "@/lib/api/auth-api"
+import { AuthApiService, AuthAPI } from "@/lib/api/auth-api"
 import { getProfilePictureUrl } from "@/lib/profile-utils"
+import { usePatientContext } from "@/hooks/use-patient-context"
+import { useRouter } from "next/navigation"
 
 const profileFormSchema = z.object({
   firstName: z.string().min(2, { message: "First name must be at least 2 characters." }),
@@ -63,8 +65,10 @@ const defaultValues: Partial<ProfileFormValues> = {
 
 export default function ProfileTabPage() {
   const dispatch = useDispatch()
+  const router = useRouter()
   const { t, language, setLanguage } = useLanguage()
   const { toast } = useToast()
+  const { patientId, isViewingOtherPatient } = usePatientContext()
   const [selectedLanguage, setSelectedLanguage] = useState(language)
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">("light")
   const [profileImage, setProfileImage] = useState<string | null>(null)
@@ -72,6 +76,29 @@ export default function ProfileTabPage() {
   const [isProfileLoading, setIsProfileLoading] = useState(true)
   const { user } = useSelector((state: RootState) => state.auth)
   const form = useForm<ProfileFormValues>({ resolver: zodResolver(profileFormSchema), defaultValues })
+
+  // Redirect away from profile page if viewing another patient
+  // This must happen immediately, before any rendering
+  useEffect(() => {
+    if (isViewingOtherPatient && patientId) {
+      console.log('🚫 Blocking profile page access - redirecting away')
+      // Redirect directly to health-records as default
+      // The health-records page will handle permission checks and redirect if needed
+      router.replace(`/patient/health-records?patientId=${patientId}`)
+    }
+  }, [isViewingOtherPatient, patientId, router])
+  
+  // Don't render anything if viewing another patient (redirect will happen)
+  if (isViewingOtherPatient) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center gap-2 text-gray-500">
+          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+          <span>Redirecting...</span>
+        </div>
+      </div>
+    )
+  }
 
   useEffect(() => {
     if (selectedTheme === "dark") document.documentElement.classList.add("dark")
@@ -86,10 +113,17 @@ export default function ProfileTabPage() {
     }
   }, [])
 
-  // Load user profile data
+  // Load user profile data (only for current user, not when viewing another patient)
   useEffect(() => {
     const loadProfile = async () => {
+      // Don't load profile if viewing another patient (should have been redirected)
+      if (isViewingOtherPatient) {
+        setIsProfileLoading(false)
+        return
+      }
+      
       console.log("🔍 loadProfile called, user:", user)
+      
       if (!user?.id) {
         console.log("⏭️ Skipping profile load - no user ID")
         setIsProfileLoading(false)
@@ -153,12 +187,20 @@ export default function ProfileTabPage() {
           
           // Load profile picture from Supabase Storage
           try {
-            const avatarUrl = await getProfilePictureUrl(user.id)
+            // Use avatar from profile data if available
+            const avatarUrlFromProfile = profileData.img_url || profileData.avatar_url
+            let avatarUrl = avatarUrlFromProfile
+            
+            // If no avatar in profile data, try to get from storage
+            if (!avatarUrl || !avatarUrl.startsWith('http')) {
+              avatarUrl = await getProfilePictureUrl(user.id)
+            }
+            
             if (avatarUrl && avatarUrl.startsWith('http')) {
               // Add cache-busting timestamp to force reload
               const urlWithCacheBust = `${avatarUrl}${avatarUrl.includes('?') ? '&' : '?'}t=${Date.now()}`
               setProfileImage(urlWithCacheBust)
-              console.log("✅ Loaded profile picture from Supabase Storage:", urlWithCacheBust)
+              console.log("✅ Loaded profile picture:", urlWithCacheBust)
             } else {
               console.log("⚠️ Invalid avatar URL, using placeholder:", avatarUrl)
               setProfileImage("/placeholder-user.jpg")
@@ -173,13 +215,29 @@ export default function ProfileTabPage() {
           console.log("⚠️ No profile data returned from API")
         }
       } catch (error: any) {
-        console.error("❌ Error loading profile:", error)
-        const errorMessage = error?.response?.data?.detail || error?.message || "Failed to load profile"
-        toast({
-          title: "Error",
-          description: errorMessage,
-          variant: "destructive",
-        })
+        // Check if this is a connection error (backend unavailable)
+        const isConnectionError = error?.code === 'ECONNABORTED' || 
+                                  error?.code === 'ERR_NETWORK' ||
+                                  error?.code === 'ECONNRESET' ||
+                                  error?.code === 'ECONNREFUSED' ||
+                                  error?.message?.includes('Connection failed') ||
+                                  error?.message?.includes('timeout') ||
+                                  error?.message?.includes('connection closed')
+        
+        if (isConnectionError) {
+          // Silently handle connection errors - don't show toast
+          // The form will remain empty and user can try again later
+          console.warn("⚠️ Backend unavailable - profile data not loaded")
+        } else {
+          // Only log and show toast for non-connection errors
+          console.error("❌ Error loading profile:", error)
+          const errorMessage = error?.response?.data?.detail || error?.message || "Failed to load profile"
+          toast({
+            title: "Error",
+            description: errorMessage,
+            variant: "destructive",
+          })
+        }
       } finally {
         setIsProfileLoading(false)
       }
@@ -276,17 +334,32 @@ export default function ProfileTabPage() {
   return (
     <Card>
       <CardContent className="pt-6">
+        {isViewingOtherPatient && (
+          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              You are viewing another patient's profile. This is a read-only view.
+            </p>
+          </div>
+        )}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="flex flex-col lg:flex-row gap-6">
               <div className="lg:w-64 flex justify-center lg:justify-start order-first">
                 <div className="sticky top-6">
-                  {user?.id && (
+                  {user?.id && !isViewingOtherPatient && (
                     <ProfilePictureUpload 
                       currentImage={profileImage || "/placeholder-user.jpg"} 
                       onImageChange={setProfileImage}
                       userId={user.id}
                     />
+                  )}
+                  {isViewingOtherPatient && (
+                    <Avatar className="h-40 w-40">
+                      <AvatarImage src={profileImage || "/placeholder-user.jpg"} />
+                      <AvatarFallback className="text-2xl">
+                        {form.getValues("firstName")?.[0]}{form.getValues("lastName")?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
                   )}
                 </div>
               </div>
@@ -300,7 +373,7 @@ export default function ProfileTabPage() {
                       <FormItem>
                         <FormLabel>First Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="Your first name" {...field} />
+                          <Input placeholder="Your first name" {...field} disabled={isViewingOtherPatient} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -313,7 +386,7 @@ export default function ProfileTabPage() {
                       <FormItem>
                         <FormLabel>Last Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="Your last name" {...field} />
+                          <Input placeholder="Your last name" {...field} disabled={isViewingOtherPatient} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -327,7 +400,7 @@ export default function ProfileTabPage() {
                         <FormLabel>Height</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <Input type="number" placeholder="178" {...field} className="pr-10 w-full" />
+                            <Input type="number" placeholder="178" {...field} className="pr-10 w-full" disabled={isViewingOtherPatient} />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">cm</span>
                           </div>
                         </FormControl>
@@ -343,7 +416,7 @@ export default function ProfileTabPage() {
                         <FormLabel>Weight</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <Input type="number" placeholder="80" {...field} className="pr-10 w-full" />
+                            <Input type="number" placeholder="80" {...field} className="pr-10 w-full" disabled={isViewingOtherPatient} />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">kg</span>
                           </div>
                         </FormControl>
@@ -361,7 +434,7 @@ export default function ProfileTabPage() {
                       <FormItem>
                         <FormLabel>Date of Birth</FormLabel>
                         <FormControl>
-                          <Input type="date" {...field} className="w-full" />
+                          <Input type="date" {...field} className="w-full" disabled={isViewingOtherPatient} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -373,9 +446,9 @@ export default function ProfileTabPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Gender</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={isViewingOtherPatient}>
                           <FormControl>
-                            <SelectTrigger className="w-full">
+                            <SelectTrigger className="w-full" disabled={isViewingOtherPatient}>
                               <SelectValue placeholder="Select" />
                             </SelectTrigger>
                           </FormControl>
@@ -398,7 +471,7 @@ export default function ProfileTabPage() {
                         <FormLabel>Waist Diameter</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <Input type="number" placeholder="90" {...field} className="pr-10 w-full" />
+                            <Input type="number" placeholder="90" {...field} className="pr-10 w-full" disabled={isViewingOtherPatient} />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">cm</span>
                           </div>
                         </FormControl>
@@ -412,9 +485,9 @@ export default function ProfileTabPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Blood Type</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={isViewingOtherPatient}>
                           <FormControl>
-                            <SelectTrigger className="w-full">
+                            <SelectTrigger className="w-full" disabled={isViewingOtherPatient}>
                               <SelectValue placeholder="Select" />
                             </SelectTrigger>
                           </FormControl>
@@ -443,7 +516,7 @@ export default function ProfileTabPage() {
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input type="email" placeholder="your.email@example.com" {...field} />
+                          <Input type="email" placeholder="your.email@example.com" {...field} disabled={isViewingOtherPatient} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -466,9 +539,10 @@ export default function ProfileTabPage() {
                                 form.setValue("countryName", country)
                               }}
                               value={`${field.value}|${form.getValues("countryName") || ""}`}
+                              disabled={isViewingOtherPatient}
                             >
                               <FormControl>
-                                <SelectTrigger>
+                                <SelectTrigger disabled={isViewingOtherPatient}>
                                   <SelectValue>
                                     {(() => {
                                       const selectedCountry = countryCodes.find(
@@ -497,7 +571,7 @@ export default function ProfileTabPage() {
                         render={({ field }) => (
                           <FormItem className="flex-1">
                             <FormControl>
-                              <Input type="tel" placeholder="555 123 4567" {...field} />
+                              <Input type="tel" placeholder="555 123 4567" {...field} disabled={isViewingOtherPatient} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -515,7 +589,7 @@ export default function ProfileTabPage() {
                       <FormItem>
                         <FormLabel>Location</FormLabel>
                         <FormControl>
-                          <LocationSearch value={field.value} onChange={(location) => field.onChange(location)} placeholder="City, State/Country" />
+                          <LocationSearch value={field.value} onChange={(location) => field.onChange(location)} placeholder="City, State/Country" disabled={isViewingOtherPatient} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -528,9 +602,9 @@ export default function ProfileTabPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Time Zone</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={isViewingOtherPatient}>
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger disabled={isViewingOtherPatient}>
                               <SelectValue placeholder="Select timezone" />
                             </SelectTrigger>
                           </FormControl>
@@ -553,8 +627,8 @@ export default function ProfileTabPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
                   <div className="space-y-2">
                     <Label htmlFor="language">Language</Label>
-                    <Select value={selectedLanguage} onValueChange={(v) => setSelectedLanguage(v as "en" | "es" | "pt")}>
-                      <SelectTrigger id="language">
+                    <Select value={selectedLanguage} onValueChange={(v) => setSelectedLanguage(v as "en" | "es" | "pt")} disabled={isViewingOtherPatient}>
+                      <SelectTrigger id="language" disabled={isViewingOtherPatient}>
                         <SelectValue placeholder="Select language" />
                       </SelectTrigger>
                       <SelectContent>
@@ -567,8 +641,8 @@ export default function ProfileTabPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="theme">Theme</Label>
-                    <Select value={selectedTheme} onValueChange={(value: any) => setSelectedTheme(value)}>
-                      <SelectTrigger id="theme">
+                    <Select value={selectedTheme} onValueChange={(value: any) => setSelectedTheme(value)} disabled={isViewingOtherPatient}>
+                      <SelectTrigger id="theme" disabled={isViewingOtherPatient}>
                         <SelectValue placeholder="Select theme" />
                       </SelectTrigger>
                       <SelectContent>
@@ -579,10 +653,12 @@ export default function ProfileTabPage() {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700" disabled={isLoading}>
-                  <Save className="mr-2 h-4 w-4" />
-                  {isLoading ? "Saving..." : t("profile.updateProfile")}
-                </Button>
+                {!isViewingOtherPatient && (
+                  <Button type="submit" className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700" disabled={isLoading}>
+                    <Save className="mr-2 h-4 w-4" />
+                    {isLoading ? "Saving..." : t("profile.updateProfile")}
+                  </Button>
+                )}
               </div>
 
               

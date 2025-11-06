@@ -46,8 +46,17 @@ import AddHealthTaskDialog from "@/components/health-records/add-health-task-dia
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { CircleDateButton } from "@/components/ui/circle-date-button"
 import { TaskItem } from "@/components/health-records/task-item"
+import { PermissionGuard } from "@/components/patient/permission-guard"
 
 export default function HealthPlanClientPage() {
+  return (
+    <PermissionGuard requiredPermission="can_view_health_plans">
+      <HealthPlanClientPageContent />
+    </PermissionGuard>
+  )
+}
+
+function HealthPlanClientPageContent() {
   const pathname = usePathname()
   const router = useRouter()
   const { t, language } = useLanguage()

@@ -38,6 +38,7 @@ import { useLanguage } from "@/contexts/language-context"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { PermissionGuard } from "@/components/patient/permission-guard"
 
 // Sample data for doctors
 const doctorsData = [
@@ -231,6 +232,14 @@ interface TimeSlot {
 }
 
 export default function AppointmentsClientPage() {
+  return (
+    <PermissionGuard requiredPermission="can_view_appointments">
+      <AppointmentsClientPageContent />
+    </PermissionGuard>
+  )
+}
+
+function AppointmentsClientPageContent() {
   const { toast } = useToast()
   const { language, t } = useLanguage()
 
