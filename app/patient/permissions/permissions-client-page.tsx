@@ -203,10 +203,55 @@ export default function PermissionsClientPage() {
   }
 
   const handlePermissionChange = (category: string, action: string, checked: boolean) => {
-    if (isManageDialogOpen && selectedContact) {
-      setSelectedContact((prev) => {
-        if (!prev || !prev.permissions) return prev
-        return {
+    // When edit is checked, automatically check view as well (you can't edit without viewing)
+    if (action === 'edit' && checked) {
+      // First set view to true, then set edit to true
+      if (isManageDialogOpen && selectedContact) {
+        setSelectedContact((prev) => {
+          if (!prev || !prev.permissions) return prev
+          return {
+            ...prev,
+            permissions: {
+              ...prev.permissions,
+              [category]: {
+                ...prev.permissions[category as keyof typeof prev.permissions],
+                view: true, // Automatically check view when edit is checked
+                [action]: checked,
+              },
+            },
+          }
+        })
+      } else {
+        setNewContact((prev) => ({
+          ...prev,
+          permissions: {
+            ...prev.permissions,
+            [category]: {
+              ...prev.permissions[category as keyof typeof prev.permissions],
+              view: true, // Automatically check view when edit is checked
+              [action]: checked,
+            },
+          },
+        }))
+      }
+    } else {
+      // Normal permission change (not edit, or unchecking edit)
+      if (isManageDialogOpen && selectedContact) {
+        setSelectedContact((prev) => {
+          if (!prev || !prev.permissions) return prev
+          return {
+            ...prev,
+            permissions: {
+              ...prev.permissions,
+              [category]: {
+                ...prev.permissions[category as keyof typeof prev.permissions],
+                [action]: checked,
+              },
+            },
+          }
+        })
+      } else {
+        setNewContact((prev) => ({
           ...prev,
           permissions: {
             ...prev.permissions,
@@ -215,19 +260,8 @@ export default function PermissionsClientPage() {
               [action]: checked,
             },
           },
-        }
-      })
-    } else {
-      setNewContact((prev) => ({
-        ...prev,
-        permissions: {
-          ...prev.permissions,
-          [category]: {
-            ...prev.permissions[category as keyof typeof prev.permissions],
-            [action]: checked,
-          },
-        },
-      }))
+        }))
+      }
     }
   }
 
