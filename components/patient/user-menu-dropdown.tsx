@@ -237,6 +237,44 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
     }
   }
 
+  const handleSwitchToMainUser = () => {
+    // Only switch if we're currently viewing another patient
+    if (!isViewingOtherPatient || !patientId) {
+      setDropdownOpen(false)
+      return
+    }
+    
+    console.log('🔄 Switching back to main user')
+    
+    // Set flag to suppress connection error toasts during user switching
+    ;(window as any).__isUserSwitching = true
+    
+    // Get current pathname
+    const currentPath = pathname || '/patient/dashboard'
+    
+    // Check if we're on a restricted page (dashboard, profile, permissions)
+    // These pages should redirect when switching back to main user
+    const isRestrictedPage = currentPath.includes('/patient/dashboard') || 
+                            currentPath.includes('/patient/profile') || 
+                            currentPath.includes('/patient/permissions')
+    
+    if (isRestrictedPage) {
+      // Redirect to dashboard (without patientId)
+      router.replace('/patient/dashboard')
+    } else {
+      // Remove patientId from current URL
+      const newPath = currentPath.split('?')[0] // Remove query params
+      router.replace(newPath)
+    }
+    
+    // Clear the switching flag after navigation
+    setTimeout(() => {
+      ;(window as any).__isUserSwitching = false
+    }, 2000)
+    
+    setDropdownOpen(false)
+  }
+
   const handleLogout = () => {
     if (onLogout) {
       onLogout()
@@ -439,8 +477,12 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
           {/* Main User Card */}
           <Card className="w-72 shadow-md">
             <CardContent className="p-0">
-              {/* User Profile Section */}
-              <div className="p-4 border-b">
+              {/* User Profile Section - Clickable to switch back to main user */}
+              <div 
+                className={`p-4 border-b ${isViewingOtherPatient ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors' : ''}`}
+                onClick={isViewingOtherPatient ? handleSwitchToMainUser : undefined}
+                title={isViewingOtherPatient ? 'Click to switch back to your account' : 'Your account'}
+              >
                 <div className="flex items-center gap-3">
                   <Avatar className="h-12 w-12">
                     {avatarUrl && <AvatarImage src={avatarUrl} />}
@@ -449,8 +491,15 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-base truncate">
-                      {displayName}
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold text-base truncate">
+                        {displayName}
+                      </div>
+                      {isViewingOtherPatient && (
+                        <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-full">
+                          Switch back
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
                       {displayEmail}
