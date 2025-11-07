@@ -606,7 +606,6 @@ export default function ProfileTabPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Time Zone</FormLabel>
-<<<<<<< HEAD
                         <Select onValueChange={field.onChange} value={field.value} disabled={isViewingOtherPatient}>
                           <FormControl>
                             <SelectTrigger disabled={isViewingOtherPatient}>
@@ -621,15 +620,6 @@ export default function ProfileTabPage() {
                             ))}
                           </SelectContent>
                         </Select>
-=======
-                        <FormControl>
-                          <TimezoneSelector
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            placeholder="Select timezone"
-                          />
-                        </FormControl>
->>>>>>> 6b1b77db7f1e53555d3b061ddff801fd9c3437ff
                         <FormMessage />
                       </FormItem>
                     )}
