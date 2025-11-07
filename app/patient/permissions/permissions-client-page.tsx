@@ -60,6 +60,8 @@ import { useLanguage } from "@/contexts/language-context"
 import { messagesApiService } from "@/lib/api/messages-api"
 import { RecipientAutocomplete, type Contact as MessageContact } from "@/components/messages/recipient-autocomplete"
 import { usePatientContext } from "@/hooks/use-patient-context"
+import { useSwitchedPatient } from "@/contexts/patient-context"
+import { getFirstAccessiblePage } from "@/lib/utils/patient-navigation"
 import { AuthAPI } from "@/lib/api/auth-api"
 import { useRouter } from "next/navigation"
 
@@ -92,6 +94,7 @@ export default function PermissionsClientPage() {
   const router = useRouter()
   const user = useSelector((state: RootState) => state.auth.user)
   const { patientId, isViewingOtherPatient } = usePatientContext()
+  const { switchedPatientInfo } = useSwitchedPatient()
   const [isSaving, setIsSaving] = useState(false)
   const [currentPatientPermissions, setCurrentPatientPermissions] = useState<any>(null)
   
@@ -99,9 +102,12 @@ export default function PermissionsClientPage() {
   useEffect(() => {
     if (isViewingOtherPatient && patientId) {
       console.log('🚫 Blocking permissions page access - redirecting away')
-      router.replace(`/patient/health-records?patientId=${patientId}`)
+      // Use permissions from switched patient info to redirect to first accessible page
+      const permissions = switchedPatientInfo?.permissions || null
+      const accessiblePage = getFirstAccessiblePage(permissions, true)
+      router.replace(`${accessiblePage}?patientId=${patientId}`)
     }
-  }, [isViewingOtherPatient, patientId, router])
+  }, [isViewingOtherPatient, patientId, router, switchedPatientInfo])
   
   // Don't render anything if viewing another patient (redirect will happen)
   if (isViewingOtherPatient) {

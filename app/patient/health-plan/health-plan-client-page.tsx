@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { useSelector } from "react-redux"
 import { RootState } from "@/lib/store"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -59,6 +59,8 @@ export default function HealthPlanClientPage() {
 function HealthPlanClientPageContent() {
   const pathname = usePathname()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const patientId = searchParams.get('patientId')
   const { t, language } = useLanguage()
   const { toast } = useToast()
   
@@ -76,8 +78,12 @@ function HealthPlanClientPageContent() {
       goals: '/patient/health-plan/goals',
       tasks: '/patient/health-plan/tasks'
     }
-    router.push(routes[tab as keyof typeof routes] || routes.overview)
-  }, [router])
+    const baseRoute = routes[tab as keyof typeof routes] || routes.overview
+    const targetUrl = patientId 
+      ? `${baseRoute}?patientId=${patientId}`
+      : baseRoute
+    router.push(targetUrl)
+  }, [router, patientId])
 
   // Dialog states
   const [isAddGoalOpen, setIsAddGoalOpen] = useState(false)

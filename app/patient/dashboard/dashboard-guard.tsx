@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
 import { usePatientContext } from '@/hooks/use-patient-context'
-import { AuthAPI } from '@/lib/api/auth-api'
+import { useSwitchedPatient } from '@/contexts/patient-context'
 import { getFirstAccessiblePage } from '@/lib/utils/patient-navigation'
 
 interface DashboardGuardProps {
@@ -22,6 +22,7 @@ export function DashboardGuard({ children }: DashboardGuardProps) {
   const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated)
   const isRestoringSession = useSelector((s: RootState) => s.auth.isRestoringSession)
   const { patientId, isViewingOtherPatient } = usePatientContext()
+  const { switchedPatientInfo } = useSwitchedPatient()
 
   useEffect(() => {
     // Wait for authentication to be restored before redirecting
@@ -31,34 +32,12 @@ export function DashboardGuard({ children }: DashboardGuardProps) {
 
     // If viewing another patient, redirect immediately to first accessible page
     if (isViewingOtherPatient && patientId) {
-      const redirectToFirstAccessible = async () => {
-        try {
-          const response = await AuthAPI.getAccessiblePatients()
-          const patient = response.accessible_patients?.find(p => p.patient_id === patientId)
-          const accessiblePage = getFirstAccessiblePage(patient?.permissions || null, true)
-          router.replace(`${accessiblePage}?patientId=${patientId}`)
-        } catch (error: any) {
-          // Silently handle connection errors - just redirect to fallback
-          const isConnectionError = error?.code === 'ECONNABORTED' || 
-                                    error?.code === 'ERR_NETWORK' ||
-                                    error?.code === 'ECONNRESET' ||
-                                    error?.code === 'ECONNREFUSED' ||
-                                    error?.message?.includes('Connection failed') ||
-                                    error?.message?.includes('timeout') ||
-                                    error?.message?.includes('connection closed')
-          
-          if (!isConnectionError) {
-            console.error('Failed to redirect from dashboard:', error)
-          }
-          
-          // Fallback to health-records page if we can't determine accessible page
-          router.replace(`/patient/health-records?patientId=${patientId}`)
-        }
-      }
-      
-      redirectToFirstAccessible()
+      // Use permissions from switched patient info if available
+      const permissions = switchedPatientInfo?.permissions || null
+      const accessiblePage = getFirstAccessiblePage(permissions, true)
+      router.replace(`${accessiblePage}?patientId=${patientId}`)
     }
-  }, [isViewingOtherPatient, patientId, router, isAuthenticated, isRestoringSession])
+  }, [isViewingOtherPatient, patientId, router, isAuthenticated, isRestoringSession, switchedPatientInfo])
 
   // If viewing another patient, don't render dashboard (will redirect)
   if (isViewingOtherPatient) {

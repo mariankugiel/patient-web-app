@@ -117,6 +117,9 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
     
     console.log('🔄 Switching to patient:', selectedPatientId, 'Current pathname:', pathname)
     
+    // Set flag to suppress connection error toasts during user switching
+    ;(window as any).__isUserSwitching = true
+    
     // Close dropdown immediately for better UX
     setDropdownOpen(false)
     
@@ -170,6 +173,11 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
         : '/patient/dashboard'
       console.log('📍 Navigating to:', targetPath)
       router.replace(targetPath)
+      
+      // Clear the switching flag after navigation
+      setTimeout(() => {
+        ;(window as any).__isUserSwitching = false
+      }, 2000)
       return
     }
     
@@ -216,8 +224,16 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
     if (targetUrl) {
       console.log('🚀 Navigating to:', targetUrl)
       router.replace(targetUrl)
+      
+      // Clear the switching flag after a short delay to allow navigation to complete
+      // This prevents showing connection error toasts during the switch
+      setTimeout(() => {
+        ;(window as any).__isUserSwitching = false
+      }, 2000) // 2 seconds should be enough for navigation and initial API calls
     } else {
       console.error('❌ No target URL determined, cannot navigate')
+      // Clear the flag if navigation fails
+      ;(window as any).__isUserSwitching = false
     }
   }
 
@@ -323,15 +339,32 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
 
   // ALWAYS display current user's info in dropdown (not the switched user)
   // The dropdown should always show who is logged in, not who they're viewing
-  const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'
+  const displayName = (user?.user_metadata?.full_name?.trim() || 
+                       (user?.email ? user.email.split('@')[0] : null) || 
+                       'User') || 'User'
   const displayEmail = user?.email || ''
   
   // Get user initials for avatar
-  const getInitials = (name: string) => {
-    const parts = name.split(' ').filter(Boolean)
-    if (parts.length === 0) return '?'
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+  const getInitials = (name: string | null | undefined) => {
+    // Handle null, undefined, or empty strings
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+      return '?'
+    }
+    
+    try {
+      const parts = name.split(' ').filter(Boolean)
+      if (parts.length === 0) return '?'
+      if (parts.length === 1) {
+        // Single word: take first 2 characters
+        return parts[0].slice(0, 2).toUpperCase()
+      }
+      // Multiple words: take first letter of first and last word
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+    } catch (error) {
+      // Fallback if split fails for any reason
+      console.warn('Error generating initials:', error, 'name:', name)
+      return '?'
+    }
   }
   
   // Get current user's avatar URL (always show current user's avatar in dropdown)
@@ -530,7 +563,7 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
                                   <AvatarImage src={getPatientAvatar(patient) || ''} />
                                 )}
                                 <AvatarFallback className="bg-gray-500 text-white text-xs">
-                                  {getInitials(patient.patient_name)}
+                                  {getInitials(patient.patient_name || patient.patient_email || 'User')}
                                 </AvatarFallback>
                               </Avatar>
                               <div className="flex-1 min-w-0 text-left">

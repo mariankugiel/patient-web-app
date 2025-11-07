@@ -8,7 +8,8 @@ import {
   setConversations as setGlobalConversations, 
   setUnreadCount as setGlobalUnreadCount,
   addNewMessage as addGlobalNewMessage,
-  markConversationAsRead as markGlobalConversationAsRead
+  markConversationAsRead as markGlobalConversationAsRead,
+  clearConversations as clearGlobalConversations
 } from '@/lib/features/messages/conversationsSlice'
 import type { 
   Conversation, 
@@ -84,6 +85,9 @@ export function useMessages(patientId?: number | null): UseMessagesReturn {
   const [currentUserId, setCurrentUserId] = useState<number | null>(null)  // Store actual database user ID
   const [typingUsers, setTypingUsers] = useState<Set<number>>(new Set())  // Track typing users
   const typingTimeoutsRef = useRef<Map<number, NodeJS.Timeout>>(new Map())  // Track typing timeouts per user
+  const previousPatientIdRef = useRef<number | null | undefined>(undefined)  // Track previous patientId to detect real changes
+  const isFirstLoadRef = useRef<boolean>(true)  // Track if this is the first load after mount
+  const initialLoadTimeoutRef = useRef<NodeJS.Timeout | null>(null)  // Track initial load timeout
 
   const { isConnected, sendMessage: sendWebSocketMessage } = useWebSocketContext()
 
@@ -209,10 +213,27 @@ export function useMessages(patientId?: number | null): UseMessagesReturn {
     try {
       // Convert null to undefined for API call
       const apiPatientId = patientId !== null && patientId !== undefined ? patientId : undefined
+      console.log('📋 ========== START loadConversations ==========')
       console.log('📋 Loading conversations with filters:', filters, 'patientId:', apiPatientId)
+      console.log('📋 Raw patientId from hook:', patientId)
+      console.log('📋 API patientId (converted):', apiPatientId)
       setLoadingConversations(true)
       setError(null)
+      
+      console.log('📋 About to call messagesApiService.getConversations...')
       const response = await messagesApiService.getConversations(filters, apiPatientId)
+      // Mark that first load succeeded
+      isFirstLoadRef.current = false
+      if (initialLoadTimeoutRef.current) {
+        clearTimeout(initialLoadTimeoutRef.current)
+        initialLoadTimeoutRef.current = null
+      }
+      
+      console.log('📋 Response received from API:', {
+        status: 'success',
+        conversationsCount: response.conversations?.length || 0,
+        currentUserId: response.current_user_id
+      })
       console.log('📋 Conversations loaded:', response.conversations)
       console.log('📋 Conversations count:', response.conversations.length)
       console.log('📋 Current user ID from backend:', response.current_user_id)
@@ -236,6 +257,43 @@ export function useMessages(patientId?: number | null): UseMessagesReturn {
         })
       })
       
+      // Detailed console logging for contacts/conversations
+      console.log('📋 ========== CONVERSATIONS/CONTACTS DATA ==========')
+      console.log('📋 Total conversations loaded:', response.conversations.length)
+      console.log('📋 Patient ID used for API call:', apiPatientId)
+      console.log('📋 Current User ID from backend:', response.current_user_id)
+      console.log('📋 Unread count:', response.unreadCount)
+      
+      if (response.conversations.length > 0) {
+        console.log('📋 ========== CONTACT LIST ==========')
+        response.conversations.forEach((conv: Conversation, index: number) => {
+          console.log(`📋 Contact ${index + 1}:`, {
+            conversationId: conv.id,
+            contactId: conv.contact_id,
+            contactName: conv.contact_name,
+            contactRole: conv.contact_role,
+            contactAvatar: conv.contact_avatar,
+            contactSupabaseUserId: conv.contact_supabase_user_id,
+            contactInitials: conv.contact_initials,
+            currentUserName: conv.current_user_name,
+            currentUserRole: conv.current_user_role,
+            userId: conv.user_id,
+            unreadCount: conv.unreadCount,
+            lastMessage: conv.lastMessage?.content || 'No messages',
+            lastMessageTime: conv.lastMessageTime
+          })
+        })
+        console.log('📋 ========== END CONTACT LIST ==========')
+      } else {
+        console.log('⚠️ WARNING: No conversations/contacts found!')
+        console.log('⚠️ This could mean:')
+        console.log('   - The switched user has no conversations')
+        console.log('   - Permission check failed')
+        console.log('   - API returned empty array')
+        console.log('   - Database query returned no results')
+      }
+      console.log('📋 ========== END CONVERSATIONS DATA ==========')
+      
       setConversations(response.conversations)
       setUnreadCount(response.unreadCount) // ✅ Already included in response
       setCurrentUserId(response.current_user_id) // ✅ Store actual database user ID
@@ -243,31 +301,91 @@ export function useMessages(patientId?: number | null): UseMessagesReturn {
       // Update global conversations state
       dispatch(setGlobalConversations(response.conversations))
       dispatch(setGlobalUnreadCount(response.unreadCount))
-    } catch (err) {
+    } catch (err: any) {
+      const apiPatientIdForError = patientId !== null && patientId !== undefined ? patientId : undefined
+      const isTimeoutError = err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')
+      const isNetworkError = err?.code === 'ERR_NETWORK' || err?.code === 'ECONNRESET' || err?.code === 'ECONNREFUSED'
+      
       console.error('📋 Failed to load conversations:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load conversations')
+      
+      // On first load after mount, timeout errors are often due to backend being slow
+      // Don't show error to user on first load - just log it and retry later
+      if (isFirstLoadRef.current && (isTimeoutError || isNetworkError)) {
+        console.log('⏸️ [loadConversations] Timeout/network error on first load - will retry automatically')
+        setError(null)  // Don't show error to user on first load
+        setConversations([])
+        dispatch(clearGlobalConversations())
+        setLoadingConversations(false)
+        
+        // Retry after a delay (backend might be initializing)
+        if (initialLoadTimeoutRef.current) {
+          clearTimeout(initialLoadTimeoutRef.current)
+        }
+        initialLoadTimeoutRef.current = setTimeout(() => {
+          console.log('🔄 [loadConversations] Retrying after initial timeout...')
+          isFirstLoadRef.current = false  // Mark as no longer first load
+          loadConversations(filters).catch(() => {
+            // If retry also fails, handle normally
+            isFirstLoadRef.current = false
+          })
+        }, 3000)  // Retry after 3 seconds
+        
+        return
+      }
+      
+      // After first load, handle errors normally
+      isFirstLoadRef.current = false
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load conversations'
+      
+      // For timeout errors after first load, show a user-friendly message
+      if (isTimeoutError) {
+        setError('Loading conversations is taking longer than expected. Please try refreshing the page.')
+      } else {
+        setError(errorMessage)
+      }
+      
+      // On error, ensure conversations array is empty (not undefined)
+      setConversations([])
+      // Also clear global state on error
+      dispatch(clearGlobalConversations())
+      
+      // Show error details in console
+      console.error('📋 Error details:', {
+        message: err?.message || 'Unknown error',
+        code: err?.code,
+        isTimeout: isTimeoutError,
+        isNetwork: isNetworkError,
+        apiPatientId: apiPatientIdForError,
+        url: `/messages/conversations?patient_id=${apiPatientIdForError || 'none'}`,
+        isFirstLoad: isFirstLoadRef.current
+      })
     } finally {
-      setLoadingConversations(false)
+      // Only set loading to false if not retrying
+      if (!isFirstLoadRef.current || !initialLoadTimeoutRef.current) {
+        setLoadingConversations(false)
+      }
     }
   }, [patientId, dispatch])
 
   // Load unread count by type
   const loadUnreadCount = useCallback(async () => {
     try {
-      const response = await messagesApiService.getUnreadCount()
+      const apiPatientId = patientId !== null && patientId !== undefined ? patientId : undefined
+      const response = await messagesApiService.getUnreadCount(apiPatientId)
       setUnreadCount(response.count)
       setUnreadCountByType(response.byType)
     } catch (err) {
       console.error('Failed to load unread count:', err)
     }
-  }, [])
+  }, [patientId])
 
   // Load messages for selected conversation
   const loadMessages = useCallback(async (conversationId: string) => {
     try {
-      console.log('📥 Loading messages for conversation:', conversationId)
+      const apiPatientId = patientId !== null && patientId !== undefined ? patientId : undefined
+      console.log('📥 Loading messages for conversation:', conversationId, 'patientId:', apiPatientId)
       setLoadingMessages(true)
-      const response = await messagesApiService.getConversationMessages(conversationId)
+      const response = await messagesApiService.getConversationMessages(conversationId, 1, 50, apiPatientId)
       console.log('📥 Messages loaded:', response.messages)
       console.log('📥 Messages count:', response.messages.length)
       
@@ -310,7 +428,7 @@ export function useMessages(patientId?: number | null): UseMessagesReturn {
     } finally {
       setLoadingMessages(false)
     }
-  }, [conversations, dispatch])
+  }, [conversations, dispatch, patientId])
 
   // Select conversation
   const selectConversation = useCallback((conversationId: string) => {
@@ -717,13 +835,121 @@ export function useMessages(patientId?: number | null): UseMessagesReturn {
 
   // Load initial data and reload when patientId changes
   useEffect(() => {
-    // Clear selected conversation and messages when switching patients
-    if (patientId !== undefined) {
+    console.log('🔄 [useMessages useEffect] Triggered with patientId:', patientId)
+    
+    const previousPatientId = previousPatientIdRef.current
+    const currentPatientId = patientId ?? null  // Normalize undefined to null for comparison
+    
+    // Treat undefined and null as the same (both mean "current user")
+    const previous = previousPatientId ?? null
+    const current = currentPatientId ?? null
+    
+    // Check if this is initial mount (previousPatientIdRef is undefined)
+    const isInitialMount = previousPatientId === undefined
+    
+    // Only act if patientId actually changed OR this is initial mount
+    const hasPatientIdChanged = previous !== current
+    const shouldLoad = isInitialMount || hasPatientIdChanged
+    
+    console.log('🔄 [useMessages useEffect] State check:', {
+      isInitialMount,
+      hasPatientIdChanged,
+      shouldLoad,
+      previous,
+      current,
+      previousRaw: previousPatientId,
+      currentRaw: patientId
+    })
+    
+    if (!shouldLoad) {
+      // No change, do nothing
+      console.log('⏭️ [useMessages useEffect] Skipping - no change detected')
+      return
+    }
+    
+    console.log('🔄 PatientId changed in useMessages:', {
+      isInitialMount,
+      previous: previous,
+      current: current,
+      previousRaw: previousPatientId,
+      currentRaw: patientId
+    })
+    
+    // On initial mount, don't clear state (there's nothing to clear)
+    // Only clear when switching between different patients
+    if (!isInitialMount && previous !== current && previous !== null) {
+      console.log('🧹 IMMEDIATELY clearing all conversations and messages due to patientId change:', {
+        from: previous,
+        to: current
+      })
       setSelectedConversation(null)
       setMessages([])
+      setConversations([])
+      setUnreadCount(0)
+      setUnreadCountByType({})
+      // Clear global Redux state immediately (messages page uses this)
+      dispatch(clearGlobalConversations())
     }
-    loadConversations() // ✅ This already includes unread count
-  }, [loadConversations, patientId]) // Reload when patientId changes
+    
+    // Update the ref to the current value
+    previousPatientIdRef.current = currentPatientId
+    
+    // Load conversations - use a delay to ensure token is ready, especially on first load after login
+    // For initial mount, add a small delay to ensure authentication token is ready
+    // For subsequent loads, use minimal delay
+    const delay = isInitialMount ? 500 : 50  // 500ms delay on first load to ensure token is ready
+    console.log(`⏳ [useMessages useEffect] Scheduling loadConversations with delay: ${delay}ms (isInitialMount: ${isInitialMount})`)
+    const timeoutId = setTimeout(() => {
+      // Double-check patientId hasn't changed during the delay
+      const currentPatientIdAtLoad = previousPatientIdRef.current
+      console.log('⏰ [useMessages useEffect] Timeout fired, checking patientId:', {
+        expected: currentPatientId,
+        actual: currentPatientIdAtLoad,
+        match: currentPatientIdAtLoad === currentPatientId
+      })
+      
+      if (currentPatientIdAtLoad === currentPatientId) {
+        console.log('✅ [useMessages useEffect] Calling loadConversations for patientId:', current, 'isInitialMount:', isInitialMount)
+        console.log('✅ [useMessages useEffect] loadConversations function exists:', typeof loadConversations === 'function')
+        console.log('✅ [useMessages useEffect] About to invoke loadConversations()')
+        
+        // Wrap in try-catch to catch any synchronous errors
+        try {
+          // loadConversations will use the current patientId from its closure
+          const result = loadConversations()
+          console.log('✅ [useMessages useEffect] loadConversations() called, result:', result)
+          
+          // If it's a promise, catch errors
+          if (result && typeof result.then === 'function') {
+            result.catch((err: any) => {
+              console.error('❌ [useMessages useEffect] Error in loadConversations promise:', err)
+            })
+          }
+        } catch (err) {
+          console.error('❌ [useMessages useEffect] Synchronous error calling loadConversations:', err)
+        }
+      } else {
+        console.log('⚠️ PatientId changed during delay, skipping load')
+      }
+    }, delay)
+    
+    return () => {
+      console.log('🧹 [useMessages useEffect] Cleanup - clearing timeout')
+      clearTimeout(timeoutId)
+      // Clear initial load timeout if component unmounts
+      if (initialLoadTimeoutRef.current) {
+        clearTimeout(initialLoadTimeoutRef.current)
+        initialLoadTimeoutRef.current = null
+      }
+    }
+  }, [loadConversations, patientId, dispatch]) // Reload when patientId changes
+  
+  // Reset first load flag when patientId changes (new patient = new first load)
+  useEffect(() => {
+    if (patientId !== undefined && patientId !== null) {
+      isFirstLoadRef.current = true
+    }
+  }, [patientId])
 
   // Handle WebSocket messages
   useEffect(() => {

@@ -169,6 +169,25 @@ export function ConversationList({
     onMarkAsRead(conversationId)
   }
 
+  // Debug logging
+  useEffect(() => {
+    console.log('💬 [ConversationList] Rendering conversations:', {
+      count: conversations.length,
+      conversationIds: conversations.map(c => c.id),
+      conversationContacts: conversations.map(c => c.contact_name)
+    })
+  }, [conversations])
+
+  if (conversations.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-32 text-gray-500 dark:text-gray-400">
+        <MessageSquare className="h-8 w-8 mb-2 opacity-50" />
+        <p className="text-sm">No conversations yet</p>
+        <p className="text-xs mt-1 opacity-75">Start a conversation to see it here</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-2 w-full max-w-full overflow-hidden">
       {conversations.map((conversation) => {

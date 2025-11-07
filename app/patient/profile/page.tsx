@@ -25,6 +25,8 @@ import { updateUser } from "@/lib/features/auth/authSlice"
 import { AuthApiService, AuthAPI } from "@/lib/api/auth-api"
 import { getProfilePictureUrl } from "@/lib/profile-utils"
 import { usePatientContext } from "@/hooks/use-patient-context"
+import { useSwitchedPatient } from "@/contexts/patient-context"
+import { getFirstAccessiblePage } from "@/lib/utils/patient-navigation"
 import { useRouter } from "next/navigation"
 
 const profileFormSchema = z.object({
@@ -69,6 +71,7 @@ export default function ProfileTabPage() {
   const { t, language, setLanguage } = useLanguage()
   const { toast } = useToast()
   const { patientId, isViewingOtherPatient } = usePatientContext()
+  const { switchedPatientInfo } = useSwitchedPatient()
   const [selectedLanguage, setSelectedLanguage] = useState(language)
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">("light")
   const [profileImage, setProfileImage] = useState<string | null>(null)
@@ -82,11 +85,12 @@ export default function ProfileTabPage() {
   useEffect(() => {
     if (isViewingOtherPatient && patientId) {
       console.log('🚫 Blocking profile page access - redirecting away')
-      // Redirect directly to health-records as default
-      // The health-records page will handle permission checks and redirect if needed
-      router.replace(`/patient/health-records?patientId=${patientId}`)
+      // Use permissions from switched patient info to redirect to first accessible page
+      const permissions = switchedPatientInfo?.permissions || null
+      const accessiblePage = getFirstAccessiblePage(permissions, true)
+      router.replace(`${accessiblePage}?patientId=${patientId}`)
     }
-  }, [isViewingOtherPatient, patientId, router])
+  }, [isViewingOtherPatient, patientId, router, switchedPatientInfo])
   
   // Don't render anything if viewing another patient (redirect will happen)
   if (isViewingOtherPatient) {

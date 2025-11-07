@@ -43,10 +43,30 @@ export class MessagesApiService {
 
       // Use longer timeout for conversations endpoint (60 seconds)
       // as it may need to fetch multiple profiles from Supabase
-      const response = await apiClient.get(`/messages/conversations?${params.toString()}`, {
+      const url = `/messages/conversations?${params.toString()}`
+      console.log('📋 API: Request URL:', url)
+      console.log('📋 API: Request params:', {
+        patient_id: patientId || 'none',
+        filters: filters || 'none',
+        fullParams: params.toString()
+      })
+      
+      const response = await apiClient.get(url, {
         timeout: 60000
       })
-      console.log('📋 API: Conversations response:', response.data)
+      
+      console.log('📋 API: Response status:', response.status)
+      console.log('📋 API: Response data:', response.data)
+      console.log('📋 API: Conversations in response:', response.data?.conversations?.length || 0)
+      
+      if (response.data?.conversations) {
+        console.log('📋 API: Conversations details:', response.data.conversations.map((c: any) => ({
+          id: c.id,
+          contact_name: c.contact_name,
+          contact_id: c.contact_id,
+          user_id: c.user_id
+        })))
+      }
       
       // Log img_url/avatar_url for each conversation
       if (response.data?.conversations) {
@@ -64,18 +84,38 @@ export class MessagesApiService {
       }
       
       return response.data
-    } catch (error) {
+    } catch (error: any) {
       console.error('📋 API: Failed to fetch conversations:', error)
+      console.error('📋 API: Error details:', {
+        message: error?.message,
+        code: error?.code,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        url: error?.config?.url,
+        method: error?.config?.method,
+        headers: error?.config?.headers
+      })
+      
+      // If it's a network error, log more details
+      if (error?.code === 'ERR_NETWORK' || error?.code === 'ECONNABORTED') {
+        console.error('📋 API: Network error - check if backend is running and accessible')
+      }
+      
       throw error
     }
   }
 
   // Get messages for a specific conversation
-  async getConversationMessages(conversationId: string, page = 1, limit = 50): Promise<{ messages: Message[], hasMore: boolean }> {
+  async getConversationMessages(conversationId: string, page = 1, limit = 50, patientId?: number): Promise<{ messages: Message[], hasMore: boolean }> {
     try {
-      console.log('📥 API: Getting messages for conversation:', conversationId)
+      console.log('📥 API: Getting messages for conversation:', conversationId, 'patientId:', patientId)
+      const params: any = { page, limit }
+      if (patientId) {
+        params.patient_id = patientId
+      }
       const response = await apiClient.get(`/messages/conversations/${conversationId}/messages`, {
-        params: { page, limit }
+        params
       })
       console.log('📥 API: Messages response:', response.data)
       return response.data
@@ -176,9 +216,13 @@ export class MessagesApiService {
   }
 
   // Get unread count
-  async getUnreadCount(): Promise<{ count: number, byType: Record<string, number> }> {
+  async getUnreadCount(patientId?: number): Promise<{ count: number, byType: Record<string, number> }> {
     try {
-      const response = await apiClient.get('/messages/unread-count')
+      const params: any = {}
+      if (patientId) {
+        params.patient_id = patientId
+      }
+      const response = await apiClient.get('/messages/unread-count', { params })
       return response.data
     } catch (error) {
       console.error('Failed to get unread count:', error)
@@ -238,9 +282,13 @@ export class MessagesApiService {
   }
 
   // Get conversation by ID
-  async getConversation(conversationId: string): Promise<Conversation> {
+  async getConversation(conversationId: string, patientId?: number): Promise<Conversation> {
     try {
-      const response = await apiClient.get(`/messages/conversations/${conversationId}`)
+      const params: any = {}
+      if (patientId) {
+        params.patient_id = patientId
+      }
+      const response = await apiClient.get(`/messages/conversations/${conversationId}`, { params })
       return response.data
     } catch (error) {
       console.error('Failed to get conversation:', error)

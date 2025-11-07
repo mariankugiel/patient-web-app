@@ -24,10 +24,12 @@ import {
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { HealthMetricsChart } from "@/components/patient/health-metrics-chart"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 export default function SummaryPage() {
   const { t } = useLanguage()
+  const searchParams = useSearchParams()
+  const patientId = searchParams.get('patientId')
   const router = useRouter()
 
   const renderTrendIcon = (status: string) => {
@@ -268,7 +270,12 @@ export default function SummaryPage() {
             variant="ghost"
             size="sm"
             className="w-full text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => router.push(`/patient/health-records/${metric.tab}`)}
+            onClick={() => {
+              const targetUrl = patientId 
+                ? `/patient/health-records/${metric.tab}?patientId=${patientId}`
+                : `/patient/health-records/${metric.tab}`
+              router.push(targetUrl)
+            }}
           >
             {t("health.viewDetails")} <ArrowRight className="ml-1 h-3 w-3" />
           </Button>

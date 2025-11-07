@@ -26,6 +26,7 @@ import { logout } from "@/lib/features/auth/authSlice"
 import { useRouter } from "next/navigation"
 import { UserMenuDropdown } from "./user-menu-dropdown"
 import { AuthAPI, AccessiblePatient } from "@/lib/api/auth-api"
+import { useSwitchedPatient } from "@/contexts/patient-context"
 
 interface NavigationItem {
   name: string
@@ -42,67 +43,19 @@ export default function PatientSidebar() {
   const { t } = useLanguage()
   const dispatch = useDispatch<AppDispatch>()
   const router = useRouter()
-  const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated)
-  const isRestoringSession = useSelector((s: RootState) => s.auth.isRestoringSession)
-  const [accessiblePatients, setAccessiblePatients] = useState<AccessiblePatient[]>([])
-  const [loadingPermissions, setLoadingPermissions] = useState(false)
-  
   // Get patientId from URL to preserve it when navigating
   const patientId = searchParams.get('patientId')
   const parsedPatientId = patientId ? parseInt(patientId, 10) : null
   const isViewingOtherPatient = !!parsedPatientId
   
-  // Load accessible patients to get permissions
-  useEffect(() => {
-    // Wait for authentication to be restored before making API calls
-    if (isRestoringSession || !isAuthenticated) {
-      return
-    }
-
-    if (isViewingOtherPatient) {
-      const loadAccessiblePatients = async () => {
-        try {
-          setLoadingPermissions(true)
-          const response = await AuthAPI.getAccessiblePatients()
-          const patients = response?.accessible_patients || []
-          setAccessiblePatients(patients)
-        } catch (error: any) {
-          // Check if it's a connection error
-          const errorMessage = typeof error === 'string' ? error : (error?.message || String(error || ''))
-          const isConnectionError = error?.code === 'ECONNABORTED' || 
-                                    error?.code === 'ERR_NETWORK' ||
-                                    error?.code === 'ECONNRESET' ||
-                                    error?.code === 'ECONNREFUSED' ||
-                                    errorMessage.includes('Connection failed') ||
-                                    errorMessage.includes('timeout') ||
-                                    errorMessage.includes('connection closed') ||
-                                    errorMessage.includes('Unable to connect') ||
-                                    errorMessage.includes('Connection closed') ||
-                                    errorMessage.includes('socket hang up')
-          
-          // Only log non-connection errors to avoid console spam
-          if (!isConnectionError) {
-            console.error('Failed to load accessible patients:', error)
-          }
-          // Keep existing accessiblePatients on connection error (don't clear)
-          if (!isConnectionError) {
-            setAccessiblePatients([])
-          }
-        } finally {
-          setLoadingPermissions(false)
-        }
-      }
-      loadAccessiblePatients()
-    } else {
-      setAccessiblePatients([])
-    }
-  }, [isViewingOtherPatient, parsedPatientId, isAuthenticated, isRestoringSession])
+  // Use shared patient context for accessible patients and switched patient info
+  const { accessiblePatients, switchedPatientInfo, isLoading: loadingPermissions } = useSwitchedPatient()
   
-  // Get permissions for the currently viewed patient
+  // Get permissions for the currently viewed patient from switched patient info
   const currentPatientPermissions = useMemo(() => {
-    if (!isViewingOtherPatient || !parsedPatientId) return null
-    return accessiblePatients.find(p => p.patient_id === parsedPatientId)?.permissions || null
-  }, [accessiblePatients, parsedPatientId, isViewingOtherPatient])
+    if (!isViewingOtherPatient || !switchedPatientInfo) return null
+    return switchedPatientInfo.permissions
+  }, [switchedPatientInfo, isViewingOtherPatient])
   
   // Helper function to build href with patientId if present
   const buildHref = (baseHref: string) => {

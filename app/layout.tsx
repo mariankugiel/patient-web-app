@@ -9,6 +9,7 @@ import { RouterProvider } from "@/components/providers/router-provider"
 import { ThemeProviderClient } from "@/components/providers/theme-provider-client"
 import { ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
+import { ChunkErrorHandler } from "@/components/chunk-error-handler"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -26,6 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        <ChunkErrorHandler />
         <ReduxProvider>
           <SessionProvider>
             <ThemeProviderClient />

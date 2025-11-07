@@ -61,6 +61,7 @@ import type { FileUploadItem } from "@/types/files"
 import { messagesApiService } from "@/lib/api/messages-api"
 import { s3UploadService } from "@/lib/api/s3-upload-api"
 import { usePatientContext } from "@/hooks/use-patient-context"
+import { useSwitchedPatient } from "@/contexts/patient-context"
 
 // Sample conversation data
 const conversations = [
@@ -326,12 +327,24 @@ export default function MessagesClientPage() {
 
 function MessagesClientPageContent() {
   const { t } = useLanguage()
-  const { patientId, isViewingOtherPatient } = usePatientContext()
+  // Use patientId from PatientProvider context (more stable than useSearchParams)
+  const { patientId: contextPatientId, isViewingOtherPatient: contextIsViewingOtherPatient } = useSwitchedPatient()
+  // Fallback to usePatientContext if context doesn't have it (for backwards compatibility)
+  const { patientId: urlPatientId, isViewingOtherPatient: urlIsViewingOtherPatient } = usePatientContext()
+  
+  // Use patientId from context first, fallback to URL patientId
+  const patientId = contextPatientId ?? urlPatientId
+  const isViewingOtherPatient = contextIsViewingOtherPatient ?? urlIsViewingOtherPatient
   
   // Debug logging
   useEffect(() => {
-    console.log('🔍 [MessagesClientPage] patientId from context:', patientId, 'isViewingOtherPatient:', isViewingOtherPatient)
-  }, [patientId, isViewingOtherPatient])
+    console.log('🔍 [MessagesClientPage] patientId:', {
+      fromContext: contextPatientId,
+      fromURL: urlPatientId,
+      final: patientId,
+      isViewingOtherPatient
+    })
+  }, [contextPatientId, urlPatientId, patientId, isViewingOtherPatient])
   
   // Get current user from Redux state
   const { user } = useSelector((state: RootState) => state.auth)
@@ -400,39 +413,24 @@ function MessagesClientPageContent() {
     filterConversations,
     clearFilters,
     currentFilters,
-    refreshConversations
+    refreshConversations,
+    conversations: conversationsFromHook  // Get conversations directly from hook
   } = useMessages(patientId)
   
-  // Use global conversations state
-  const { conversations, unreadCount } = useGlobalConversations()
-
-  // Use real-time messaging hook
-  const {
-    onlineUsers,
-    isTyping,
-    isConnected,
-    sendRealtimeMessage,
-    sendVoiceMessage,
-    sendFileMessage,
-    handleTyping,
-    typingUsersForCurrentConversation,
-    isUserOnline
-  } = useRealtimeMessages()
-
-  // Toggle filter
-  const toggleFilter = (filter: string) => {
-    setSelectedFilters(prev => 
-      prev.includes(filter) 
-        ? prev.filter(f => f !== filter)
-        : [...prev, filter]
-    )
-  }
-
-  // Clear all filters
-  const clearAllFilters = () => {
-    setSelectedFilters([])
-  }
-
+  // Use conversations from useMessages hook (which respects patientId)
+  // ALWAYS use conversations from the hook, not from global state
+  // The hook properly filters by patientId and clears old data when switching
+  // Global conversations are only used as a fallback if hook hasn't loaded yet
+  const { conversations: globalConversations, unreadCount } = useGlobalConversations()
+  
+  // Prioritize conversations from hook - these are filtered by the current patientId
+  // Show loading state while loading, otherwise show hook conversations (even if empty)
+  // Only fallback to global conversations if we're not loading and hook is empty AND global has data
+  // This prevents showing stale global data when switching patients
+  const conversations = loadingConversations 
+    ? [] // Show empty while loading
+    : (conversationsFromHook || []) // Use hook conversations (will be empty array if no data, which is correct)
+  
   // Filter conversations based on selected filters
   const filteredConversations = conversations.filter((conv) => {
     // If no filters selected, show all
@@ -465,6 +463,126 @@ function MessagesClientPageContent() {
     
     return false
   })
+  
+  // Debug logging with detailed contact information
+  useEffect(() => {
+    console.log('💬 ========== [MessagesPage] CONVERSATIONS STATE ==========')
+    console.log('💬 Patient ID:', patientId)
+    console.log('💬 Is Viewing Other Patient:', isViewingOtherPatient)
+    console.log('💬 Loading Conversations:', loadingConversations)
+    console.log('💬 Error:', error)
+    console.log('💬 Conversations from hook:', conversationsFromHook?.length || 0)
+    console.log('💬 Conversations from global:', globalConversations?.length || 0)
+    console.log('💬 Final conversations count:', conversations.length)
+    console.log('💬 Filtered conversations count:', filteredConversations.length)
+    console.log('💬 Refresh conversations function exists:', typeof refreshConversations === 'function')
+    
+    // Force a manual refresh if we have patientId but no conversations and not loading
+    if (patientId && !loadingConversations && conversations.length === 0 && !error) {
+      console.log('⚠️ [MessagesPage] Detected patientId but no conversations - attempting manual refresh')
+      console.log('⚠️ [MessagesPage] Calling refreshConversations()')
+      setTimeout(() => {
+        refreshConversations().catch((err: any) => {
+          console.error('❌ [MessagesPage] Error in manual refresh:', err)
+        })
+      }, 100)
+    }
+    
+    if (conversationsFromHook && conversationsFromHook.length > 0) {
+      console.log('💬 ========== CONTACTS FROM HOOK ==========')
+      conversationsFromHook.forEach((conv, index) => {
+        console.log(`💬 Contact ${index + 1} from hook:`, {
+          id: conv.id,
+          contactName: conv.contact_name,
+          contactId: conv.contact_id,
+          contactRole: conv.contact_role,
+          contactAvatar: conv.contact_avatar,
+          userId: conv.user_id,
+          unreadCount: conv.unreadCount
+        })
+      })
+      console.log('💬 ========== END CONTACTS FROM HOOK ==========')
+    } else {
+      console.log('⚠️ No conversations from hook!')
+    }
+    
+    if (conversations && conversations.length > 0) {
+      console.log('💬 ========== FINAL CONTACTS LIST ==========')
+      conversations.forEach((conv, index) => {
+        console.log(`💬 Final Contact ${index + 1}:`, {
+          id: conv.id,
+          contactName: conv.contact_name,
+          contactId: conv.contact_id,
+          contactRole: conv.contact_role,
+          contactAvatar: conv.contact_avatar,
+          userId: conv.user_id
+        })
+      })
+      console.log('💬 ========== END FINAL CONTACTS LIST ==========')
+    } else {
+      console.log('⚠️ Final conversations array is empty!')
+    }
+    
+    if (filteredConversations && filteredConversations.length > 0) {
+      console.log('💬 ========== FILTERED CONTACTS LIST ==========')
+      filteredConversations.forEach((conv, index) => {
+        console.log(`💬 Filtered Contact ${index + 1}:`, {
+          id: conv.id,
+          contactName: conv.contact_name,
+          contactRole: conv.contact_role
+        })
+      })
+      console.log('💬 ========== END FILTERED CONTACTS LIST ==========')
+    } else {
+      console.log('⚠️ Filtered conversations array is empty!')
+      console.log('💬 Selected filters:', selectedFilters)
+    }
+    
+    console.log('💬 ========== END [MessagesPage] CONVERSATIONS STATE ==========')
+  }, [patientId, isViewingOtherPatient, conversationsFromHook, globalConversations, conversations, filteredConversations, loadingConversations, error, selectedFilters])
+
+  // Use real-time messaging hook
+  const {
+    onlineUsers,
+    isTyping,
+    isConnected,
+    sendRealtimeMessage,
+    sendVoiceMessage,
+    sendFileMessage,
+    handleTyping,
+    typingUsersForCurrentConversation,
+    isUserOnline
+  } = useRealtimeMessages()
+
+  // Toggle filter
+  const toggleFilter = (filter: string) => {
+    setSelectedFilters(prev => 
+      prev.includes(filter) 
+        ? prev.filter(f => f !== filter)
+        : [...prev, filter]
+    )
+  }
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setSelectedFilters([])
+  }
+
+  // Filter conversations based on selected filters
+  // Debug logging for conversations filtering
+  useEffect(() => {
+    console.log('🔍 [MessagesPage] Filtering conversations:', {
+      totalConversations: conversations.length,
+      selectedFilters: selectedFilters,
+      filteredCount: filteredConversations.length,
+      conversationDetails: conversations.map(c => ({
+        id: c.id,
+        contact_name: c.contact_name,
+        contact_role: c.contact_role,
+        unreadCount: c.unreadCount
+      }))
+    })
+  }, [conversations, selectedFilters, filteredConversations.length])
 
   // Handle message action clicks
   const handleMessageAction = async (messageId: string, action: string) => {

@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import PatientSidebar from "@/components/patient/sidebar"
 import { LanguageProvider, useLanguage } from "@/contexts/language-context"
 import { WebSocketProvider } from "@/contexts/websocket-context"
+import { PatientProvider, useSwitchedPatient } from "@/contexts/patient-context"
 import { type RootState } from "@/lib/store"
 import { AuthAPI, AccessiblePatient } from "@/lib/api/auth-api"
 import { usePatientContext } from "@/hooks/use-patient-context"
@@ -22,185 +23,29 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { patientId, isViewingOtherPatient } = usePatientContext()
+  const { switchedPatientInfo, isLoading } = useSwitchedPatient()
   const [avatarUrl, setAvatarUrl] = useState<string>("")
-  const [viewingPatient, setViewingPatient] = useState<AccessiblePatient | null>(null)
-  const [viewingPatientProfile, setViewingPatientProfile] = useState<any>(null)
-  const fetchingPatientIdRef = useRef<number | null>(null)
-  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const accessiblePatientsCacheRef = useRef<AccessiblePatient[] | null>(null)
 
-  // Fetch the viewing patient's information when patientId is in URL
+  // Apply theme and language from switched patient info
   useEffect(() => {
-    // Clear any pending fetch timeout
-    if (fetchTimeoutRef.current) {
-      clearTimeout(fetchTimeoutRef.current)
-    }
-
-    const fetchViewingPatient = async () => {
-      // Don't make API calls if:
-      // 1. User is not authenticated
-      // 2. Session is still being restored
-      // 3. No patientId in URL
-      if (!isAuthenticated || isRestoringSession || !user || !user.id) {
-        return
-      }
+    if (isViewingOtherPatient && switchedPatientInfo?.profile) {
+      const profile = switchedPatientInfo.profile
       
-      if (!patientId) {
-        setViewingPatient(null)
-        setViewingPatientProfile(null)
-        fetchingPatientIdRef.current = null
-        return
-      }
-      
-      // If patientId changed, clear old state immediately to prevent showing wrong patient's info
-      // This ensures the header shows "Loading..." instead of the old patient's info
-      if (viewingPatient && viewingPatient.patient_id !== patientId) {
-        setViewingPatient(null)
-        setViewingPatientProfile(null)
-        setAvatarUrl("") // Clear avatar too
-      }
-      
-      // Track which patientId we're currently fetching to prevent race conditions
-      const currentFetchPatientId = patientId
-      fetchingPatientIdRef.current = patientId
-      
-      // First, try to use cached accessible patients if available
-      let patient = accessiblePatientsCacheRef.current?.find(p => p.patient_id === currentFetchPatientId)
-      
-      // If patient found in cache, use it immediately
-      if (patient) {
-        setViewingPatient(patient)
-        // Still try to fetch profile, but don't block on it
-        try {
-          const profile = await AuthAPI.getPatientProfile(currentFetchPatientId)
-          if (fetchingPatientIdRef.current === currentFetchPatientId) {
-            setViewingPatientProfile(profile)
-            if (profile.theme) {
-              if (profile.theme === 'dark') {
-                document.documentElement.classList.add('dark')
-              } else {
-                document.documentElement.classList.remove('dark')
-              }
-            }
-            if (profile.language) {
-              setLanguage(profile.language as "en" | "es" | "pt")
-            }
-          }
-        } catch (error: any) {
-          // Silently fail - we already have patient data from cache
-          const isConnectionError = error?.code === 'ECONNABORTED' || 
-                                    error?.code === 'ERR_NETWORK' ||
-                                    error?.code === 'ECONNRESET' ||
-                                    error?.code === 'ECONNREFUSED' ||
-                                    error?.message?.includes('Connection failed') ||
-                                    error?.message?.includes('timeout') ||
-                                    error?.message?.includes('connection closed')
-          if (!isConnectionError) {
-            console.error('Failed to fetch viewing patient profile:', error)
-          }
-        }
-        return
-      }
-      
-      // If not in cache, fetch from API
-      try {
-        // Get from accessible patients list
-        const response = await AuthAPI.getAccessiblePatients()
-        
-        // Update cache
-        accessiblePatientsCacheRef.current = response.accessible_patients || []
-        
-        // Check if patientId changed during the async call
-        if (fetchingPatientIdRef.current !== currentFetchPatientId) {
-          console.log('⚠️ PatientId changed during fetch, ignoring old result')
-          return
-        }
-        
-        patient = response.accessible_patients?.find(p => p.patient_id === currentFetchPatientId)
-        
-        if (patient) {
-          // Final check before setting state
-          if (fetchingPatientIdRef.current !== currentFetchPatientId) {
-            console.log('⚠️ PatientId changed before setting patient, ignoring result')
-            return
-          }
-          
-          // Always update to ensure we have the latest data for the current patientId
-          setViewingPatient(patient)
-          
-          // Fetch full profile for theme/language preferences
-          try {
-            const profile = await AuthAPI.getPatientProfile(currentFetchPatientId)
-            // Final check before setting profile
-            if (fetchingPatientIdRef.current === currentFetchPatientId) {
-              setViewingPatientProfile(profile)
-              
-              // Apply viewing patient's theme and language preferences
-              if (profile.theme) {
-                // Apply theme (dark mode)
-                if (profile.theme === 'dark') {
-                  document.documentElement.classList.add('dark')
-                } else {
-                  document.documentElement.classList.remove('dark')
-                }
-              }
-              if (profile.language) {
-                setLanguage(profile.language as "en" | "es" | "pt")
-              }
-            }
-          } catch (error: any) {
-            // Silently handle connection errors for profile fetch
-            const isConnectionError = error?.code === 'ECONNABORTED' || 
-                                      error?.code === 'ERR_NETWORK' ||
-                                      error?.code === 'ECONNRESET' ||
-                                      error?.code === 'ECONNREFUSED' ||
-                                      error?.message?.includes('Connection failed') ||
-                                      error?.message?.includes('timeout') ||
-                                      error?.message?.includes('connection closed')
-            if (!isConnectionError) {
-              console.error('Failed to fetch viewing patient profile:', error)
-            }
-          }
+      // Apply viewing patient's theme preferences
+      if (profile.theme) {
+        if (profile.theme === 'dark') {
+          document.documentElement.classList.add('dark')
         } else {
-          // Patient not found in accessible list - might have lost access
-          setViewingPatient(null)
-          setViewingPatientProfile(null)
-        }
-      } catch (error: any) {
-        // Silently handle connection errors - don't show errors on page reload
-        const isConnectionError = error?.code === 'ECONNABORTED' || 
-                                  error?.code === 'ERR_NETWORK' ||
-                                  error?.code === 'ECONNRESET' ||
-                                  error?.code === 'ECONNREFUSED' ||
-                                  error?.message?.includes('Connection failed') ||
-                                  error?.message?.includes('timeout') ||
-                                  error?.message?.includes('connection closed')
-        
-        // Only log non-connection errors
-        if (!isConnectionError) {
-          console.error('Failed to fetch viewing patient:', error)
-        }
-        
-        // On connection errors, keep existing state (don't clear it)
-        // This allows the page to continue working with cached data
-        if (!isConnectionError) {
-          setViewingPatient(null)
-          setViewingPatientProfile(null)
+          document.documentElement.classList.remove('dark')
         }
       }
-    }
-    
-    // Add a small delay to debounce rapid patientId changes during switching
-    fetchTimeoutRef.current = setTimeout(() => {
-      fetchViewingPatient()
-    }, 100)
-    
-    return () => {
-      if (fetchTimeoutRef.current) {
-        clearTimeout(fetchTimeoutRef.current)
+      
+      // Apply viewing patient's language preferences
+      if (profile.language) {
+        setLanguage(profile.language as "en" | "es" | "pt")
       }
     }
-  }, [patientId, setLanguage, user, isAuthenticated, isRestoringSession])
+  }, [switchedPatientInfo?.profile, isViewingOtherPatient, setLanguage])
 
   // Reset theme/language when switching back to own account
   useEffect(() => {
@@ -220,15 +65,18 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
   }, [isViewingOtherPatient, user?.user_metadata, setLanguage])
 
   // Determine which user's information to display in header
-  // When viewing another patient, show their info; otherwise show current user's info
-  // Only show viewingPatient data if it matches the current patientId
-  const isCorrectPatient = viewingPatient?.patient_id === patientId
+  // When viewing another patient, show their info from switchedPatientInfo; otherwise show current user's info
+  // Prioritize profile data (from Supabase) as it's more up-to-date, fallback to patient data from accessible patients list
   const displayFullName = isViewingOtherPatient
-    ? (isCorrectPatient ? (viewingPatient?.patient_name || "Loading...") : "Loading...")
+    ? (switchedPatientInfo?.profile?.full_name?.trim() || 
+       switchedPatientInfo?.patient?.patient_name || 
+       (isLoading ? "Loading..." : "User"))
     : (user?.user_metadata?.full_name?.trim() || user?.email?.split('@')[0] || "User")
 
   const displayEmail = isViewingOtherPatient
-    ? (isCorrectPatient ? (viewingPatient?.patient_email || "") : "")
+    ? (switchedPatientInfo?.profile?.email || 
+       switchedPatientInfo?.patient?.patient_email || 
+       "")
     : (user?.email || "")
 
   const initials = ((): string => {
@@ -238,19 +86,20 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
   })()
 
-  // Fetch avatar - use viewing patient's profile if available, otherwise fetch
+  // Fetch avatar - use switched patient's profile if available
   useEffect(() => {
     const fetchAvatar = async () => {
-      if (isViewingOtherPatient && patientId) {
-        // Check if viewingPatientProfile matches current patientId
-        if (viewingPatientProfile && viewingPatient?.patient_id === patientId) {
-          // Use already-fetched viewing patient's profile for avatar
-          const avatar = viewingPatientProfile.img_url || viewingPatientProfile.avatar_url || ""
-          setAvatarUrl(avatar && avatar.trim() && avatar !== 'null' ? avatar : "")
-        } else if (viewingPatient?.patient_id === patientId) {
-          // Viewing another patient but profile not yet loaded - fetch their avatar
+      if (isViewingOtherPatient && switchedPatientInfo) {
+        // Use switched patient's profile for avatar
+        const avatar = switchedPatientInfo.profile?.img_url || 
+                       switchedPatientInfo.profile?.avatar_url || 
+                       ""
+        setAvatarUrl(avatar && avatar.trim() && avatar !== 'null' ? avatar : "")
+      } else {
+        // Current user's avatar (only fetch if not viewing another patient)
+        if (user?.id) {
           try {
-            const profile = await AuthAPI.getPatientProfile(patientId)
+            const profile = await AuthAPI.getProfile()
             const avatar = profile.img_url || profile.avatar_url || ""
             setAvatarUrl(avatar && avatar.trim() && avatar !== 'null' ? avatar : "")
           } catch (error: any) {
@@ -258,39 +107,20 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
                                       error?.code === 'ERR_NETWORK' ||
                                       error?.message?.includes('Connection failed') ||
                                       error?.message?.includes('timeout')
+            
             if (!isConnectionError) {
-              console.error('Failed to fetch viewing patient avatar:', error)
+              console.error('Failed to fetch avatar:', error)
             }
             setAvatarUrl("")
           }
         } else {
-          // Patient data not yet loaded, clear avatar
           setAvatarUrl("")
         }
-      } else if (user?.id && !isViewingOtherPatient) {
-        // Current user's avatar (only fetch if not viewing another patient)
-        try {
-          const profile = await AuthAPI.getProfile()
-          const avatar = profile.img_url || profile.avatar_url || ""
-          setAvatarUrl(avatar && avatar.trim() && avatar !== 'null' ? avatar : "")
-        } catch (error: any) {
-          const isConnectionError = error?.code === 'ECONNABORTED' || 
-                                    error?.code === 'ERR_NETWORK' ||
-                                    error?.message?.includes('Connection failed') ||
-                                    error?.message?.includes('timeout')
-          
-          if (!isConnectionError) {
-            console.error('Failed to fetch avatar:', error)
-          }
-          setAvatarUrl("")
-        }
-      } else {
-        setAvatarUrl("")
       }
     }
 
     fetchAvatar()
-  }, [user?.id, isViewingOtherPatient, viewingPatient, viewingPatientProfile, patientId])
+  }, [user?.id, isViewingOtherPatient, switchedPatientInfo])
 
   const userId = typeof window !== 'undefined' ? 1 : null // TODO: derive from auth
 
@@ -355,15 +185,17 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
 
 export default function PatientLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex items-center gap-2 text-gray-500">
-          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-          <span>Loading...</span>
+    <PatientProvider>
+      <Suspense fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="flex items-center gap-2 text-gray-500">
+            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+            <span>Loading...</span>
+          </div>
         </div>
-      </div>
-    }>
-      <PatientLayoutContent>{children}</PatientLayoutContent>
-    </Suspense>
+      }>
+        <PatientLayoutContent>{children}</PatientLayoutContent>
+      </Suspense>
+    </PatientProvider>
   )
 }

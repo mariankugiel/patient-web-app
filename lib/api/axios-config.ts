@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import { toast } from 'react-toastify'
 import { createClient } from '@/lib/supabase-client'
+import { recordConnectionSuccess, recordConnectionFailure } from '@/lib/connection-monitor'
 
 // Flag to prevent multiple session expired notifications
 let sessionExpiredNotificationShown = false
@@ -56,6 +57,16 @@ const isTokenExpiredOrExpiringSoon = (token: string): boolean => {
 // Request interceptor to add auth token and refresh if needed
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
+    // Log all requests to /messages endpoints
+    if (config.url?.includes('/messages') || config.url?.includes('/conversations')) {
+      console.log('🌐 ========== [AXIOS REQUEST INTERCEPTOR] ==========')
+      console.log('🌐 Request URL:', config.url)
+      console.log('🌐 Request method:', config.method?.toUpperCase())
+      console.log('🌐 Request params:', config.params)
+      console.log('🌐 Full config URL:', config.baseURL + config.url)
+      console.log('🌐 ================================================')
+    }
+    
     // Get token from localStorage (fallback for SSR compatibility)
     if (typeof window !== 'undefined') {
       let token = localStorage.getItem('access_token')
@@ -68,53 +79,70 @@ apiClient.interceptors.request.use(
           try {
             const supabase = createClient()
             
-            // Try to refresh the session
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+            // First check if we have a valid Supabase session
+            const { data: { session: currentSession } } = await supabase.auth.getSession()
             
-            if (!refreshError && refreshData?.session) {
-              // Update tokens in localStorage
-              token = refreshData.session.access_token
-              localStorage.setItem('access_token', token)
-              if (refreshData.session.refresh_token) {
-                localStorage.setItem('refresh_token', refreshData.session.refresh_token)
-              }
-              if (refreshData.session.expires_in) {
-                localStorage.setItem('expires_in', refreshData.session.expires_in.toString())
-              }
-            } else if (refreshToken) {
-              // If refreshSession() didn't work, try setSession
-              const currentToken = token || ''
-              const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-                access_token: currentToken,
-                refresh_token: refreshToken
-              })
+            // Only try to refresh via Supabase if we have a valid Supabase session
+            // If tokens are from backend API (not Supabase), skip Supabase refresh
+            if (currentSession && currentSession.refresh_token) {
+              // Try to refresh the Supabase session
+              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
               
-              if (!sessionError && sessionData?.session) {
-                token = sessionData.session.access_token
+              if (!refreshError && refreshData?.session) {
+                // Update tokens in localStorage
+                token = refreshData.session.access_token
                 localStorage.setItem('access_token', token)
-                if (sessionData.session.refresh_token) {
-                  localStorage.setItem('refresh_token', sessionData.session.refresh_token)
+                if (refreshData.session.refresh_token) {
+                  localStorage.setItem('refresh_token', refreshData.session.refresh_token)
                 }
-                if (sessionData.session.expires_in) {
-                  localStorage.setItem('expires_in', sessionData.session.expires_in.toString())
+                if (refreshData.session.expires_in) {
+                  localStorage.setItem('expires_in', refreshData.session.expires_in.toString())
                 }
+              } else if (refreshError) {
+                // Supabase refresh failed - might be using backend tokens
+                // Silently fail and let the backend handle token refresh via 401 response
+                console.warn('Supabase token refresh failed (may be using backend tokens):', refreshError.message)
               }
+            } else {
+              // No valid Supabase session - tokens are likely from backend API
+              // Don't try to refresh via Supabase, let backend handle it via 401 response
+              // The response interceptor will handle 401 errors and redirect to login if needed
             }
-          } catch (error) {
-            console.error('Token refresh error in interceptor:', error)
-            // Continue with the expired token - the response interceptor will handle it
+          } catch (error: any) {
+            // Silently handle Supabase refresh errors - these are expected if using backend tokens
+            const isRefreshError = error?.message?.includes('refresh_token') || 
+                                  error?.message?.includes('400') ||
+                                  error?.status === 400
+            if (!isRefreshError) {
+              console.error('Token refresh error in interceptor:', error)
+            }
+            // Continue with the existing token - the response interceptor will handle 401 errors
           }
         }
       }
       
       if (token) {
         config.headers.Authorization = `Bearer ${token}`
+        
+        // Log auth token info for messages endpoints
+        if (config.url?.includes('/messages') || config.url?.includes('/conversations')) {
+          console.log('🌐 [AXIOS REQUEST] Token added:', token ? 'Yes (length: ' + token.length + ')' : 'No token')
+        }
       }
     }
     
+    if (config.url?.includes('/messages') || config.url?.includes('/conversations')) {
+      console.log('🌐 [AXIOS REQUEST] Final config headers:', {
+        Authorization: config.headers.Authorization ? 'Present' : 'Missing',
+        'Content-Type': config.headers['Content-Type']
+      })
+      console.log('🌐 [AXIOS REQUEST] About to send request to:', config.baseURL + config.url)
+    }
+
     return config
   },
   (error) => {
+    console.error('🌐 [AXIOS REQUEST INTERCEPTOR] Error:', error)
     return Promise.reject(error)
   }
 )
@@ -122,22 +150,45 @@ apiClient.interceptors.request.use(
 // Response interceptor for error handling
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
+    // Log responses to /messages endpoints
+    if (response.config.url?.includes('/messages') || response.config.url?.includes('/conversations')) {
+      console.log('✅ [AXIOS RESPONSE] Success:', {
+        status: response.status,
+        url: response.config.url,
+        dataKeys: Object.keys(response.data || {}),
+        conversationsCount: response.data?.conversations?.length || 0
+      })
+    }
+    
+    // Record successful connection
+    recordConnectionSuccess()
     return response
   },
   (error) => {
     // Handle timeout errors
     if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
-      // Check if it's an AI analysis request
+      // Record connection failure for timeout errors (but not for long-running operations)
       const isAIAnalysis = error.config?.url?.includes('/ai-analysis')
       const isOCRProcessing = error.config?.url?.includes('/health-record-doc-lab/upload') && 
                              error.config?.data?.get?.('use_ocr') === 'true'
       
-      if (isAIAnalysis) {
-        toast.error("AI analysis is taking longer than expected. Please try again.")
-      } else if (isOCRProcessing) {
-        toast.error("OCR processing is taking longer than expected. The file may be too large or complex. Please try again.")
-      } else {
-        toast.error("Connection failed. Please check your internet connection and try again.")
+      // Don't record timeout failures for long-running operations (these are expected)
+      if (!isAIAnalysis && !isOCRProcessing) {
+        recordConnectionFailure()
+      }
+      
+      // Check if we're currently switching users (suppress errors during switching)
+      const isUserSwitching = (window as any).__isUserSwitching === true
+      
+      // Don't show timeout errors during user switching - these are expected
+      if (!isUserSwitching) {
+        if (isAIAnalysis) {
+          toast.error("AI analysis is taking longer than expected. Please try again.")
+        } else if (isOCRProcessing) {
+          toast.error("OCR processing is taking longer than expected. The file may be too large or complex. Please try again.")
+        } else {
+          toast.error("Connection failed. Please check your internet connection and try again.")
+        }
       }
       return Promise.reject(error)
     }
@@ -149,6 +200,10 @@ apiClient.interceptors.response.use(
         error.message?.includes('connection closed') || error.message?.includes('Connection closed') ||
         error.message?.includes('socket hang up') || error.message?.includes('ECONNRESET') ||
         error.message?.includes('Connection failed') || error.message?.includes('timeout')) {
+      
+      // Record connection failure
+      recordConnectionFailure()
+      
       // Only show toast for non-auth endpoints and non-profile endpoints to avoid spam during login/session restore
       const isAuthEndpoint = error.config?.url?.includes('/login') || 
                              error.config?.url?.includes('/register') ||
@@ -159,9 +214,12 @@ apiClient.interceptors.response.use(
                                 error.config?.url?.includes('/auth/accessible-patients') ||
                                 error.config?.url?.includes('/auth/patient-profile')
       
-      // Don't show toast for auth endpoints or profile endpoints (session restoration/user switching)
+      // Check if we're currently switching users (suppress all errors during switching)
+      const isUserSwitching = (window as any).__isUserSwitching === true
+      
+      // Don't show toast for auth endpoints, profile endpoints, or during user switching
       // These are handled gracefully by the components
-      if (!isAuthEndpoint && !isProfileEndpoint) {
+      if (!isAuthEndpoint && !isProfileEndpoint && !isUserSwitching) {
         // Only show toast if we haven't shown one recently (prevent spam)
         const lastErrorTime = (window as any).__lastConnectionErrorTime || 0
         const now = Date.now()

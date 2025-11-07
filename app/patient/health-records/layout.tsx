@@ -3,7 +3,7 @@
 import type React from "react"
 import Image from "next/image"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Activity, Calendar, LineChart, Scale, Dumbbell, Heart, FileImage } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { PermissionGuard } from "@/components/patient/permission-guard"
@@ -28,12 +28,17 @@ function HealthRecordsLayoutContent({
   const { t } = useLanguage()
   const pathname = usePathname()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const patientId = searchParams.get('patientId')
 
   // Extract the current tab from the pathname
   const currentTab = pathname.split("/").pop() || "summary"
 
   const handleTabChange = (value: string) => {
-    router.push(`/patient/health-records/${value}`)
+    const targetUrl = patientId 
+      ? `/patient/health-records/${value}?patientId=${patientId}`
+      : `/patient/health-records/${value}`
+    router.push(targetUrl)
   }
 
   return (
