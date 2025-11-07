@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase-client"
-import { useDispatch } from "react-redux"
-import { AppDispatch } from "@/lib/store"
+import { useDispatch, useSelector } from "react-redux"
+import { AppDispatch, RootState } from "@/lib/store"
 import { loginSuccess } from "@/lib/features/auth/authSlice"
 import { AuthApiService } from "@/lib/api/auth-api"
 import { toast } from "react-toastify"
@@ -13,14 +13,79 @@ import { Loader2 } from "lucide-react"
 export default function AuthCallbackPage() {
   const router = useRouter()
   const dispatch = useDispatch<AppDispatch>()
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth)
+  const hasProcessed = useRef(false)
 
   useEffect(() => {
+    // Prevent duplicate processing (React Strict Mode in development)
+    if (hasProcessed.current) {
+      return
+    }
+    
+    // If already authenticated, redirect immediately
+    if (isAuthenticated) {
+      router.push('/onboarding')
+      return
+    }
+
+    // Set flag immediately to prevent duplicate execution
+    hasProcessed.current = true
+
     const handleAuthCallback = async () => {
       try {
         const supabase = createClient()
         
-        // Get the session from URL hash
+        // Check if we have tokens in the URL hash (magic link)
+        const hash = window.location.hash
+        if (hash && hash.includes('access_token')) {
+          // Extract tokens from hash
+          const urlParams = new URLSearchParams(hash.substring(1))
+          const accessToken = urlParams.get('access_token')
+          const refreshToken = urlParams.get('refresh_token')
+          const expiresAt = urlParams.get('expires_at')
+          const tokenType = urlParams.get('token_type') || 'bearer'
+          
+          if (accessToken && refreshToken) {
+            // Store tokens in localStorage FIRST so axios interceptor can use them
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('access_token', accessToken)
+              localStorage.setItem('refresh_token', refreshToken)
+              if (expiresAt) {
+                localStorage.setItem('expires_in', expiresAt)
+              }
+            }
+            
+            // Set the session explicitly from URL hash tokens
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            })
+            
+            if (sessionError) {
+              console.error('Failed to set session from URL hash:', sessionError)
+              toast.error("Authentication failed. Please try again.")
+              router.push('/')
+              return
+            }
+            
+            // Clear the hash from URL
+            window.history.replaceState(null, '', window.location.pathname + window.location.search)
+          }
+        }
+        
+        // Get the session (either from URL hash or already set)
         const { data: { session }, error } = await supabase.auth.getSession()
+        
+        // Ensure tokens are in localStorage (in case session was already set)
+        if (session?.access_token && typeof window !== 'undefined') {
+          localStorage.setItem('access_token', session.access_token)
+          if (session.refresh_token) {
+            localStorage.setItem('refresh_token', session.refresh_token)
+          }
+          if (session.expires_in) {
+            localStorage.setItem('expires_in', session.expires_in.toString())
+          }
+        }
         
         if (error) {
           console.error('Auth callback error:', error)
@@ -99,6 +164,7 @@ export default function AuthCallbackPage() {
             }
           }
 
+          // Show success toast (hasProcessed ref ensures this only runs once)
           toast.success("Successfully signed in!")
           
           // DEVELOPMENT: Always redirect to onboarding page
@@ -125,7 +191,7 @@ export default function AuthCallbackPage() {
     }
 
     handleAuthCallback()
-  }, [dispatch, router])
+  }, [dispatch, router, isAuthenticated])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

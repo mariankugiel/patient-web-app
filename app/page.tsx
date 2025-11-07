@@ -45,20 +45,32 @@ export default function LandingPage() {
     ["rgba(230, 247, 247, 0.9)", "rgba(255, 255, 255, 0.95)"],
   )
 
-  // Check for password reset tokens in URL hash
+  // Check for authentication tokens in URL hash (magic links, password reset, etc.)
   useEffect(() => {
     const hash = window.location.hash
-    if (hash.includes('type=recovery') && hash.includes('access_token')) {
-      // Extract tokens from hash and redirect to reset password page
+    if (hash && hash.includes('access_token')) {
       const urlParams = new URLSearchParams(hash.substring(1)) // Remove # from hash
       const accessToken = urlParams.get('access_token')
       const refreshToken = urlParams.get('refresh_token')
       const expiresAt = urlParams.get('expires_at')
+      const type = urlParams.get('type')
       
       if (accessToken && refreshToken) {
-        // Redirect to reset password page with tokens
-        const resetUrl = `/auth/reset-password?access_token=${accessToken}&refresh_token=${refreshToken}&expires_at=${expiresAt}`
-        router.push(resetUrl)
+        // Password reset flow
+        if (type === 'recovery') {
+          // Build reset URL with tokens as query parameters
+          const resetUrl = `/auth/reset-password?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}${expiresAt ? `&expires_at=${encodeURIComponent(expiresAt)}` : ''}`
+          // Clear hash from URL to prevent re-processing
+          window.history.replaceState(null, '', window.location.pathname + window.location.search)
+          // Redirect to reset password page
+          router.push(resetUrl)
+          return
+        }
+        
+        // Magic link login flow - redirect to callback page
+        // The callback page will handle the authentication
+        const callbackUrl = `/auth/callback${window.location.search}${hash}`
+        router.push(callbackUrl)
       }
     }
   }, [router])
