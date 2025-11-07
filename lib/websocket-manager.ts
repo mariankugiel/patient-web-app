@@ -43,15 +43,17 @@ class GlobalWebSocketManager {
     console.log('🔌 Attempting to connect to WebSocket:', url)
     console.log('🔌 Token present:', token ? 'Yes' : 'No')
     
-    // If already connecting, don't start another connection
-    if (this.isConnecting) {
-      console.log('🔌 WebSocket connection already in progress, skipping...')
+    // IMPORTANT: If already connected with the same token, keep the existing connection
+    // This is crucial when switching users (viewing another patient) - we want to keep
+    // the WebSocket connection for the logged-in user, not reconnect
+    if (this.ws?.readyState === WebSocket.OPEN && this.url === url && this.token === token) {
+      console.log('🔌 WebSocket already connected with same token - keeping existing connection (this is correct when switching users)')
       return
     }
 
-    // If already connected to the same URL with the same token, don't reconnect
-    if (this.ws?.readyState === WebSocket.OPEN && this.url === url && this.token === token) {
-      console.log('🔌 WebSocket already connected to the same endpoint, skipping...')
+    // If already connecting, don't start another connection
+    if (this.isConnecting) {
+      console.log('🔌 WebSocket connection already in progress, skipping...')
       return
     }
 
@@ -61,9 +63,11 @@ class GlobalWebSocketManager {
       return
     }
 
-    // If connecting to different endpoint, disconnect first
-    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) {
-      console.log('🔌 Disconnecting from previous WebSocket before connecting to new endpoint')
+    // Only disconnect if connecting to a DIFFERENT endpoint or with a DIFFERENT token
+    // This allows the connection to persist when switching users (same token, same URL)
+    if ((this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) && 
+        (this.url !== url || this.token !== token)) {
+      console.log('🔌 Disconnecting from previous WebSocket (different endpoint or token) before connecting to new endpoint')
       this.disconnect()
     }
 
@@ -235,6 +239,16 @@ class GlobalWebSocketManager {
 
   get reconnectAttemptsCount(): number {
     return this.reconnectAttempts
+  }
+
+  // Get current token (for comparison purposes)
+  get currentToken(): string {
+    return this.token
+  }
+
+  // Get current URL (for comparison purposes)
+  get currentUrl(): string {
+    return this.url
   }
 }
 

@@ -17,7 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ProfilePictureUpload } from "@/components/profile-picture-upload"
 import { LocationSearch } from "@/components/ui/location-search"
 import { countryCodes } from "@/lib/country-codes"
-import { TimezoneSelector } from "@/components/ui/timezone-selector"
+import { timezones } from "@/lib/timezones"
 import { Save } from "lucide-react"
 import { useSelector, useDispatch } from "react-redux"
 import { RootState } from "@/lib/store"
@@ -593,7 +593,12 @@ export default function ProfileTabPage() {
                       <FormItem>
                         <FormLabel>Location</FormLabel>
                         <FormControl>
-                          <LocationSearch value={field.value} onChange={(location) => field.onChange(location)} placeholder="City, State/Country" disabled={isViewingOtherPatient} />
+                          <LocationSearch
+                            value={field.value}
+                            onChange={(location) => field.onChange(location)}
+                            placeholder="City, State/Country"
+                            className={isViewingOtherPatient ? "pointer-events-none opacity-70" : undefined}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

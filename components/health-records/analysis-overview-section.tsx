@@ -40,6 +40,8 @@ interface AnalysisOverviewSectionProps {
   refresh: () => void
   onDataUpdated?: () => void
   healthRecordTypeId: number
+  patientId?: number | null
+  isViewingOtherPatient?: boolean
 }
 
 export function AnalysisOverviewSection({
@@ -54,9 +56,14 @@ export function AnalysisOverviewSection({
   createRecord,
   refresh,
   onDataUpdated,
-  healthRecordTypeId
+  healthRecordTypeId,
+  patientId,
+  isViewingOtherPatient
 }: AnalysisOverviewSectionProps) {
   const { user } = useSelector((state: RootState) => state.auth)
+  
+  // Disable create/edit/delete actions when viewing another patient (read-only mode)
+  const isReadOnly = isViewingOtherPatient === true
   
   // Dialog states
   const [newSectionDialogOpen, setNewSectionDialogOpen] = useState(false)
@@ -353,41 +360,49 @@ export function AnalysisOverviewSection({
                 {description}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Button onClick={() => setNewSectionDialogOpen(true)} className="flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                New Section
-              </Button>
-              <Button
-                onClick={() => {
-                  // Open dialog without pre-selecting a section
-                  setSelectedSectionForMetric(null)
-                  setNewMetricDialogOpen(true)
-                }}
-                variant="outline"
-                className="flex items-center gap-2"
-                disabled={displaySections.length === 0}
-              >
-                <Plus className="h-4 w-4" />
-                New Metric
-              </Button>
-              <Button 
-                onClick={() => {
-                  // Find the first section to add a value to
-                  const firstSection = displaySections[0]
-                  if (firstSection) {
-                    setSelectedSectionForValue(firstSection)
-                    setNewValueDialogOpen(true)
-                  }
-                }}
-                variant="outline"
-                className="flex items-center gap-2"
-                disabled={displaySections.length === 0}
-              >
-                <Plus className="h-4 w-4" />
-                New Value
-              </Button>
-            </div>
+            {/* Only show action buttons if not viewing another patient (read-only mode) */}
+            {!isReadOnly && (
+              <div className="flex items-center gap-2">
+                <Button onClick={() => setNewSectionDialogOpen(true)} className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  New Section
+                </Button>
+                <Button
+                  onClick={() => {
+                    // Open dialog without pre-selecting a section
+                    setSelectedSectionForMetric(null)
+                    setNewMetricDialogOpen(true)
+                  }}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                  disabled={displaySections.length === 0}
+                >
+                  <Plus className="h-4 w-4" />
+                  New Metric
+                </Button>
+                <Button 
+                  onClick={() => {
+                    // Find the first section to add a value to
+                    const firstSection = displaySections[0]
+                    if (firstSection) {
+                      setSelectedSectionForValue(firstSection)
+                      setNewValueDialogOpen(true)
+                    }
+                  }}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                  disabled={displaySections.length === 0}
+                >
+                  <Plus className="h-4 w-4" />
+                  New Value
+                </Button>
+              </div>
+            )}
+            {isReadOnly && (
+              <div className="text-sm text-muted-foreground">
+                Viewing another patient's data (read-only)
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -404,10 +419,16 @@ export function AnalysisOverviewSection({
             <div className="flex flex-col items-center justify-center py-12">
               <div className="text-center">
                 <h3 className="text-lg font-medium mb-2">No sections yet</h3>
-                <p className="text-gray-600 mb-4">Create your first section to start tracking your health data</p>
-                <Button onClick={() => setNewSectionDialogOpen(true)}>
-                  Create First Section
-                </Button>
+                {!isReadOnly ? (
+                  <>
+                    <p className="text-gray-600 mb-4">Create your first section to start tracking your health data</p>
+                    <Button onClick={() => setNewSectionDialogOpen(true)}>
+                      Create First Section
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-gray-600">No health record data available for this patient.</p>
+                )}
               </div>
             </div>
           ) : (
@@ -431,24 +452,27 @@ export function AnalysisOverviewSection({
                         </Badge>
                       </div>
                     </AccordionTrigger>
-                    <div className="flex items-center gap-2 ml-4">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleEditSection(section)}
-                        className="h-8 w-8 p-0"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeleteSection(section)}
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    {/* Only show edit/delete buttons if not viewing another patient (read-only mode) */}
+                    {!isReadOnly && (
+                      <div className="flex items-center gap-2 ml-4">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEditSection(section)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteSection(section)}
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   <AccordionContent className="px-4 pb-2">
                     {section.metrics && section.metrics.length > 0 ? (
@@ -525,8 +549,10 @@ export function AnalysisOverviewSection({
               }, 1000)
             }
           }}
-          onDeleteMetric={() => handleDeleteMetric(selectedMetric)}
-          updateMetric={updateMetric}
+          onDeleteMetric={!isReadOnly ? () => handleDeleteMetric(selectedMetric) : undefined}
+          updateMetric={!isReadOnly ? updateMetric : undefined}
+          patientId={patientId}
+          isReadOnly={isReadOnly}
         />
       )}
 

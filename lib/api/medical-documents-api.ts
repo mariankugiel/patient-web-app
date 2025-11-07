@@ -52,12 +52,13 @@ export class MedicalDocumentsApiService {
   private baseUrl = '/health-records/health-record-doc-lab'
 
   /**
-   * Get medical documents for the current user
+   * Get medical documents for the current user or a specific patient (if permission granted)
    */
   async getMedicalDocuments(
     skip: number = 0,
     limit: number = 100,
-    documentType?: string
+    documentType?: string,
+    patientId?: number
   ): Promise<MedicalDocument[]> {
     try {
       const params = new URLSearchParams({
@@ -67,6 +68,10 @@ export class MedicalDocumentsApiService {
       
       if (documentType) {
         params.append('document_type', documentType)
+      }
+
+      if (patientId) {
+        params.append('patient_id', patientId.toString())
       }
 
       const response = await apiClient.get(`${this.baseUrl}?${params}`)
@@ -134,9 +139,14 @@ export class MedicalDocumentsApiService {
   /**
    * Download a medical document
    */
-  async downloadMedicalDocument(documentId: number): Promise<{ download_url: string }> {
+  async downloadMedicalDocument(documentId: number, patientId?: number): Promise<{ download_url: string }> {
     try {
-      const response = await apiClient.get(`${this.baseUrl}/${documentId}/download`)
+      const params = new URLSearchParams()
+      if (patientId) {
+        params.append('patient_id', patientId.toString())
+      }
+      const url = `${this.baseUrl}/${documentId}/download${params.toString() ? '?' + params.toString() : ''}`
+      const response = await apiClient.get(url)
       return response.data
     } catch (error) {
       console.error(`Failed to download medical document ${documentId}:`, error)

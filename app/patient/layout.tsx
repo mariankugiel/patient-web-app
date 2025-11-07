@@ -11,7 +11,6 @@ import { WebSocketProvider } from "@/contexts/websocket-context"
 import { PatientProvider, useSwitchedPatient } from "@/contexts/patient-context"
 import { type RootState } from "@/lib/store"
 import { AuthAPI, AccessiblePatient } from "@/lib/api/auth-api"
-import { usePatientContext } from "@/hooks/use-patient-context"
 import { Users } from "lucide-react"
 
 function PatientLayoutContent({ children }: { children: React.ReactNode }) {
@@ -22,8 +21,7 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
   const { t, setLanguage } = useLanguage()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { patientId, isViewingOtherPatient } = usePatientContext()
-  const { switchedPatientInfo, isLoading } = useSwitchedPatient()
+  const { patientId, isViewingOtherPatient, switchedPatientInfo, isLoading } = useSwitchedPatient()
   const [avatarUrl, setAvatarUrl] = useState<string>("")
 
   // Apply theme and language from switched patient info
@@ -122,7 +120,10 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
     fetchAvatar()
   }, [user?.id, isViewingOtherPatient, switchedPatientInfo])
 
-  const userId = typeof window !== 'undefined' ? 1 : null // TODO: derive from auth
+  // WebSocket connection should always use the logged-in user's ID (not the switched patient)
+  // This ensures notifications and real-time updates are always for the main user
+  // The user ID is derived from Redux auth state - if not available, WebSocket will still work via token
+  const loggedInUserId = user?.id ? parseInt(String(user.id)) : null
 
   const subtitle = ((): string => {
     if (pathname.includes("/patient/dashboard")) return t("dashboard.overview")
@@ -138,7 +139,8 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <LanguageProvider>
-      <WebSocketProvider userId={userId}>
+      {/* WebSocket connection is always for the logged-in user, not the switched patient */}
+      <WebSocketProvider userId={loggedInUserId}>
         <div className="flex min-h-screen flex-col md:flex-row">
           <PatientSidebar />
           <main className="flex-1 pt-16 md:ml-64 md:pt-0 flex flex-col min-h-0">

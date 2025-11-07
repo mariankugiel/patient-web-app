@@ -34,14 +34,18 @@ class AIAnalysisApiService {
   /**
    * Generate AI-powered health analysis
    */
-  async generateAnalysis(healthRecordTypeId: number = 1, forceCheck: boolean = false): Promise<AIAnalysisResult> {
+  async generateAnalysis(healthRecordTypeId: number = 1, forceCheck: boolean = false, patientId?: number): Promise<AIAnalysisResult> {
     try {
       console.log('Making AI analysis request to /ai-analysis/analyze...')
-      console.log('Request payload:', { health_record_type_id: healthRecordTypeId, force_check: forceCheck })
-      const response = await apiClient.post('/ai-analysis/analyze', {
+      const payload: any = {
         health_record_type_id: healthRecordTypeId,
         force_check: forceCheck
-      }, {
+      }
+      if (patientId) {
+        payload.patient_id = patientId
+      }
+      console.log('Request payload:', payload)
+      const response = await apiClient.post('/ai-analysis/analyze', payload, {
         timeout: 60000 // 60 seconds timeout for AI analysis
       })
       console.log('AI analysis response status:', response.status)
@@ -92,10 +96,16 @@ class AIAnalysisApiService {
   /**
    * Check if there are new records since last analysis
    */
-  async checkForNewRecords(healthRecordTypeId: number = 1): Promise<{ hasNewRecords: boolean; reason: string }> {
+  async checkForNewRecords(healthRecordTypeId: number = 1, patientId?: number): Promise<{ hasNewRecords: boolean; reason: string }> {
     try {
-      console.log('Making request to check for new records...', { healthRecordTypeId })
-      const response = await apiClient.get(`/ai-analysis/check-new-records?health_record_type_id=${healthRecordTypeId}`)
+      const params = new URLSearchParams({
+        health_record_type_id: healthRecordTypeId.toString()
+      })
+      if (patientId) {
+        params.append('patient_id', patientId.toString())
+      }
+      console.log('Making request to check for new records...', { healthRecordTypeId, patientId })
+      const response = await apiClient.get(`/ai-analysis/check-new-records?${params.toString()}`)
       console.log('Check new records response:', response.data)
       return response.data
     } catch (error: any) {

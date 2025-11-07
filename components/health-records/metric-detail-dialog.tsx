@@ -46,6 +46,8 @@ interface MetricDetailDialogProps {
     default_unit?: string
     reference_data?: any
   }) => Promise<HealthRecordMetric>
+  patientId?: number | null
+  isReadOnly?: boolean
 }
 
 interface EditableRecord extends HealthRecord {
@@ -62,7 +64,9 @@ export function MetricDetailDialog({
   dataPoints,
   onDataUpdated,
   onDeleteMetric,
-  updateMetric
+  updateMetric,
+  patientId,
+  isReadOnly = false
 }: MetricDetailDialogProps) {
   const { user } = useSelector((state: RootState) => state.auth)
   const [records, setRecords] = useState<EditableRecord[]>([])
@@ -274,26 +278,31 @@ export function MetricDetailDialog({
                 {records.length} records
               </Badge>
             </DialogTitle>
-            <div className="flex items-center gap-1">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => handleEditMetric()}
-                className="h-8 w-8 p-0 hover:bg-gray-100"
-                title="Edit Metric"
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => handleDeleteMetric()}
-                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                title="Delete Metric"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
+            {/* Only show edit/delete buttons if not in read-only mode */}
+            {!isReadOnly && (
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleEditMetric()}
+                  className="h-8 w-8 p-0 hover:bg-gray-100"
+                  title="Edit Metric"
+                  disabled={!updateMetric}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleDeleteMetric()}
+                  className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  title="Delete Metric"
+                  disabled={!onDeleteMetric}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
         </DialogHeader>
 
@@ -380,7 +389,7 @@ export function MetricDetailDialog({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {record.isEditing ? (
+                      {record.isEditing && !isReadOnly ? (
                         <div className="flex items-center gap-1">
                           <Button
                             size="sm"
@@ -401,24 +410,26 @@ export function MetricDetailDialog({
                           </Button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEdit(record.id)}
-                            className="h-7 w-7 p-0"
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDelete(record.id)}
-                            className="h-7 w-7 p-0 text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                        !isReadOnly && (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleEdit(record.id)}
+                              className="h-7 w-7 p-0"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDelete(record.id)}
+                              className="h-7 w-7 p-0 text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )
                       )}
                     </TableCell>
                   </TableRow>

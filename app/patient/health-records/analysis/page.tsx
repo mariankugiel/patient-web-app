@@ -31,17 +31,17 @@ import { LabDocumentDialog } from "@/components/lab-documents/lab-document-dialo
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { toast } from "react-toastify"
 import { medicalDocumentsApiService, MedicalDocument } from "@/lib/api/medical-documents-api"
-import { usePatientContext } from "@/hooks/use-patient-context"
+import { useSwitchedPatient } from "@/contexts/patient-context"
 
 export default function AnalysisPage() {
   const { t } = useLanguage()
-  const { patientId, isViewingOtherPatient } = usePatientContext()
+  const { patientId, isViewingOtherPatient } = useSwitchedPatient()
   
   console.log('🔍 [Analysis Page] patientId from context:', patientId, 'isViewingOtherPatient:', isViewingOtherPatient)
   
   const { sections, loading, createSection, updateSection, createMetric, updateMetric, createRecord, refresh } = useAnalysisDashboard(1, patientId)
   
-  const { analysis: aiAnalysis, loading: aiLoading, generateAnalysis, checkForUpdates, error: aiError } = useAIAnalysis()
+  const { analysis: aiAnalysis, loading: aiLoading, generateAnalysis, checkForUpdates, error: aiError } = useAIAnalysis(1, patientId)
 
   // Track if we've already attempted to load AI analysis
   const aiAnalysisAttempted = useRef(false)
@@ -71,20 +71,25 @@ export default function AnalysisPage() {
     }
   }, [generateAnalysis])
 
-  // Auto-load AI analysis when page loads
+  // Auto-load AI analysis when page loads or patientId changes
+  useEffect(() => {
+    // Reset the attempted flag when patientId changes
+    aiAnalysisAttempted.current = false
+  }, [patientId])
+
   useEffect(() => {
     if (!loading && !aiAnalysisAttempted.current) {
       aiAnalysisAttempted.current = true
       handleGenerateAIAnalysis(false) // Follow 5-day rule
     }
-  }, [loading, handleGenerateAIAnalysis])
+  }, [loading, handleGenerateAIAnalysis, patientId]) // Add patientId to dependencies
 
 
   // Fetch medical documents
   const fetchMedicalDocuments = async () => {
     try {
       setDocumentsLoading(true)
-      const documents = await medicalDocumentsApiService.getMedicalDocuments(0, 2, 'lab_result')
+      const documents = await medicalDocumentsApiService.getMedicalDocuments(0, 2, 'lab_result', patientId || undefined)
       setMedicalDocuments(documents)
     } catch (error) {
       console.error('Failed to fetch medical documents:', error)
@@ -97,7 +102,7 @@ export default function AnalysisPage() {
   const fetchAllDocuments = async (page: number = 0) => {
     try {
       setAllDocumentsLoading(true)
-      const documents = await medicalDocumentsApiService.getMedicalDocuments(page * 10, 10, 'lab_result')
+      const documents = await medicalDocumentsApiService.getMedicalDocuments(page * 10, 10, 'lab_result', patientId || undefined)
       setAllDocuments(documents)
       setCurrentPage(page)
       // Note: We'll need to update the backend to return total count
@@ -115,15 +120,15 @@ export default function AnalysisPage() {
     fetchAllDocuments(0)
   }
 
-  // Load medical documents on component mount
+  // Load medical documents on component mount and when patientId changes
   useEffect(() => {
     fetchMedicalDocuments()
-  }, [])
+  }, [patientId]) // Refresh when patientId changes
 
   // Handle document download
   const handleDownloadDocument = async (documentId: number, fileName: string) => {
     try {
-      const response = await medicalDocumentsApiService.downloadMedicalDocument(documentId)
+      const response = await medicalDocumentsApiService.downloadMedicalDocument(documentId, patientId || undefined)
       const downloadUrl = response.download_url
 
       if (!downloadUrl) {
@@ -316,6 +321,8 @@ export default function AnalysisPage() {
         refresh={refresh}
         onDataUpdated={handleGenerateAIAnalysis}
         healthRecordTypeId={1}
+        patientId={patientId}
+        isViewingOtherPatient={isViewingOtherPatient}
       />
 
       {/* All Documents Dialog */}
