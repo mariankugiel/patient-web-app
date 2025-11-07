@@ -155,10 +155,10 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Lab Results
-              </CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Lab Results
+            </CardTitle>
               <CardDescription>
                 Upload and manage your lab test results
               </CardDescription>
@@ -188,8 +188,8 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
               </Button>
             </div>
           ) : labDocuments.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+          <div className="text-center py-8 text-gray-500">
+            <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <p>No lab results uploaded yet.</p>
               <p className="text-sm mt-2">Click "Add Lab Result" to upload your first lab document.</p>
             </div>
@@ -241,7 +241,7 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
                   </div>
                 </div>
               ))}
-            </div>
+          </div>
           )}
         </CardContent>
       </Card>
@@ -251,10 +251,10 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Image className="h-5 w-5" />
-                Medical Images
-              </CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Image className="h-5 w-5" />
+              Medical Images
+            </CardTitle>
               <CardDescription>
                 Upload and manage your medical imaging results
               </CardDescription>
@@ -284,8 +284,8 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
               </Button>
             </div>
           ) : medicalImages.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Image className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+          <div className="text-center py-8 text-gray-500">
+            <Image className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <p>No medical images uploaded yet.</p>
               <p className="text-sm mt-2">Click "Add Medical Image" to upload your first medical image.</p>
             </div>
@@ -352,7 +352,7 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
                   </div>
                 </div>
               ))}
-            </div>
+          </div>
           )}
         </CardContent>
       </Card>

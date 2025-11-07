@@ -13,6 +13,7 @@ import { signupUser, loginUser, verifyMfaLogin } from "@/lib/features/auth/authT
 import { createClient } from "@/lib/supabase-client"
 import { AuthApiService } from "@/lib/api/auth-api"
 import { toast } from "react-toastify"
+import { detectUserTimezone } from "@/lib/utils/timezone"
 import { 
   Mail, 
   Lock, 
@@ -221,10 +222,14 @@ export function AuthModal({ open, onOpenChange, defaultMode = "login" }: AuthMod
     }
 
     try {
+      // Auto-detect user's timezone
+      const detectedTimezone = detectUserTimezone()
+      
       await dispatch(signupUser({
         email: formData.email,
         password: formData.password,
         fullName: formData.name,
+        timezone: detectedTimezone,
       })).unwrap()
       onOpenChange(false)
     } catch (error: any) {

@@ -19,6 +19,8 @@ export interface Contact {
   isOnline: boolean
   specialty?: string
   email?: string
+  acuityCalendarId?: string
+  acuityOwnerId?: string
 }
 
 interface RecipientAutocompleteProps {
