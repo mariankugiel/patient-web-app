@@ -3,10 +3,11 @@
 import type React from "react"
 import Image from "next/image"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Activity, Calendar, LineChart, Scale, Dumbbell, Heart, FileImage } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { PermissionGuard } from "@/components/patient/permission-guard"
+import { useSwitchedPatient } from "@/contexts/patient-context"
 
 export default function HealthRecordsLayout({
   children,
@@ -28,16 +29,14 @@ function HealthRecordsLayoutContent({
   const { t } = useLanguage()
   const pathname = usePathname()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const patientId = searchParams.get('patientId')
+  const { patientToken } = useSwitchedPatient()
 
   // Extract the current tab from the pathname
   const currentTab = pathname.split("/").pop() || "summary"
 
   const handleTabChange = (value: string) => {
-    const targetUrl = patientId 
-      ? `/patient/health-records/${value}?patientId=${patientId}`
-      : `/patient/health-records/${value}`
+    const tokenQuery = patientToken ? `?patientToken=${encodeURIComponent(patientToken)}` : ""
+    const targetUrl = `/patient/health-records/${value}${tokenQuery}`
     router.push(targetUrl)
   }
 

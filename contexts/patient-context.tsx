@@ -1,6 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
 import { AuthAPI, AccessiblePatient, UserProfile } from '@/lib/api/auth-api'
@@ -14,6 +15,7 @@ interface SwitchedPatientInfo {
 
 interface PatientContextValue {
   patientId: number | null
+  patientToken: string | null
   isViewingOtherPatient: boolean
   switchedPatientInfo: SwitchedPatientInfo | null
   accessiblePatients: AccessiblePatient[]
@@ -24,7 +26,10 @@ interface PatientContextValue {
 const PatientContext = createContext<PatientContextValue | undefined>(undefined)
 
 export function PatientProvider({ children }: { children: React.ReactNode }) {
-  const { patientId, isViewingOtherPatient } = usePatientContext()
+  const { patientToken, legacyPatientId } = usePatientContext()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated)
   const isRestoringSession = useSelector((s: RootState) => s.auth.isRestoringSession)
   const user = useSelector((s: RootState) => s.auth.user)
@@ -32,8 +37,27 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
   const [accessiblePatients, setAccessiblePatients] = useState<AccessiblePatient[]>([])
   const [switchedPatientInfo, setSwitchedPatientInfo] = useState<SwitchedPatientInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [activePatientId, setActivePatientId] = useState<number | null>(legacyPatientId ?? null)
+  const [activePatientToken, setActivePatientToken] = useState<string | null>(patientToken ?? null)
   const fetchingPatientIdRef = useRef<number | null>(null)
+  const fetchingPatientTokenRef = useRef<string | null>(null)
   const accessiblePatientsCacheRef = useRef<AccessiblePatient[] | null>(null)
+
+  const isViewingOtherPatient = Boolean(
+    activePatientToken || (legacyPatientId && legacyPatientId !== user?.id)
+  )
+
+  // Sync active patient token with URL param
+  useEffect(() => {
+    setActivePatientToken(patientToken ?? null)
+  }, [patientToken])
+
+  // Sync active patient id when legacy patient ID is provided (fallback support)
+  useEffect(() => {
+    if (!patientToken) {
+      setActivePatientId(legacyPatientId ?? null)
+    }
+  }, [legacyPatientId, patientToken])
 
   // Fetch accessible patients
   const refreshAccessiblePatients = async () => {
@@ -80,29 +104,72 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, isRestoringSession, user?.id])
 
+  // Resolve active patient ID when we have a token and accessible patients list
+  useEffect(() => {
+    if (!activePatientToken) {
+      return
+    }
+    const match = accessiblePatients.find(
+      (patient) => patient.patient_token && patient.patient_token === activePatientToken
+    )
+    if (match && match.patient_id !== activePatientId) {
+      setActivePatientId(match.patient_id)
+    } else if (!match && accessiblePatients.length > 0 && activePatientId !== null) {
+      // Token was not found in the latest list; clear the active patient ID
+      setActivePatientId(null)
+    }
+  }, [activePatientToken, accessiblePatients, activePatientId])
+
+  // Auto-upgrade legacy URLs that still include patientId by replacing with patientToken
+  useEffect(() => {
+    if (patientToken || !legacyPatientId) {
+      return
+    }
+    const match = accessiblePatients.find(
+      (patient) => patient.patient_id === legacyPatientId && patient.patient_token
+    )
+    if (!match || !match.patient_token) {
+      return
+    }
+
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('patientId')
+    params.set('patientToken', match.patient_token)
+    const queryString = params.toString()
+
+    router.replace(`${pathname}${queryString ? `?${queryString}` : ''}`, { scroll: false })
+  }, [patientToken, legacyPatientId, accessiblePatients, router, pathname, searchParams])
+
   // Fetch switched patient's complete info (patient + profile from Supabase)
   useEffect(() => {
     if (!isAuthenticated || isRestoringSession || !user?.id) {
       setSwitchedPatientInfo(null)
       fetchingPatientIdRef.current = null
+      fetchingPatientTokenRef.current = null
       return
     }
 
-    if (!isViewingOtherPatient || !patientId) {
+    if (!isViewingOtherPatient || !activePatientId) {
       setSwitchedPatientInfo(null)
       fetchingPatientIdRef.current = null
+      fetchingPatientTokenRef.current = null
       return
     }
 
     const fetchSwitchedPatientInfo = async () => {
-      const currentFetchPatientId = patientId
+      const currentFetchPatientId = activePatientId
+      const currentFetchPatientToken = activePatientToken ?? null
       
       // Immediately clear old info if patientId changed - this ensures UI shows "Loading..." immediately
-      if (fetchingPatientIdRef.current !== null && fetchingPatientIdRef.current !== currentFetchPatientId) {
+      if (
+        (fetchingPatientIdRef.current !== null && fetchingPatientIdRef.current !== currentFetchPatientId) ||
+        (fetchingPatientTokenRef.current !== null && fetchingPatientTokenRef.current !== currentFetchPatientToken)
+      ) {
         setSwitchedPatientInfo(null)
       }
       
       fetchingPatientIdRef.current = currentFetchPatientId
+      fetchingPatientTokenRef.current = currentFetchPatientToken
 
       try {
         setIsLoading(true)
@@ -161,7 +228,10 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Check if patientId changed during fetch
-        if (fetchingPatientIdRef.current !== currentFetchPatientId) {
+        if (
+          fetchingPatientIdRef.current !== currentFetchPatientId ||
+          fetchingPatientTokenRef.current !== currentFetchPatientToken
+        ) {
           console.log('⚠️ PatientId changed during fetch, ignoring result')
           return
         }
@@ -171,7 +241,10 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
         const patient = patients.find(p => p.patient_id === currentFetchPatientId)
 
         // Final check before setting state
-        if (fetchingPatientIdRef.current !== currentFetchPatientId) {
+        if (
+          fetchingPatientIdRef.current !== currentFetchPatientId ||
+          fetchingPatientTokenRef.current !== currentFetchPatientToken
+        ) {
           console.log('⚠️ PatientId changed before setting state, ignoring result')
           return
         }
@@ -201,10 +274,17 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
             
             // Retry fetching profile after a short delay
             setTimeout(async () => {
-              if (fetchingPatientIdRef.current === currentFetchPatientId) {
+              if (
+                fetchingPatientIdRef.current === currentFetchPatientId &&
+                fetchingPatientTokenRef.current === currentFetchPatientToken
+              ) {
                 try {
                   const retryProfile = await AuthAPI.getPatientProfile(currentFetchPatientId)
-                  if (fetchingPatientIdRef.current === currentFetchPatientId && patient) {
+                  if (
+                    fetchingPatientIdRef.current === currentFetchPatientId &&
+                    fetchingPatientTokenRef.current === currentFetchPatientToken &&
+                    patient
+                  ) {
                     setSwitchedPatientInfo({
                       patient,
                       profile: retryProfile,
@@ -250,15 +330,16 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
     return () => {
       clearTimeout(timeoutId)
     }
-  }, [patientId, isViewingOtherPatient, isAuthenticated, isRestoringSession, user?.id])
+    }, [activePatientId, activePatientToken, isViewingOtherPatient, isAuthenticated, isRestoringSession, user?.id])
 
   const value: PatientContextValue = {
-    patientId,
+    patientId: activePatientId,
+    patientToken: activePatientToken,
     isViewingOtherPatient,
     switchedPatientInfo,
     accessiblePatients,
     isLoading,
-    refreshAccessiblePatients
+    refreshAccessiblePatients,
   }
 
   return (

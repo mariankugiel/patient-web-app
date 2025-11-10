@@ -32,7 +32,7 @@ import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-di
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { toast } from "react-toastify"
 import { formatDate } from "@/lib/utils/date-formatter"
-import { usePatientContext } from "@/hooks/use-patient-context"
+import { useSwitchedPatient } from "@/contexts/patient-context"
 import { PermissionGuard } from "@/components/patient/permission-guard"
 
 const daysOfWeek = [
@@ -118,8 +118,8 @@ function MedicationsClientPageContent() {
   const [showCloseConfirmation, setShowCloseConfirmation] = useState(false)
   const [pendingDialogClose, setPendingDialogClose] = useState<'add' | 'edit' | null>(null)
 
-  // Get patientId from URL if viewing another patient
-  const { patientId } = usePatientContext()
+  // Get patientId from patient context if viewing another patient
+  const { patientId } = useSwitchedPatient()
 
   // Load medications on component mount and when patientId changes
   useEffect(() => {

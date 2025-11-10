@@ -58,7 +58,8 @@ export class MedicalDocumentsApiService {
     skip: number = 0,
     limit: number = 100,
     documentType?: string,
-    patientId?: number
+    patientId?: number,
+    patientToken?: string
   ): Promise<MedicalDocument[]> {
     try {
       const params = new URLSearchParams({
@@ -72,6 +73,8 @@ export class MedicalDocumentsApiService {
 
       if (patientId) {
         params.append('patient_id', patientId.toString())
+      } else if (patientToken) {
+        params.append('patient_token', patientToken)
       }
 
       const response = await apiClient.get(`${this.baseUrl}?${params}`)
@@ -139,11 +142,17 @@ export class MedicalDocumentsApiService {
   /**
    * Download a medical document
    */
-  async downloadMedicalDocument(documentId: number, patientId?: number): Promise<{ download_url: string }> {
+  async downloadMedicalDocument(
+    documentId: number,
+    patientId?: number,
+    patientToken?: string
+  ): Promise<{ download_url: string }> {
     try {
       const params = new URLSearchParams()
       if (patientId) {
         params.append('patient_id', patientId.toString())
+      } else if (patientToken) {
+        params.append('patient_token', patientToken)
       }
       const url = `${this.baseUrl}/${documentId}/download${params.toString() ? '?' + params.toString() : ''}`
       const response = await apiClient.get(url)

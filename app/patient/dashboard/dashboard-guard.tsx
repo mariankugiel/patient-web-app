@@ -1,10 +1,9 @@
 "use client"
 
 import { useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
-import { usePatientContext } from '@/hooks/use-patient-context'
 import { useSwitchedPatient } from '@/contexts/patient-context'
 import { getFirstAccessiblePage } from '@/lib/utils/patient-navigation'
 
@@ -18,11 +17,9 @@ interface DashboardGuardProps {
  */
 export function DashboardGuard({ children }: DashboardGuardProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated)
   const isRestoringSession = useSelector((s: RootState) => s.auth.isRestoringSession)
-  const { patientId, isViewingOtherPatient } = usePatientContext()
-  const { switchedPatientInfo } = useSwitchedPatient()
+  const { patientToken, isViewingOtherPatient, switchedPatientInfo } = useSwitchedPatient()
 
   useEffect(() => {
     // Wait for authentication to be restored before redirecting
@@ -31,13 +28,13 @@ export function DashboardGuard({ children }: DashboardGuardProps) {
     }
 
     // If viewing another patient, redirect immediately to first accessible page
-    if (isViewingOtherPatient && patientId) {
+    if (isViewingOtherPatient && patientToken) {
       // Use permissions from switched patient info if available
       const permissions = switchedPatientInfo?.permissions || null
       const accessiblePage = getFirstAccessiblePage(permissions, true)
-      router.replace(`${accessiblePage}?patientId=${patientId}`)
+      router.replace(`${accessiblePage}?patientToken=${encodeURIComponent(patientToken)}`)
     }
-  }, [isViewingOtherPatient, patientId, router, isAuthenticated, isRestoringSession, switchedPatientInfo])
+  }, [isViewingOtherPatient, patientToken, router, isAuthenticated, isRestoringSession, switchedPatientInfo])
 
   // If viewing another patient, don't render dashboard (will redirect)
   if (isViewingOtherPatient) {

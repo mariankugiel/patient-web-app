@@ -849,6 +849,7 @@ export const translations = {
       upcomingAppointments: "Upcoming Appointments",
       status: {
         good: "Good",
+        normal: "Normal",
         fair: "Fair",
         poor: "Poor",
       },
@@ -1714,6 +1715,7 @@ export const translations = {
       upcomingAppointments: "Próximas Citas",
       status: {
         good: "Bueno",
+        normal: "Normal",
         fair: "Regular",
         poor: "Malo",
       },
@@ -2579,6 +2581,7 @@ export const translations = {
       upcomingAppointments: "Próximas Consultas",
       status: {
         good: "Bom",
+        normal: "Normal",
         fair: "Razoável",
         poor: "Mau",
       },

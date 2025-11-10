@@ -23,13 +23,13 @@ import {
   Dumbbell,
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
+import { useSwitchedPatient } from "@/contexts/patient-context"
 import { HealthMetricsChart } from "@/components/patient/health-metrics-chart"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 
 export default function SummaryPage() {
   const { t } = useLanguage()
-  const searchParams = useSearchParams()
-  const patientId = searchParams.get('patientId')
+  const { patientToken } = useSwitchedPatient()
   const router = useRouter()
 
   const renderTrendIcon = (status: string) => {
@@ -271,9 +271,8 @@ export default function SummaryPage() {
             size="sm"
             className="w-full text-xs text-muted-foreground hover:text-foreground"
             onClick={() => {
-              const targetUrl = patientId 
-                ? `/patient/health-records/${metric.tab}?patientId=${patientId}`
-                : `/patient/health-records/${metric.tab}`
+              const tokenQuery = patientToken ? `?patientToken=${encodeURIComponent(patientToken)}` : ""
+              const targetUrl = `/patient/health-records/${metric.tab}${tokenQuery}`
               router.push(targetUrl)
             }}
           >

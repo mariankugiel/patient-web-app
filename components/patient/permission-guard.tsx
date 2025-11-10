@@ -1,10 +1,10 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
-import { usePatientContext } from '@/hooks/use-patient-context'
+import { useSwitchedPatient } from '@/contexts/patient-context'
 import { AuthAPI, AccessiblePatient } from '@/lib/api/auth-api'
 import { getFirstAccessiblePage } from '@/lib/utils/patient-navigation'
 
@@ -20,10 +20,9 @@ export function PermissionGuard({
   fallbackRoute
 }: PermissionGuardProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated)
   const isRestoringSession = useSelector((s: RootState) => s.auth.isRestoringSession)
-  const { patientId, isViewingOtherPatient } = usePatientContext()
+  const { patientId, patientToken, isViewingOtherPatient } = useSwitchedPatient()
   const [hasPermission, setHasPermission] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -52,7 +51,7 @@ export function PermissionGuard({
           setHasPermission(false)
           // Get the first accessible page instead of defaulting to dashboard
           const accessiblePage = fallbackRoute || getFirstAccessiblePage(patient?.permissions || null, isViewingOtherPatient)
-          const redirectUrl = `${accessiblePage}${patientId ? `?patientId=${patientId}` : ''}`
+          const redirectUrl = `${accessiblePage}${patientToken ? `?patientToken=${encodeURIComponent(patientToken)}` : ''}`
           router.push(redirectUrl)
         }
       } catch (error: any) {
@@ -89,7 +88,7 @@ export function PermissionGuard({
     }
 
     checkPermission()
-  }, [patientId, isViewingOtherPatient, requiredPermission, router, fallbackRoute, isAuthenticated, isRestoringSession])
+  }, [patientId, patientToken, isViewingOtherPatient, requiredPermission, router, fallbackRoute, isAuthenticated, isRestoringSession])
 
   if (loading) {
     return (

@@ -1,19 +1,19 @@
 "use client"
 
 import { useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { useSwitchedPatient } from "@/contexts/patient-context"
 
 export default function HealthPlanPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const patientId = searchParams.get('patientId')
+  const { patientToken } = useSwitchedPatient()
 
   useEffect(() => {
-    const targetUrl = patientId 
-      ? `/patient/health-plan/overview?patientId=${patientId}`
+    const targetUrl = patientToken 
+      ? `/patient/health-plan/overview?patientToken=${encodeURIComponent(patientToken)}`
       : "/patient/health-plan/overview"
     router.replace(targetUrl)
-  }, [router, patientId])
+  }, [router, patientToken])
 
   return null
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useSearchParams } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import {
@@ -38,18 +38,18 @@ interface NavigationItem {
 
 export default function PatientSidebar() {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const [open, setOpen] = useState(false)
   const { t } = useLanguage()
   const dispatch = useDispatch<AppDispatch>()
   const router = useRouter()
-  // Get patientId from URL to preserve it when navigating
-  const patientId = searchParams.get('patientId')
-  const parsedPatientId = patientId ? parseInt(patientId, 10) : null
-  const isViewingOtherPatient = !!parsedPatientId
-  
-  // Use shared patient context for accessible patients and switched patient info
-  const { accessiblePatients, switchedPatientInfo, isLoading: loadingPermissions } = useSwitchedPatient()
+  const {
+    patientId,
+    patientToken,
+    isViewingOtherPatient,
+    accessiblePatients,
+    switchedPatientInfo,
+    isLoading: loadingPermissions,
+  } = useSwitchedPatient()
   
   // Get permissions for the currently viewed patient from switched patient info
   const currentPatientPermissions = useMemo(() => {
@@ -59,8 +59,8 @@ export default function PatientSidebar() {
   
   // Helper function to build href with patientId if present
   const buildHref = (baseHref: string) => {
-    if (patientId) {
-      return `${baseHref}?patientId=${patientId}`
+    if (patientToken) {
+      return `${baseHref}?patientToken=${encodeURIComponent(patientToken)}`
     }
     return baseHref
   }

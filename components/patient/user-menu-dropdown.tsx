@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { getFirstAccessiblePage, isPageAccessible } from '@/lib/utils/patient-navigation'
 import {
   Popover,
@@ -32,7 +32,7 @@ import { AppDispatch } from '@/lib/store'
 import { logout } from '@/lib/features/auth/authSlice'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
-import { usePatientContext } from '@/hooks/use-patient-context'
+import { useSwitchedPatient } from '@/contexts/patient-context'
 
 interface UserMenuDropdownProps {
   onLogout?: () => void
@@ -42,10 +42,9 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
   const { t } = useLanguage()
   const dispatch = useDispatch<AppDispatch>()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const pathname = usePathname()
   const { user } = useSelector((state: RootState) => state.auth)
-  const { patientId, isViewingOtherPatient } = usePatientContext()
+  const { patientId, patientToken, isViewingOtherPatient } = useSwitchedPatient()
   const [accessiblePatients, setAccessiblePatients] = useState<AccessiblePatient[]>([])
   const [loading, setLoading] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -183,6 +182,15 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
     
     // For other patients, determine the target URL
     let targetUrl = ''
+    const targetToken = patient?.patient_token
+    if (!targetToken) {
+      console.error('❌ No patient token available for selected patient, aborting switch.')
+      setTimeout(() => {
+        ;(window as any).__isUserSwitching = false
+      }, 500)
+      return
+    }
+    const tokenQuery = `?patientToken=${encodeURIComponent(targetToken)}`
     
     // Check if we're on a restricted page
     const isRestrictedPage = pathname && (
@@ -196,19 +204,19 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
       const accessiblePage = patient?.permissions 
         ? getFirstAccessiblePage(patient.permissions, true)
         : '/patient/health-records'
-      targetUrl = `${accessiblePage}?patientId=${selectedPatientId}`
+      targetUrl = `${accessiblePage}${tokenQuery}`
       console.log('📍 On restricted page, redirecting to:', targetUrl)
     } else if (pathname && patient?.permissions) {
       // Check if current page is accessible
       const currentPageAccessible = isPageAccessible(pathname, patient.permissions, true)
       if (currentPageAccessible) {
         // Current page is accessible, stay on it with new patientId
-        targetUrl = `${pathname}?patientId=${selectedPatientId}`
+        targetUrl = `${pathname}${tokenQuery}`
         console.log('📍 Current page accessible, staying on:', targetUrl)
       } else {
         // Current page not accessible, redirect to first accessible page
         const accessiblePage = getFirstAccessiblePage(patient.permissions, true)
-        targetUrl = `${accessiblePage}?patientId=${selectedPatientId}`
+        targetUrl = `${accessiblePage}${tokenQuery}`
         console.log('📍 Current page not accessible, redirecting to:', targetUrl)
       }
     } else {
@@ -216,7 +224,7 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
       const accessiblePage = patient?.permissions 
         ? getFirstAccessiblePage(patient.permissions, true)
         : '/patient/health-records'
-      targetUrl = `${accessiblePage}?patientId=${selectedPatientId}`
+      targetUrl = `${accessiblePage}${tokenQuery}`
       console.log('📍 Default navigation to:', targetUrl)
     }
     
@@ -239,7 +247,7 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
 
   const handleSwitchToMainUser = () => {
     // Only switch if we're currently viewing another patient
-    if (!isViewingOtherPatient || !patientId) {
+    if (!isViewingOtherPatient || !patientToken) {
       setDropdownOpen(false)
       return
     }
@@ -262,7 +270,7 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
       // Redirect to dashboard (without patientId)
       router.replace('/patient/dashboard')
     } else {
-      // Remove patientId from current URL
+      // Remove patientToken from current URL
       const newPath = currentPath.split('?')[0] // Remove query params
       router.replace(newPath)
     }
@@ -283,8 +291,6 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
       router.push('/')
     }
   }
-
-  const selectedPatientId = searchParams.get('patientId')
 
   // Fetch viewing patient data when viewing another patient
   useEffect(() => {
@@ -373,7 +379,7 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
     
     fetchViewingPatient()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId, isViewingOtherPatient])
+  }, [patientId, patientToken, isViewingOtherPatient])
 
   // ALWAYS display current user's info in dropdown (not the switched user)
   // The dropdown should always show who is logged in, not who they're viewing
@@ -596,7 +602,9 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
                       {/* Other Patients Only - Don't show current user */}
                       {otherPatients.length > 0 ? (
                         otherPatients.map((patient) => {
-                          const isSelected = selectedPatientId === patient.patient_id.toString()
+                          const isSelected = patientToken
+                            ? patient.patient_token === patientToken
+                            : patientId === patient.patient_id
                           return (
                             <Button
                               key={patient.patient_id}

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams, usePathname } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Users, ChevronRight } from 'lucide-react'
@@ -10,12 +10,13 @@ import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { getFirstAccessiblePage, isPageAccessible } from '@/lib/utils/patient-navigation'
+import { useSwitchedPatient } from '@/contexts/patient-context'
 
 export function AccessiblePatientsList() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const pathname = usePathname()
   const { user } = useSelector((state: RootState) => state.auth)
+  const { patientToken: currentPatientToken } = useSwitchedPatient()
   const [accessiblePatients, setAccessiblePatients] = useState<AccessiblePatient[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(true)
@@ -44,6 +45,7 @@ export function AccessiblePatientsList() {
     
     // Check if this is the current user (granted_for === "Self")
     const patient = accessiblePatients.find(p => p.patient_id === patientId)
+    const patientToken = patient?.patient_token
     if (patient?.granted_for === "Self") {
       // Navigate to current page without patientId (viewing own data)
       // If on dashboard or no pathname, go to dashboard (own dashboard is OK)
@@ -55,11 +57,17 @@ export function AccessiblePatientsList() {
       return
     }
     
+    if (!patientToken) {
+      console.error('❌ No patient token available for selected patient in list.')
+      return
+    }
+    const tokenQuery = `?patientToken=${encodeURIComponent(patientToken)}`
+    
     // For other patients, NEVER allow dashboard access
     // If currently on dashboard, redirect to first accessible page
     if (pathname && pathname.includes('/patient/dashboard')) {
       const accessiblePage = getFirstAccessiblePage(patient?.permissions || null, true)
-      router.push(`${accessiblePage}?patientId=${patientId}`)
+      router.push(`${accessiblePage}${tokenQuery}`)
       return
     }
     
@@ -70,7 +78,7 @@ export function AccessiblePatientsList() {
                      pathname.includes('/patient/permissions'))) {
       // Redirect to first accessible page
       const accessiblePage = getFirstAccessiblePage(patient?.permissions || null, true)
-      router.push(`${accessiblePage}?patientId=${patientId}`)
+      router.push(`${accessiblePage}${tokenQuery}`)
       return
     }
     
@@ -79,7 +87,7 @@ export function AccessiblePatientsList() {
       const currentPageAccessible = isPageAccessible(pathname, patient.permissions, true)
       if (currentPageAccessible) {
         // Current page is accessible, stay on it
-        router.push(`${pathname}?patientId=${patientId}`)
+        router.push(`${pathname}${tokenQuery}`)
         return
       }
     }
@@ -87,11 +95,10 @@ export function AccessiblePatientsList() {
     // Current page is not accessible or pathname not available
     // Redirect to first accessible page based on permissions
     const accessiblePage = getFirstAccessiblePage(patient?.permissions || null, true)
-    router.push(`${accessiblePage}?patientId=${patientId}`)
+    router.push(`${accessiblePage}${tokenQuery}`)
   }
 
-
-  const selectedPatientId = searchParams.get('patientId')
+  const selectedPatientToken = currentPatientToken
 
   // Don't show if user has no accessible patients
   if (!loading && accessiblePatients.length === 0) {
@@ -131,9 +138,10 @@ export function AccessiblePatientsList() {
               <div className="text-sm text-gray-500 px-2 py-1">No accessible patients</div>
             ) : (
               accessiblePatients.map((patient) => {
-                const isSelected = selectedPatientId === patient.patient_id.toString() || 
-                                  (patient.granted_for === "Self" && !selectedPatientId)
                 const isSelf = patient.granted_for === "Self"
+                const isSelected = selectedPatientToken
+                  ? patient.patient_token === selectedPatientToken
+                  : isSelf
 
                 return (
                   <Button

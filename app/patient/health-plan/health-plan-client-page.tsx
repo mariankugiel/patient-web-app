@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { useSelector } from "react-redux"
 import { RootState } from "@/lib/store"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -47,6 +47,7 @@ import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-di
 import { CircleDateButton } from "@/components/ui/circle-date-button"
 import { TaskItem } from "@/components/health-records/task-item"
 import { PermissionGuard } from "@/components/patient/permission-guard"
+import { useSwitchedPatient } from "@/contexts/patient-context"
 
 export default function HealthPlanClientPage() {
   return (
@@ -59,8 +60,7 @@ export default function HealthPlanClientPage() {
 function HealthPlanClientPageContent() {
   const pathname = usePathname()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const patientId = searchParams.get('patientId')
+  const { patientId, patientToken } = useSwitchedPatient()
   const { t, language } = useLanguage()
   const { toast } = useToast()
   
@@ -79,11 +79,11 @@ function HealthPlanClientPageContent() {
       tasks: '/patient/health-plan/tasks'
     }
     const baseRoute = routes[tab as keyof typeof routes] || routes.overview
-    const targetUrl = patientId 
-      ? `${baseRoute}?patientId=${patientId}`
+    const targetUrl = patientToken
+      ? `${baseRoute}?patientToken=${encodeURIComponent(patientToken)}`
       : baseRoute
     router.push(targetUrl)
-  }, [router, patientId])
+  }, [router, patientToken])
 
   // Dialog states
   const [isAddGoalOpen, setIsAddGoalOpen] = useState(false)

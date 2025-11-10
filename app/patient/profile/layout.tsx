@@ -1,15 +1,16 @@
 "use client"
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useMemo, Suspense } from "react"
 import { useLanguage } from "@/contexts/language-context"
+import { useSwitchedPatient } from "@/contexts/patient-context"
 
 function ProfileSectionLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { t } = useLanguage()
+  const { patientToken } = useSwitchedPatient()
 
   const active = useMemo(() => {
     if (pathname.endsWith("/emergency")) return "emergency"
@@ -21,8 +22,7 @@ function ProfileSectionLayoutContent({ children }: { children: React.ReactNode }
   }, [pathname])
 
   const go = (tab: string) => {
-    const patientId = searchParams.get('patientId')
-    const queryString = patientId ? `?patientId=${patientId}` : ''
+    const queryString = patientToken ? `?patientToken=${encodeURIComponent(patientToken)}` : ''
     router.replace(`/patient/profile${tab === "profile" ? "" : `/${tab}`}${queryString}`)
   }
 

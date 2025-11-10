@@ -24,7 +24,6 @@ import { RootState } from "@/lib/store"
 import { updateUser } from "@/lib/features/auth/authSlice"
 import { AuthApiService, AuthAPI } from "@/lib/api/auth-api"
 import { getProfilePictureUrl } from "@/lib/profile-utils"
-import { usePatientContext } from "@/hooks/use-patient-context"
 import { useSwitchedPatient } from "@/contexts/patient-context"
 import { getFirstAccessiblePage } from "@/lib/utils/patient-navigation"
 import { useRouter } from "next/navigation"
@@ -70,8 +69,7 @@ export default function ProfileTabPage() {
   const router = useRouter()
   const { t, language, setLanguage } = useLanguage()
   const { toast } = useToast()
-  const { patientId, isViewingOtherPatient } = usePatientContext()
-  const { switchedPatientInfo } = useSwitchedPatient()
+  const { patientToken, isViewingOtherPatient, switchedPatientInfo } = useSwitchedPatient()
   const [selectedLanguage, setSelectedLanguage] = useState(language)
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">("light")
   const [profileImage, setProfileImage] = useState<string | null>(null)
@@ -83,14 +81,14 @@ export default function ProfileTabPage() {
   // Redirect away from profile page if viewing another patient
   // This must happen immediately, before any rendering
   useEffect(() => {
-    if (isViewingOtherPatient && patientId) {
+    if (isViewingOtherPatient && patientToken) {
       console.log('🚫 Blocking profile page access - redirecting away')
       // Use permissions from switched patient info to redirect to first accessible page
       const permissions = switchedPatientInfo?.permissions || null
       const accessiblePage = getFirstAccessiblePage(permissions, true)
-      router.replace(`${accessiblePage}?patientId=${patientId}`)
+      router.replace(`${accessiblePage}?patientToken=${encodeURIComponent(patientToken)}`)
     }
-  }, [isViewingOtherPatient, patientId, router, switchedPatientInfo])
+  }, [isViewingOtherPatient, patientToken, router, switchedPatientInfo])
   
   // Don't render anything if viewing another patient (redirect will happen)
   if (isViewingOtherPatient) {

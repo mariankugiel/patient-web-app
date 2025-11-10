@@ -21,14 +21,14 @@ import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useLanguage } from "@/contexts/language-context"
-import { usePatientContext } from "@/hooks/use-patient-context"
+import { useSwitchedPatient } from "@/contexts/patient-context"
 import { medicationsApiService, Medication } from "@/lib/api/medications-api"
 import { messagesApiService, Conversation } from "@/lib/api/messages-api"
 import { HealthRecordsApiService } from "@/lib/api/health-records-api"
 
 export default function PatientDashboardClient() {
   const { t, language } = useLanguage()
-  const { patientId, isViewingOtherPatient } = usePatientContext()
+  const { patientId, patientToken, isViewingOtherPatient } = useSwitchedPatient()
   
   // State for real data
   const [medications, setMedications] = useState<Medication[]>([])
@@ -246,8 +246,8 @@ export default function PatientDashboardClient() {
 
   // Build links with patientId if viewing another patient
   const buildLink = (href: string) => {
-    if (patientId) {
-      return `${href}?patientId=${patientId}`
+    if (patientToken) {
+      return `${href}?patientToken=${encodeURIComponent(patientToken)}`
     }
     return href
   }

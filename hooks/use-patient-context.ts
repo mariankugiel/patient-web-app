@@ -3,20 +3,26 @@ import { useMemo } from 'react'
 
 export function usePatientContext() {
   const searchParams = useSearchParams()
-  const patientId = searchParams.get('patientId')
-  
+  const patientTokenParam = searchParams.get('patientToken')
+  const legacyPatientIdParam = searchParams.get('patientId')
+
   return useMemo(() => {
-    const parsedPatientId = patientId ? parseInt(patientId, 10) : null
-    if (isNaN(parsedPatientId as any)) {
-      console.warn('⚠️ [usePatientContext] Invalid patientId in URL:', patientId)
-    } else if (parsedPatientId) {
-      console.log('✅ [usePatientContext] patientId from URL:', parsedPatientId)
+    const parsedLegacyId = legacyPatientIdParam ? parseInt(legacyPatientIdParam, 10) : null
+    if (legacyPatientIdParam && (parsedLegacyId === null || isNaN(parsedLegacyId))) {
+      console.warn('⚠️ [usePatientContext] Invalid patientId in URL:', legacyPatientIdParam)
     }
+
+    if (patientTokenParam) {
+      console.log('✅ [usePatientContext] patientToken detected in URL')
+    } else if (parsedLegacyId) {
+      console.log('✅ [usePatientContext] legacy patientId from URL:', parsedLegacyId)
+    }
+
     return {
-      patientId: parsedPatientId,
-      isViewingOtherPatient: !!parsedPatientId,
-      patientIdParam: parsedPatientId ? { patient_id: parsedPatientId } : {}
+      patientToken: patientTokenParam,
+      legacyPatientId: parsedLegacyId,
+      isViewingOtherPatient: Boolean(patientTokenParam || parsedLegacyId),
     }
-  }, [patientId])
+  }, [patientTokenParam, legacyPatientIdParam])
 }
 

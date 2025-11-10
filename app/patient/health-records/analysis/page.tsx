@@ -35,7 +35,15 @@ import { useSwitchedPatient } from "@/contexts/patient-context"
 
 export default function AnalysisPage() {
   const { t } = useLanguage()
-  const { patientId, isViewingOtherPatient } = useSwitchedPatient()
+  const { patientId, patientToken, isViewingOtherPatient, switchedPatientInfo } = useSwitchedPatient()
+
+  const switchedPermissions = switchedPatientInfo?.permissions
+  const canViewLabDocuments =
+    !isViewingOtherPatient || Boolean(switchedPermissions?.can_view_health_records)
+  const canDownloadLabDocuments =
+    !isViewingOtherPatient || Boolean(switchedPermissions?.health_records_download)
+  const canManageLabDocuments = !isViewingOtherPatient
+  const canDownload = !isViewingOtherPatient || Boolean(switchedPatientInfo?.permissions?.can_view_health_records && switchedPatientInfo?.permissions?.can_view_health_records && switchedPatientInfo?.permissions?.can_view_health_records && switchedPatientInfo?.permissions?.can_view_health_records) // placeholder line to ensure variable declared
   
   console.log('🔍 [Analysis Page] patientId from context:', patientId, 'isViewingOtherPatient:', isViewingOtherPatient)
   
@@ -87,9 +95,20 @@ export default function AnalysisPage() {
 
   // Fetch medical documents
   const fetchMedicalDocuments = async () => {
+    if (!canViewLabDocuments) {
+      setMedicalDocuments([])
+      setDocumentsLoading(false)
+      return
+    }
     try {
       setDocumentsLoading(true)
-      const documents = await medicalDocumentsApiService.getMedicalDocuments(0, 2, 'lab_result', patientId || undefined)
+      const documents = await medicalDocumentsApiService.getMedicalDocuments(
+        0,
+        2,
+        'lab_result',
+        patientId || undefined,
+        patientToken || undefined
+      )
       setMedicalDocuments(documents)
     } catch (error) {
       console.error('Failed to fetch medical documents:', error)
@@ -100,9 +119,20 @@ export default function AnalysisPage() {
   }
 
   const fetchAllDocuments = async (page: number = 0) => {
+    if (!canViewLabDocuments) {
+      setAllDocuments([])
+      setAllDocumentsLoading(false)
+      return
+    }
     try {
       setAllDocumentsLoading(true)
-      const documents = await medicalDocumentsApiService.getMedicalDocuments(page * 10, 10, 'lab_result', patientId || undefined)
+      const documents = await medicalDocumentsApiService.getMedicalDocuments(
+        page * 10,
+        10,
+        'lab_result',
+        patientId || undefined,
+        patientToken || undefined
+      )
       setAllDocuments(documents)
       setCurrentPage(page)
       // Note: We'll need to update the backend to return total count
@@ -116,19 +146,40 @@ export default function AnalysisPage() {
   }
 
   const handleSeeAllDocuments = () => {
+    if (!canViewLabDocuments) {
+      toast.error('You do not have permission to view these documents.')
+      return
+    }
     setAllDocumentsOpen(true)
     fetchAllDocuments(0)
   }
 
   // Load medical documents on component mount and when patientId changes
   useEffect(() => {
+    if (isViewingOtherPatient && !switchedPatientInfo) {
+      return
+    }
     fetchMedicalDocuments()
-  }, [patientId]) // Refresh when patientId changes
+  }, [
+    patientId,
+    patientToken,
+    isViewingOtherPatient,
+    switchedPatientInfo,
+    canViewLabDocuments,
+  ]) // Refresh when patient context changes
 
   // Handle document download
   const handleDownloadDocument = async (documentId: number, fileName: string) => {
+    if (!canDownloadLabDocuments) {
+      toast.error('You do not have permission to download this document.')
+      return
+    }
     try {
-      const response = await medicalDocumentsApiService.downloadMedicalDocument(documentId, patientId || undefined)
+      const response = await medicalDocumentsApiService.downloadMedicalDocument(
+        documentId,
+        patientId || undefined,
+        patientToken || undefined
+      )
       const downloadUrl = response.download_url
 
       if (!downloadUrl) {
@@ -153,11 +204,13 @@ export default function AnalysisPage() {
   }
 
   const handleEditDocument = (document: MedicalDocument) => {
+    if (!canManageLabDocuments) return
     setDocumentToEdit(document)
     setEditDialogOpen(true)
   }
 
   const handleDeleteDocument = (document: MedicalDocument) => {
+    if (!canManageLabDocuments) return
     setDocumentToDelete(document)
     setDeleteDialogOpen(true)
   }
@@ -224,8 +277,9 @@ export default function AnalysisPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setLabUploadOpen(true)}
+                  onClick={() => canManageLabDocuments && setLabUploadOpen(true)}
                   className="flex items-center gap-1"
+                  disabled={!canManageLabDocuments}
                 >
                   <Plus className="h-3 w-3" />
                   Add
@@ -237,6 +291,10 @@ export default function AnalysisPage() {
                 {documentsLoading ? (
                   <div className="flex items-center justify-center py-4">
                     <Loader2 className="h-4 w-4 animate-spin" />
+                  </div>
+                ) : !canViewLabDocuments ? (
+                  <div className="text-center py-4 text-sm text-gray-600">
+                    You do not have permission to view lab documents for this patient.
                   </div>
                 ) : medicalDocuments.length > 0 ? (
                   <div className="space-y-2">
@@ -261,6 +319,7 @@ export default function AnalysisPage() {
                             variant="ghost"
                             onClick={() => handleEditDocument(doc)}
                             className="h-8 w-8 p-0 hover:bg-gray-200 flex-shrink-0"
+                            disabled={!canManageLabDocuments}
                           >
                             <Edit className="h-3 w-3" />
                           </Button>
@@ -269,6 +328,7 @@ export default function AnalysisPage() {
                             variant="ghost"
                             onClick={() => handleDeleteDocument(doc)}
                             className="h-8 w-8 p-0 hover:bg-red-100 text-red-600 hover:text-red-700 flex-shrink-0"
+                            disabled={!canManageLabDocuments}
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -277,6 +337,12 @@ export default function AnalysisPage() {
                             variant="ghost"
                             onClick={() => handleDownloadDocument(doc.id, doc.file_name)}
                             className="h-8 w-8 p-0 hover:bg-gray-200 flex-shrink-0"
+                            disabled={!canDownloadLabDocuments}
+                            title={
+                              canDownloadLabDocuments
+                                ? 'Download document'
+                                : 'Download permission not granted'
+                            }
                           >
                             <Download className="h-3 w-3" />
                       </Button>
@@ -297,6 +363,7 @@ export default function AnalysisPage() {
                     size="sm"
                     className="w-full"
                     onClick={handleSeeAllDocuments}
+                    disabled={!canViewLabDocuments}
                   >
                     See All Documents
               </Button>
@@ -362,7 +429,13 @@ export default function AnalysisPage() {
                       size="sm"
                       variant="outline"
                       onClick={() => handleDownloadDocument(doc.id, doc.file_name)}
-                      className="ml-2 h-8 w-8 p-0 hover:bg-gray-200 flex-shrink-0"
+                  className="ml-2 h-8 w-8 p-0 hover:bg-gray-200 flex-shrink-0"
+                  disabled={!canDownloadLabDocuments}
+                  title={
+                    canDownloadLabDocuments
+                      ? 'Download document'
+                      : 'Download permission not granted'
+                  }
                     >
                       <Download className="h-4 w-4" />
                     </Button>

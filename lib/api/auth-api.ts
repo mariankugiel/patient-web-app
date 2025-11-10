@@ -149,8 +149,10 @@ export interface AccessiblePatient {
   patient_supabase_id: string
   patient_name: string
   patient_email: string
+  patient_token?: string | null
   permissions: {
     can_view_health_records: boolean
+    health_records_download?: boolean
     can_view_medical_history: boolean
     can_view_health_plans: boolean
     can_view_medications: boolean
