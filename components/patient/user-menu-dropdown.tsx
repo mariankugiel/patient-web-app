@@ -101,14 +101,14 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
     }
   }, [user?.id])
 
-  const handlePatientSelect = async (selectedPatientId: number, e?: React.MouseEvent) => {
+  const handlePatientSelect = async (selectedPatient: AccessiblePatient, e?: React.MouseEvent) => {
     // Prevent any default behavior
     if (e) {
       e.preventDefault()
       e.stopPropagation()
     }
     
-    // Validate patientId
+    const selectedPatientId = selectedPatient?.patient_id
     if (!selectedPatientId || isNaN(selectedPatientId)) {
       console.error('❌ Invalid patientId:', selectedPatientId)
       return
@@ -123,7 +123,7 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
     setDropdownOpen(false)
     
     // Find the patient in accessible patients list
-    let patient = accessiblePatients.find(p => p.patient_id === selectedPatientId)
+    let patient = accessiblePatients.find(p => p.patient_id === selectedPatientId) || selectedPatient
     
     // If patient not found in current list, try to reload accessible patients
     // But don't block navigation if API call fails - we'll navigate anyway
@@ -182,7 +182,17 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
     
     // For other patients, determine the target URL
     let targetUrl = ''
-    const targetToken = patient?.patient_token
+    let targetToken = patient?.patient_token
+    if (!targetToken) {
+      console.warn('⚠️ No patient token in current data, refreshing accessible patients...')
+      try {
+        const refreshed = await AuthAPI.getAccessiblePatients()
+        setAccessiblePatients(refreshed?.accessible_patients || [])
+        targetToken = refreshed?.accessible_patients?.find(p => p.patient_id === selectedPatientId)?.patient_token || null
+      } catch (error) {
+        console.error('❌ Failed to refresh accessible patients for token lookup:', error)
+      }
+    }
     if (!targetToken) {
       console.error('❌ No patient token available for selected patient, aborting switch.')
       setTimeout(() => {
@@ -613,7 +623,7 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
                                 "w-full justify-start h-auto py-2 px-3",
                                 isSelected && "bg-gray-100 dark:bg-gray-800"
                               )}
-                              onClick={(e) => handlePatientSelect(patient.patient_id, e)}
+                              onClick={(e) => handlePatientSelect(patient, e)}
                             >
                               <Avatar className="h-8 w-8 mr-3 shrink-0">
                                 {getPatientAvatar(patient) && (
