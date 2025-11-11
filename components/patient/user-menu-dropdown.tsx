@@ -44,8 +44,7 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
   const router = useRouter()
   const pathname = usePathname()
   const { user } = useSelector((state: RootState) => state.auth)
-  const { patientId, patientToken, isViewingOtherPatient } = useSwitchedPatient()
-  const [accessiblePatients, setAccessiblePatients] = useState<AccessiblePatient[]>([])
+  const { patientId, patientToken, isViewingOtherPatient, accessiblePatients, refreshAccessiblePatients } = useSwitchedPatient()
   const [loading, setLoading] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [viewingPatient, setViewingPatient] = useState<AccessiblePatient | null>(null)
@@ -54,28 +53,20 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
   const loadPatients = async () => {
     // Don't load if user is not authenticated
     if (!user?.id) {
-      setAccessiblePatients([])
       return
     }
     
     try {
       setLoading(true)
-      const response = await AuthAPI.getAccessiblePatients()
-      const patients = response?.accessible_patients || []
-      setAccessiblePatients(patients)
+      await refreshAccessiblePatients()
     } catch (error: any) {
-      // Silently handle connection/timeout errors - these are expected if backend is down
-      // Only log unexpected errors
       const isConnectionError = error?.code === 'ECONNABORTED' || 
                                 error?.code === 'ERR_NETWORK' ||
                                 error?.message?.includes('Connection failed') ||
                                 error?.message?.includes('timeout')
-      
       if (!isConnectionError) {
-        // Only log non-connection errors
         console.error('Failed to load accessible patients:', error)
       }
-      setAccessiblePatients([])
     } finally {
       setLoading(false)
     }
@@ -91,13 +82,10 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
   // Also load on initial mount to show badge count (only if user is authenticated)
   useEffect(() => {
     if (user?.id) {
-      // Add a small delay to ensure login is fully complete
       const timer = setTimeout(() => {
         loadPatients()
       }, 500)
       return () => clearTimeout(timer)
-    } else {
-      setAccessiblePatients([])
     }
   }, [user?.id])
 
@@ -123,21 +111,20 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
     setDropdownOpen(false)
     
     // Find the patient in accessible patients list
-    let patient = accessiblePatients.find(p => p.patient_id === selectedPatientId) || selectedPatient
+    let patient: AccessiblePatient | null =
+      accessiblePatients.find(p => p.patient_id === selectedPatientId) ?? selectedPatient
     
     // If patient not found in current list, try to reload accessible patients
     // But don't block navigation if API call fails - we'll navigate anyway
     if (!patient) {
       console.log('⚠️ Patient not found in current list, fetching from API...')
       try {
-        const response = await AuthAPI.getAccessiblePatients()
-        patient = response?.accessible_patients?.find(p => p.patient_id === selectedPatientId)
+        const refreshed = await refreshAccessiblePatients()
+        patient = refreshed?.find(p => p.patient_id === selectedPatientId) || null
         if (patient) {
-          console.log('✅ Patient found in API response')
-          // Update the accessible patients list
-          setAccessiblePatients(response?.accessible_patients || [])
+          console.log('✅ Patient found in refreshed list')
         } else {
-          console.warn('⚠️ Patient not found in API response')
+          console.warn('⚠️ Patient not found after refresh')
         }
       } catch (error: any) {
         // Silently handle connection errors - don't block navigation
@@ -186,9 +173,8 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
     if (!targetToken) {
       console.warn('⚠️ No patient token in current data, refreshing accessible patients...')
       try {
-        const refreshed = await AuthAPI.getAccessiblePatients()
-        setAccessiblePatients(refreshed?.accessible_patients || [])
-        targetToken = refreshed?.accessible_patients?.find(p => p.patient_id === selectedPatientId)?.patient_token || null
+        const refreshed = await refreshAccessiblePatients()
+        targetToken = refreshed?.find(p => p.patient_id === selectedPatientId)?.patient_token || null
       } catch (error) {
         console.error('❌ Failed to refresh accessible patients for token lookup:', error)
       }
@@ -326,12 +312,10 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
       // If not found, try to fetch from API
       if (!patient) {
         try {
-          const response = await AuthAPI.getAccessiblePatients()
-          patient = response?.accessible_patients?.find(p => p.patient_id === validPatientId)
+          const refreshed = await refreshAccessiblePatients()
+          patient = refreshed?.find(p => p.patient_id === validPatientId)
           if (patient) {
             setViewingPatient(patient)
-            // Update accessible patients list
-            setAccessiblePatients(response?.accessible_patients || [])
           }
         } catch (error: any) {
           // Silently handle connection errors - don't clear state on connection failure

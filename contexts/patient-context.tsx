@@ -20,7 +20,7 @@ interface PatientContextValue {
   switchedPatientInfo: SwitchedPatientInfo | null
   accessiblePatients: AccessiblePatient[]
   isLoading: boolean
-  refreshAccessiblePatients: () => Promise<void>
+  refreshAccessiblePatients: () => Promise<AccessiblePatient[] | null>
 }
 
 const PatientContext = createContext<PatientContextValue | undefined>(undefined)
@@ -33,6 +33,14 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated)
   const isRestoringSession = useSelector((s: RootState) => s.auth.isRestoringSession)
   const user = useSelector((s: RootState) => s.auth.user)
+  const rawUserId = user?.id
+  const parsedUserId =
+    typeof rawUserId === 'number'
+      ? rawUserId
+      : rawUserId != null
+        ? Number.parseInt(String(rawUserId), 10)
+        : null
+  const loggedInUserId = Number.isNaN(parsedUserId as number) ? null : parsedUserId
   
   const [accessiblePatients, setAccessiblePatients] = useState<AccessiblePatient[]>([])
   const [switchedPatientInfo, setSwitchedPatientInfo] = useState<SwitchedPatientInfo | null>(null)
@@ -44,7 +52,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
   const accessiblePatientsCacheRef = useRef<AccessiblePatient[] | null>(null)
 
   const isViewingOtherPatient = Boolean(
-    activePatientToken || (legacyPatientId && legacyPatientId !== user?.id)
+    activePatientToken || (legacyPatientId && legacyPatientId !== loggedInUserId)
   )
 
   // Sync active patient token with URL param
@@ -60,9 +68,9 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
   }, [legacyPatientId, patientToken])
 
   // Fetch accessible patients
-  const refreshAccessiblePatients = async () => {
+  const refreshAccessiblePatients = async (): Promise<AccessiblePatient[] | null> => {
     if (!isAuthenticated || isRestoringSession || !user?.id) {
-      return
+      return null
     }
 
     try {
@@ -70,6 +78,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       const patients = response?.accessible_patients || []
       setAccessiblePatients(patients)
       accessiblePatientsCacheRef.current = patients
+      return patients
     } catch (error: any) {
       const isConnectionError = error?.code === 'ECONNABORTED' || 
                                 error?.code === 'ERR_NETWORK' ||
@@ -85,7 +94,9 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       // Keep existing cache on connection error
       if (accessiblePatientsCacheRef.current) {
         setAccessiblePatients(accessiblePatientsCacheRef.current)
+        return accessiblePatientsCacheRef.current
       }
+      return null
     }
   }
 
