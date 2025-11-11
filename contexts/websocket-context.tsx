@@ -302,8 +302,18 @@ export function WebSocketProvider({ children, userId }: { children: React.ReactN
 
 export function useWebSocketContext() {
   const context = useContext(WebSocketContext)
-  if (context === undefined) {
-    throw new Error('useWebSocketContext must be used within a WebSocketProvider')
+  if (!context) {
+    return {
+      isConnected: false,
+      connectionId: null,
+      sendMessage: () => false,
+      notifications: [],
+      unreadCount: 0,
+      markAsRead: async () => {},
+      dismissNotification: async () => {},
+      markAllAsRead: async () => {},
+      onUserStatusChange: () => () => {},
+    }
   }
   return context
 }

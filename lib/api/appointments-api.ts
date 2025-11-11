@@ -15,17 +15,19 @@ export interface Doctor {
   email?: string
   acuityCalendarId?: string | null
   acuityOwnerId?: string | null
+  timezone?: string | null
 }
 
 export interface Appointment {
   id: number
   patient_id: number
   professional_id: number
-  appointment_date: string
+  appointment_date?: string
+  scheduled_at?: string
   duration_minutes: number
-  appointment_type: string
+  appointment_type: string | number
   status: string
-  reason?: string
+  frontend_status?: 'upcoming' | 'completed' | 'cancelled' // For frontend convenience
   symptoms?: string
   notes?: string
   diagnosis?: string
@@ -42,6 +44,14 @@ export interface Appointment {
   virtual_meeting_id?: string
   virtual_meeting_platform?: string
   consultation_type?: 'virtual' | 'in_person' | 'phone'
+  // Doctor information
+  doctor_name?: string
+  doctor_specialty?: string
+  // Cost information
+  cost?: number
+  currency?: string
+  payment_status?: string
+  timezone?: string
 }
 
 export interface AcuityEmbedConfig {
@@ -59,12 +69,17 @@ export interface VideoRoomData {
 }
 
 export interface AppointmentBookRequest {
-  professional_id: number
-  scheduled_at: string
-  consultation_type: 'virtual' | 'in_person' | 'phone'
-  reason?: string
-  duration_minutes?: number
+  calendar_id: string
   appointment_type_id?: number
+  datetime: string // ISO format with timezone
+  first_name: string
+  last_name: string
+  email: string
+  phone?: string
+  appointment_type: 'virtual' | 'in-person' | 'phone'
+  location?: string // Required for in-person
+  note?: string
+  timezone?: string
 }
 
 // ============================================================================
@@ -90,6 +105,62 @@ export const appointmentsApiService = {
   async getAcuityEmbedUrl(professionalId: number): Promise<AcuityEmbedConfig> {
     const response = await apiClient.get(`/appointments/doctors/${professionalId}/acuity-embed`)
     return response.data
+  },
+
+  /**
+   * Get available dates for a calendar
+   */
+  async getAvailabilityDates(calendarId: string, appointmentTypeId?: number, month?: string): Promise<string[]> {
+    const params: any = {
+      calendar_id: calendarId,
+    }
+    if (appointmentTypeId !== undefined && appointmentTypeId !== null) {
+      params.appointment_type_id = appointmentTypeId
+    }
+    if (month) {
+      params.month = month
+    }
+    const response = await apiClient.get('/appointments/availability/dates', { params })
+    return response.data.dates || []
+  },
+
+  /**
+   * Get available time slots for a calendar on a specific date
+   */
+  async getAvailabilityTimes(calendarId: string, date: string, appointmentTypeId?: number): Promise<any[]> {
+    const params: any = {
+      calendar_id: calendarId,
+      date: date,
+    }
+    if (appointmentTypeId !== undefined && appointmentTypeId !== null) {
+      params.appointment_type_id = appointmentTypeId
+    }
+    const response = await apiClient.get('/appointments/availability/times', { params })
+    return response.data.times || []
+  },
+
+  /**
+   * Get available time slots for each day in a week
+   */
+  async getAvailabilityWeek(calendarId: string, startDate: string, appointmentTypeId?: number): Promise<Record<string, any[]>> {
+    const params: any = {
+      calendar_id: calendarId,
+      start_date: startDate,
+    }
+    if (appointmentTypeId !== undefined && appointmentTypeId !== null) {
+      params.appointment_type_id = appointmentTypeId
+    }
+    const response = await apiClient.get('/appointments/availability/week', { params })
+    if (response.data?.week) {
+      const result: Record<string, any[]> = {}
+      for (const day of response.data.week) {
+        if (day?.date) {
+          result[day.date] = day.slots || []
+        }
+      }
+      return result
+    }
+    return {}
   },
 
   /**
@@ -120,30 +191,36 @@ export const appointmentsApiService = {
    * Reschedule an appointment
    */
   async rescheduleAppointment(
-    appointmentId: number,
-    newDateTime: string
-  ): Promise<Appointment> {
-    const response = await apiClient.put(`/appointments/${appointmentId}`, {
-      appointment_date: newDateTime
-    })
+    appointmentId: string | number,
+    data: { appointment_date: string; appointment_type?: string; notes?: string }
+  ): Promise<{ message: string; appointment: any }> {
+    const payload: any = {
+      appointment_date: data.appointment_date,
+    }
+    if (data.appointment_type) {
+      payload.appointment_type = data.appointment_type
+    }
+    if (data.notes) {
+      payload.notes = data.notes
+    }
+    const response = await apiClient.put(`/appointments/${appointmentId}`, payload)
     return response.data
   },
 
   /**
    * Cancel an appointment
    */
-  async cancelAppointment(appointmentId: number): Promise<void> {
+  async cancelAppointment(appointmentId: string | number): Promise<void> {
     await apiClient.delete(`/appointments/${appointmentId}`)
   },
 
   /**
-   * Create a new appointment (manual creation, typically done via Acuity webhook)
+   * Create a new appointment via Acuity API
    */
-  async bookAppointment(data: AppointmentBookRequest): Promise<Appointment> {
+  async bookAppointment(data: AppointmentBookRequest): Promise<any> {
     const response = await apiClient.post('/appointments/', data)
     return response.data
   },
 }
 
 export default appointmentsApiService
-

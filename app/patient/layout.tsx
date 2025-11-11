@@ -7,7 +7,6 @@ import { useEffect, useState, useRef, Suspense } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import PatientSidebar from "@/components/patient/sidebar"
 import { LanguageProvider, useLanguage } from "@/contexts/language-context"
-import { WebSocketProvider } from "@/contexts/websocket-context"
 import { PatientProvider, useSwitchedPatient } from "@/contexts/patient-context"
 import { type RootState } from "@/lib/store"
 import { AuthAPI, AccessiblePatient } from "@/lib/api/auth-api"
@@ -123,8 +122,6 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
   // WebSocket connection should always use the logged-in user's ID (not the switched patient)
   // This ensures notifications and real-time updates are always for the main user
   // The user ID is derived from Redux auth state - if not available, WebSocket will still work via token
-  const loggedInUserId = user?.id ? parseInt(String(user.id)) : null
-
   const subtitle = ((): string => {
     if (pathname.includes("/patient/dashboard")) return t("dashboard.overview")
     if (pathname.includes("/patient/health-records")) return t("health.controlRecords")
@@ -139,48 +136,45 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <LanguageProvider>
-      {/* WebSocket connection is always for the logged-in user, not the switched patient */}
-      <WebSocketProvider userId={loggedInUserId}>
-        <div className="flex min-h-screen flex-col md:flex-row">
-          <PatientSidebar />
-          <main className="flex-1 pt-16 md:ml-64 md:pt-0 flex flex-col min-h-0">
-            <div className="">
-              <div className="flex items-center space-x-4 p-6 border-b">
-                <div className="relative">
-                  <Avatar className="h-16 w-16 border-2 border-primary">
-                    {avatarUrl && <AvatarImage src={avatarUrl} alt={displayFullName} />}
-                    <AvatarFallback>{initials}</AvatarFallback>
-                  </Avatar>
-                  {isViewingOtherPatient && (
-                    <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-teal-600 border-2 border-white dark:border-gray-900 flex items-center justify-center">
-                      <Users className="h-3 w-3 text-white" />
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-bold tracking-tight text-primary">{t("greeting.morning")}, {displayFullName}!</h1>
-                    {isViewingOtherPatient && (
-                      <span className="text-xs bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300 px-2 py-1 rounded-full">
-                        Viewing
-                      </span>
-                    )}
+      <div className="flex min-h-screen flex-col md:flex-row">
+        <PatientSidebar />
+        <main className="flex-1 pt-16 md:ml-64 md:pt-0 flex flex-col min-h-0">
+          <div className="">
+            <div className="flex items-center space-x-4 p-6 border-b">
+              <div className="relative">
+                <Avatar className="h-16 w-16 border-2 border-primary">
+                  {avatarUrl && <AvatarImage src={avatarUrl} alt={displayFullName} />}
+                  <AvatarFallback>{initials}</AvatarFallback>
+                </Avatar>
+                {isViewingOtherPatient && (
+                  <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-teal-600 border-2 border-white dark:border-gray-900 flex items-center justify-center">
+                    <Users className="h-3 w-3 text-white" />
                   </div>
-                  <p className="text-muted-foreground">{subtitle}</p>
-                  {displayEmail && (
-                    <p className="text-sm text-muted-foreground mt-1">{displayEmail}</p>
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-bold tracking-tight text-primary">{t("greeting.morning")}, {displayFullName}!</h1>
+                  {isViewingOtherPatient && (
+                    <span className="text-xs bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300 px-2 py-1 rounded-full">
+                      Viewing
+                    </span>
                   )}
                 </div>
+                <p className="text-muted-foreground">{subtitle}</p>
+                {displayEmail && (
+                  <p className="text-sm text-muted-foreground mt-1">{displayEmail}</p>
+                )}
               </div>
             </div>
-            <div className="flex-1 min-h-0">
-              <div className="h-full">
-                {children}
-              </div>
+          </div>
+          <div className="flex-1 min-h-0">
+            <div className="h-full">
+              {children}
             </div>
-          </main>
-        </div>
-      </WebSocketProvider>
+          </div>
+        </main>
+      </div>
     </LanguageProvider>
   )
 }

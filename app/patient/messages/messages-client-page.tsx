@@ -41,6 +41,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { useLanguage } from "@/contexts/language-context"
+import { WebSocketProvider } from "@/contexts/websocket-context"
 import { useWebSocketContext } from "@/contexts/websocket-context"
 import { useMessages } from "@/hooks/use-messages"
 import { useGlobalConversations } from "@/hooks/use-global-conversations"
@@ -318,19 +319,23 @@ const conversations = [
 ]
 
 export default function MessagesClientPage() {
+  const user = useSelector((state: RootState) => state.auth.user)
+  const userId = user?.id ? parseInt(String(user.id)) : null
+
   return (
     <PermissionGuard requiredPermission="can_view_messages">
-      <MessagesClientPageContent />
+      <WebSocketProvider userId={userId}>
+        <MessagesClientPageContent />
+      </WebSocketProvider>
     </PermissionGuard>
   )
 }
 
 function MessagesClientPageContent() {
-  const { t } = useLanguage()
   // Use patientId from PatientProvider context (more stable than useSearchParams)
   const { patientId: contextPatientId, isViewingOtherPatient: contextIsViewingOtherPatient } = useSwitchedPatient()
   // Fallback to usePatientContext if context doesn't have it (for backwards compatibility)
-  const { patientId: urlPatientId, isViewingOtherPatient: urlIsViewingOtherPatient } = usePatientContext()
+  const { legacyPatientId: urlPatientId, isViewingOtherPatient: urlIsViewingOtherPatient } = usePatientContext()
   
   // Use patientId from context first, fallback to URL patientId
   const patientId = contextPatientId ?? urlPatientId
@@ -357,7 +362,6 @@ function MessagesClientPageContent() {
   
   const [newMessage, setNewMessage] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
-  const [showFilters, setShowFilters] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
   const [selectedFilters, setSelectedFilters] = useState<string[]>([])
   const [selectedRecipient, setSelectedRecipient] = useState<Contact | null>(null)
@@ -388,8 +392,6 @@ function MessagesClientPageContent() {
   const {
     selectedConversation,
     messages,
-    unreadCountByType,
-    loading,
     loadingConversations, // Add loadingConversations
     loadingMessages, // Add loadingMessages
     sendingMessage,
@@ -398,10 +400,6 @@ function MessagesClientPageContent() {
     typingUsers, // Add typingUsers from useMessages
     selectConversation,
     sendMessage,
-    uploadFile,
-    sendMessageWithFiles,
-    markAsRead,
-    sendTypingIndicator,
     markConversationAsRead,
     archiveConversation,
     togglePin,
@@ -410,9 +408,6 @@ function MessagesClientPageContent() {
     handleMedicationAction,
     handleAppointmentAction,
     handleLabResultAction,
-    filterConversations,
-    clearFilters,
-    currentFilters,
     refreshConversations,
     conversations: conversationsFromHook  // Get conversations directly from hook
   } = useMessages(patientId)

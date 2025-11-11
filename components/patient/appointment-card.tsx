@@ -14,11 +14,9 @@ interface AppointmentCardProps {
   date: string
   status: "upcoming" | "completed" | "cancelled"
   type: "in-person" | "virtual" | "phone"
-  cost?: {
-    total: number
-    insurance: number
-    patient: number
-  }
+  cost?: number
+  virtual_meeting_url?: string // Video meeting URL for virtual appointments
+  timezone?: string
   onCancel?: (id: string) => void
   onReschedule?: (id: string) => void
   onJoinCall?: (id: string) => void
@@ -31,7 +29,9 @@ export function AppointmentCard({
   date,
   status,
   type,
-  cost = { total: 150, insurance: 120, patient: 30 }, // Default values if not provided
+  cost = 150,
+  virtual_meeting_url,
+  timezone,
   onCancel,
   onReschedule,
   onJoinCall,
@@ -79,7 +79,10 @@ export function AppointmentCard({
           </div>
           <div className="flex items-center text-sm">
             <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
-            <span>{formattedTime}</span>
+            <span>
+              {formattedTime}
+              {timezone ? <span className="ml-2 text-muted-foreground">({timezone})</span> : null}
+            </span>
           </div>
           <div className="flex items-center text-sm">
             {isInPerson && <MapPin className="mr-2 h-4 w-4 text-muted-foreground" />}
@@ -99,24 +102,20 @@ export function AppointmentCard({
                 <DollarSign className="mr-1 h-4 w-4 text-muted-foreground" />
                 Total Cost:
               </span>
-              <span className="font-medium">{formatCurrency(cost.total)}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
-              <span>Insurance Covers:</span>
-              <span>{formatCurrency(cost.insurance)}</span>
+              <span className="font-medium">{formatCurrency(cost)}</span>
             </div>
             <div className="flex items-center justify-between text-sm font-medium">
               <span>Your Responsibility:</span>
-              <span className="text-teal-600 dark:text-teal-400">{formatCurrency(cost.patient)}</span>
+              <span className="text-teal-600 dark:text-teal-400">{formatCurrency(cost)}</span>
             </div>
           </div>
         </div>
       </CardContent>
       {isUpcoming && (
         <CardFooter className="flex flex-col space-y-2 p-4 pt-0">
-          {isVirtual && (
+          {isVirtual && virtual_meeting_url && onJoinCall && (
             <Button
-              onClick={() => onJoinCall && onJoinCall(id)}
+              onClick={() => onJoinCall(id)}
               className="w-full bg-teal-600 hover:bg-teal-700 dark:bg-teal-600 dark:hover:bg-teal-700"
             >
               <Video className="mr-2 h-4 w-4" />

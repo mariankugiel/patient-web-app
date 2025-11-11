@@ -27,7 +27,7 @@ const ScrollArea = React.forwardRef<
   return (
     <ScrollAreaPrimitive.Root
       ref={ref}
-      className={cn("relative overflow-hidden", className)}
+      className={cn("flex-1 relative overflow-hidden", className)}
       {...props}
     >
       <ScrollAreaPrimitive.Viewport 

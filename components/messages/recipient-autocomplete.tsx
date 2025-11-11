@@ -21,6 +21,7 @@ export interface Contact {
   email?: string
   acuityCalendarId?: string
   acuityOwnerId?: string
+  timezone?: string
 }
 
 interface RecipientAutocompleteProps {
