@@ -238,7 +238,17 @@ apiClient.interceptors.response.use(
                              error.config?.url?.includes('/register') ||
                              error.config?.url?.includes('/auth/')
       
-      if (!isAuthEndpoint) {
+      const detail = error.response?.data?.detail
+      const normalizedDetail = typeof detail === 'string' ? detail.toLowerCase() : ''
+      const shouldForceLogout =
+        normalizedDetail.includes('invalid token') ||
+        normalizedDetail.includes('token missing') ||
+        normalizedDetail.includes('invalid authorization header format') ||
+        normalizedDetail.includes('authentication failed') ||
+        normalizedDetail.includes('session expired') ||
+        normalizedDetail.includes('token expired')
+      
+      if (!isAuthEndpoint && shouldForceLogout) {
         // Clear localStorage and Redux state, then redirect to login
         if (typeof window !== 'undefined') {
           // Clear localStorage tokens
