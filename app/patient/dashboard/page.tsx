@@ -1,6 +1,9 @@
+import { Suspense } from "react"
 import type { Metadata } from "next"
 import PatientDashboardClient from "./patient-dashboard-client"
 import { DashboardGuard } from "./dashboard-guard"
+
+export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
   title: "Painel | Saluso",
@@ -9,8 +12,10 @@ export const metadata: Metadata = {
 
 export default function PatientDashboardPage() {
   return (
-    <DashboardGuard>
-      <PatientDashboardClient />
-    </DashboardGuard>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center" />}>
+      <DashboardGuard>
+        <PatientDashboardClient />
+      </DashboardGuard>
+    </Suspense>
   )
 }

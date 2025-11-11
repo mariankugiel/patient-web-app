@@ -187,17 +187,17 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
 
 export default function PatientLayout({ children }: { children: React.ReactNode }) {
   return (
-    <PatientProvider>
-      <Suspense fallback={
-        <div className="flex min-h-screen items-center justify-center">
-          <div className="flex items-center gap-2 text-gray-500">
-            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-            <span>Loading...</span>
-          </div>
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="flex items-center gap-2 text-gray-500">
+          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+          <span>Loading...</span>
         </div>
-      }>
+      </div>
+    }>
+      <PatientProvider>
         <PatientLayoutContent>{children}</PatientLayoutContent>
-      </Suspense>
-    </PatientProvider>
+      </PatientProvider>
+    </Suspense>
   )
 }

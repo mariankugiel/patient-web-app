@@ -1,6 +1,8 @@
 "use client"
 
-import { useEffect } from 'react'
+export const dynamic = 'force-dynamic'
+
+import { Suspense, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ProtectedRoute } from "@/components/auth/protected-route"
 
@@ -13,10 +15,12 @@ export default function OnboardingPage() {
   }, [router])
 
   return (
-    <ProtectedRoute requireAuth={true} redirectTo="/onboarding">
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-teal-600"></div>
-      </div>
-    </ProtectedRoute>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" />}>
+      <ProtectedRoute requireAuth={true} redirectTo="/onboarding">
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-teal-600"></div>
+        </div>
+      </ProtectedRoute>
+    </Suspense>
   )
 }

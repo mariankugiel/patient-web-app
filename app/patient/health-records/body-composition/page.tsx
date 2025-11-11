@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import React, { useEffect, useRef } from 'react'
 import { useLanguage } from '@/contexts/language-context'
 import { useAIAnalysis } from '@/hooks/use-ai-analysis'

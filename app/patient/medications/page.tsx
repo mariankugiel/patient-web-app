@@ -1,5 +1,8 @@
+import { Suspense } from "react"
 import type { Metadata } from "next"
 import MedicationsClientPage from "./medications-client-page"
+
+export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
   title: "Medicamentos | Saluso",
@@ -7,5 +10,9 @@ export const metadata: Metadata = {
 }
 
 export default function MedicationsPage() {
-  return <MedicationsClientPage />
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center" />}>
+      <MedicationsClientPage />
+    </Suspense>
+  )
 }

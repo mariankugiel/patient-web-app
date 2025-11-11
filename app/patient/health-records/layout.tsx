@@ -1,6 +1,9 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import type React from "react"
+import { Suspense } from "react"
 import Image from "next/image"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePathname, useRouter } from "next/navigation"
@@ -15,9 +18,11 @@ export default function HealthRecordsLayout({
   children: React.ReactNode
 }) {
   return (
-    <PermissionGuard requiredPermission="can_view_health_records">
-      <HealthRecordsLayoutContent>{children}</HealthRecordsLayoutContent>
-    </PermissionGuard>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center" />}>
+      <PermissionGuard requiredPermission="can_view_health_records">
+        <HealthRecordsLayoutContent>{children}</HealthRecordsLayoutContent>
+      </PermissionGuard>
+    </Suspense>
   )
 }
 

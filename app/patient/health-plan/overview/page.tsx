@@ -1,5 +1,7 @@
 import { Metadata } from "next"
 
+export const dynamic = "force-dynamic"
+
 export const metadata: Metadata = {
   title: "Visão Geral | Plano de Saúde | Saluso",
   description: "Visão geral do seu plano de saúde personalizado",
