@@ -87,6 +87,13 @@ class GlobalWebSocketManager {
         this.isConnecting = false
         this.reconnectAttempts = 0
         
+        try {
+          localStorage.setItem('ws_token', token)
+          localStorage.setItem('ws_url', url)
+        } catch (storageError) {
+          console.warn('Unable to persist WebSocket token/url:', storageError)
+        }
+        
         // Notify all connection handlers
         this.connectionHandlers.forEach(handler => handler())
         
@@ -167,6 +174,8 @@ class GlobalWebSocketManager {
     
     this.isConnected = false
     this.connectionId = null
+    this.token = ''
+    this.url = ''
   }
 
   sendMessage(message: any): boolean {
@@ -196,6 +205,21 @@ class GlobalWebSocketManager {
   }
 
   private attemptReconnect(): void {
+    if (typeof window === 'undefined') {
+      return
+    }
+    
+    const storedToken = localStorage.getItem('access_token') || localStorage.getItem('ws_token')
+    const storedUrl = localStorage.getItem('ws_url') || this.url
+    
+    if (!storedToken || !storedUrl) {
+      console.log('❌ No token available for WebSocket reconnection, skipping reconnect')
+      return
+    }
+    
+    this.token = storedToken
+    this.url = storedUrl
+    
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       console.log(`🔄 Will attempt to reconnect in ${this.reconnectInterval/1000} seconds... (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`)
       this.reconnectTimeout = setTimeout(() => {
