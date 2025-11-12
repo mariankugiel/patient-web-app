@@ -418,7 +418,7 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
       
       try {
         const profile = await AuthAPI.getProfile()
-        const avatar = profile.img_url || profile.avatar_url || null
+        const avatar = profile.avatar_url || null
         // Only set avatar if it's a valid non-empty string
         setAvatarUrl(avatar && avatar.trim() && avatar !== 'null' ? avatar : null)
       } catch (error) {

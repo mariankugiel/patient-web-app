@@ -16,6 +16,15 @@ export interface Doctor {
   acuityCalendarId?: string | null
   acuityOwnerId?: string | null
   timezone?: string | null
+  appointmentTypes?: Array<{
+    id: string
+    name?: string
+    description?: string
+    duration?: number
+    price?: number
+    type?: string
+    category?: string
+  }>
 }
 
 export interface Appointment {
@@ -39,6 +48,7 @@ export interface Appointment {
   // Acuity integration fields
   acuity_appointment_id?: string
   acuity_calendar_id?: string
+  confirmation_page?: string | null  // Acuity confirmation/reschedule/cancel page URL
   // Video meeting fields
   virtual_meeting_url?: string
   virtual_meeting_id?: string
@@ -52,6 +62,12 @@ export interface Appointment {
   currency?: string
   payment_status?: string
   timezone?: string
+  appointment_type_id?: number | null
+  appointment_type_name?: string | null
+  appointment_type_duration?: number | null
+  appointment_type_price?: number | null
+  amount_paid?: number | null
+  is_paid?: boolean
 }
 
 export interface AcuityEmbedConfig {
@@ -76,7 +92,7 @@ export interface AppointmentBookRequest {
   last_name: string
   email: string
   phone?: string
-  appointment_type: 'virtual' | 'in-person' | 'phone'
+  consultation_type: 'virtual' | 'in-person' | 'phone'
   location?: string // Required for in-person
   note?: string
   timezone?: string
@@ -192,13 +208,16 @@ export const appointmentsApiService = {
    */
   async rescheduleAppointment(
     appointmentId: string | number,
-    data: { appointment_date: string; appointment_type?: string; notes?: string }
+    data: { appointment_date: string; consultation_type?: string; appointment_type_id?: number; notes?: string }
   ): Promise<{ message: string; appointment: any }> {
     const payload: any = {
       appointment_date: data.appointment_date,
     }
-    if (data.appointment_type) {
-      payload.appointment_type = data.appointment_type
+    if (data.consultation_type) {
+      payload.consultation_type = data.consultation_type
+    }
+    if (data.appointment_type_id !== undefined) {
+      payload.appointment_type_id = data.appointment_type_id
     }
     if (data.notes) {
       payload.notes = data.notes

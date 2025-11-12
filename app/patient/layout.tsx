@@ -88,16 +88,14 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
     const fetchAvatar = async () => {
       if (isViewingOtherPatient && switchedPatientInfo) {
         // Use switched patient's profile for avatar
-        const avatar = switchedPatientInfo.profile?.img_url || 
-                       switchedPatientInfo.profile?.avatar_url || 
-                       ""
+        const avatar = switchedPatientInfo.profile?.avatar_url || ""
         setAvatarUrl(avatar && avatar.trim() && avatar !== 'null' ? avatar : "")
       } else {
         // Current user's avatar (only fetch if not viewing another patient)
         if (user?.id) {
           try {
             const profile = await AuthAPI.getProfile()
-            const avatar = profile.img_url || profile.avatar_url || ""
+            const avatar = profile.avatar_url || ""
             setAvatarUrl(avatar && avatar.trim() && avatar !== 'null' ? avatar : "")
           } catch (error: any) {
             const isConnectionError = error?.code === 'ECONNABORTED' || 
@@ -162,9 +160,6 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
                   )}
                 </div>
                 <p className="text-muted-foreground">{subtitle}</p>
-                {displayEmail && (
-                  <p className="text-sm text-muted-foreground mt-1">{displayEmail}</p>
-                )}
               </div>
             </div>
           </div>

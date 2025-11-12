@@ -160,8 +160,19 @@ export default function EmergencyTabPage() {
         })),
       })
       console.log("✅ Emergency contacts saved successfully")
-    } catch (error) {
+      toast({
+        title: "Emergency contacts updated",
+        description: "Your emergency contacts have been saved successfully.",
+        duration: 3000,
+      })
+    } catch (error: any) {
       console.error("❌ Error saving emergency:", error)
+      toast({
+        title: "Error",
+        description: error.message || "An unexpected error occurred while saving emergency contacts.",
+        variant: "destructive",
+        duration: 3000,
+      })
     } finally {
       setIsLoading(false)
     }

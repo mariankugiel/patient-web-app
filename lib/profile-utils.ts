@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase-client"
 
 /**
- * Get contact user's img_url from Supabase user_profiles table
+ * Get contact user's avatar_url from Supabase user_profiles table
  * @param contactSupabaseUserId - The Supabase UUID of the contact user
- * @returns The img_url from user_profiles, or null if not found
+ * @returns The avatar_url from user_profiles, or null if not found
  */
 export async function getContactImgUrl(contactSupabaseUserId: string): Promise<string | null> {
   console.log(`📋 getContactImgUrl called with contact user ID:`, contactSupabaseUserId)
@@ -19,37 +19,34 @@ export async function getContactImgUrl(contactSupabaseUserId: string): Promise<s
     
     const { data, error } = await supabase
       .from('user_profiles')
-      .select('img_url, avatar_url')
+      .select('avatar_url')
       .eq('id', contactSupabaseUserId)
       .single()
 
     if (error) {
-      console.error(`❌ Error fetching contact img_url for contact user ID ${contactSupabaseUserId}:`, error)
+      console.error(`❌ Error fetching contact avatar_url for contact user ID ${contactSupabaseUserId}:`, error)
       return null
     }
 
     console.log(`📄 Retrieved data from user_profiles for contact user ID ${contactSupabaseUserId}:`, {
       contact_user_id: contactSupabaseUserId,
-      img_url: data?.img_url,
       avatar_url: data?.avatar_url,
-      has_img_url: !!data?.img_url,
       has_avatar_url: !!data?.avatar_url
     })
 
-    // Prioritize img_url, fall back to avatar_url
-    const imgUrl = data?.img_url || data?.avatar_url
-    if (imgUrl && imgUrl.trim() !== '' && imgUrl !== 'null') {
-      console.log(`✅ Successfully got contact img_url for contact user ID ${contactSupabaseUserId}:`, imgUrl)
-      console.log(`📋 Contact User ID: ${contactSupabaseUserId}, Contact User img_url: ${imgUrl}`)
-      return imgUrl
+    const avatarUrl = data?.avatar_url
+    if (avatarUrl && avatarUrl.trim() !== '' && avatarUrl !== 'null') {
+      console.log(`✅ Successfully got contact avatar_url for contact user ID ${contactSupabaseUserId}:`, avatarUrl)
+      console.log(`📋 Contact User ID: ${contactSupabaseUserId}, Contact User avatar_url: ${avatarUrl}`)
+      return avatarUrl
     }
 
-    console.log(`⚠️ No img_url found in user_profiles for contact user ID ${contactSupabaseUserId}`)
-    console.log(`📋 Contact User ID: ${contactSupabaseUserId}, Contact User img_url: null`)
+    console.log(`⚠️ No avatar_url found in user_profiles for contact user ID ${contactSupabaseUserId}`)
+    console.log(`📋 Contact User ID: ${contactSupabaseUserId}, Contact User avatar_url: null`)
     return null
   } catch (error) {
     console.error(`❌ Exception in getContactImgUrl for contact user ID ${contactSupabaseUserId}:`, error)
-    console.log(`📋 Contact User ID: ${contactSupabaseUserId}, Contact User img_url: error`)
+    console.log(`📋 Contact User ID: ${contactSupabaseUserId}, Contact User avatar_url: error`)
     return null
   }
 }
@@ -182,18 +179,17 @@ export async function uploadProfilePicture(file: File, userId: string): Promise<
       // Import the API service dynamically to avoid circular dependencies
       const { AuthApiService } = await import('@/lib/api/auth-api')
       
-      console.log('🔐 Updating img_url via backend API:', actualUserId)
+      console.log('🔐 Updating avatar_url via backend API:', actualUserId)
       
       // Update profile through backend API
       // The backend will handle updating user_profiles in Supabase
-      // Note: We pass avatar_url, backend will map it to img_url
       await AuthApiService.updateProfile({
         avatar_url: finalSignedUrl
       } as any)  // Type assertion needed since avatar_url might not be in the interface yet
       
-      console.log('✅ Successfully saved img_url via backend API')
+      console.log('✅ Successfully saved avatar_url via backend API')
     } catch (error: any) {
-      console.warn('⚠️ Could not update img_url via backend API:', error?.message || error)
+      console.warn('⚠️ Could not update avatar_url via backend API:', error?.message || error)
       // Continue even if update fails - the upload was successful
       // The image is uploaded to storage, just the database update failed
     }
@@ -244,24 +240,23 @@ export async function getProfilePictureUrl(userId: string): Promise<string> {
     folderId = actualUserId
   }
   
-  // First, try to get img_url from user_profiles table
+  // First, try to get avatar_url from user_profiles table
   try {
     const { data: profileData, error: profileError } = await supabase
       .from('user_profiles')
-      .select('img_url, avatar_url')
+      .select('avatar_url')
       .eq('id', actualUserId)
       .single()
     
     if (!profileError && profileData) {
-      // Prioritize img_url, fall back to avatar_url
-      const storedUrl = profileData.img_url || profileData.avatar_url
+      const storedUrl = profileData.avatar_url
       if (storedUrl && storedUrl.trim() !== '' && storedUrl !== 'null') {
         console.log('✅ Found stored avatar URL in user_profiles:', storedUrl)
         return storedUrl
       }
     }
   } catch (error) {
-    console.log('⚠️ Could not fetch img_url from user_profiles, will generate signed URL:', error)
+    console.log('⚠️ Could not fetch avatar_url from user_profiles, will generate signed URL:', error)
   }
   
   console.log("🔍 Looking for avatar folder. UUID:", actualUserId, "Folder ID:", folderId)

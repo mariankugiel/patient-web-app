@@ -158,46 +158,46 @@ export function MessageItem({ message, isOwn, onActionClick }: MessageItemProps)
           contact_avatar_from_backend: sender.avatar
         })
         
-        // First, use backend-provided avatar from sender (from img_url in user_profiles)
+        // First, use backend-provided avatar from sender (from avatar_url in user_profiles)
         if (sender.avatar && sender.avatar.trim() !== "" && sender.avatar !== "null") {
-          // Backend provided avatar from img_url - use it directly
+          // Backend provided avatar from avatar_url - use it directly
           console.log(`✅ Using sender avatar from participants for sender_id ${message.sender_id}:`, sender.avatar)
-          console.log(`📋 Contact User ID: ${sender.id}, Contact User img_url: ${sender.avatar}`)
+          console.log(`📋 Contact User ID: ${sender.id}, Contact User avatar_url: ${sender.avatar}`)
           setSenderAvatar(sender.avatar)
         } else if ((sender as any).supabase_user_id) {
-          // Fallback 1: Query user_profiles table directly for img_url using Supabase UUID
+          // Fallback 1: Query user_profiles table directly for avatar_url using Supabase UUID
           const supabaseUserId = (sender as any).supabase_user_id
-          console.log(`🔄 Fallback 1: Querying user_profiles for img_url for sender_id ${message.sender_id}`)
+          console.log(`🔄 Fallback 1: Querying user_profiles for avatar_url for sender_id ${message.sender_id}`)
           console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}`)
           getContactImgUrl(supabaseUserId)
             .then(imgUrl => {
               if (imgUrl) {
-                console.log(`✅ Got contact img_url from user_profiles:`, imgUrl)
-                console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User img_url: ${imgUrl}`)
+                console.log(`✅ Got contact avatar_url from user_profiles:`, imgUrl)
+                console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User avatar_url: ${imgUrl}`)
                 setSenderAvatar(imgUrl)
               } else {
                 // Fallback 2: Try loading from Supabase Storage
-                console.log(`🔄 Fallback 2: No img_url in user_profiles, trying Supabase Storage for UUID: ${supabaseUserId}`)
-                console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User img_url: (trying Supabase Storage)`)
+                console.log(`🔄 Fallback 2: No avatar_url in user_profiles, trying Supabase Storage for UUID: ${supabaseUserId}`)
+                console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User avatar_url: (trying Supabase Storage)`)
                 return getProfilePictureUrl(supabaseUserId)
                   .then(storageUrl => {
                     if (storageUrl && storageUrl !== '/placeholder-user.jpg') {
                       console.log(`✅ Loaded sender avatar from Supabase Storage:`, storageUrl)
-                      console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User img_url: ${storageUrl}`)
+                      console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User avatar_url: ${storageUrl}`)
                       setSenderAvatar(storageUrl)
                     } else {
                       console.log(`⚠️ No avatar found in Supabase Storage for UUID: ${supabaseUserId}`)
-                      console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User img_url: null`)
+                      console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User avatar_url: null`)
                     }
                   })
                   .catch((error) => {
                     console.error(`❌ Error loading from Supabase Storage:`, error)
-                    console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User img_url: error`)
+                    console.log(`📋 Contact User ID: ${sender.id}, Contact Supabase User ID: ${supabaseUserId}, Contact User avatar_url: error`)
                   })
               }
             })
             .catch((error) => {
-              console.error(`❌ Error loading contact img_url:`, error)
+              console.error(`❌ Error loading contact avatar_url:`, error)
               // Keep undefined, will show fallback initials
             })
         } else if (currentConversation?.contact_supabase_user_id) {
@@ -208,16 +208,16 @@ export function MessageItem({ message, isOwn, onActionClick }: MessageItemProps)
           getContactImgUrl(contactSupabaseUserId)
             .then(imgUrl => {
               if (imgUrl) {
-                console.log(`✅ Got contact img_url from conversation contact_supabase_user_id:`, imgUrl)
-                console.log(`📋 Contact User ID: ${sender?.id || 'unknown'}, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User img_url: ${imgUrl}`)
+                console.log(`✅ Got contact avatar_url from conversation contact_supabase_user_id:`, imgUrl)
+                console.log(`📋 Contact User ID: ${sender?.id || 'unknown'}, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User avatar_url: ${imgUrl}`)
                 setSenderAvatar(imgUrl)
               } else {
-                console.log(`📋 Contact User ID: ${sender?.id || 'unknown'}, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User img_url: null`)
+                console.log(`📋 Contact User ID: ${sender?.id || 'unknown'}, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User avatar_url: null`)
               }
             })
             .catch((error) => {
-              console.error(`❌ Error loading contact img_url from conversation:`, error)
-              console.log(`📋 Contact User ID: ${sender?.id || 'unknown'}, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User img_url: error`)
+              console.error(`❌ Error loading contact avatar_url from conversation:`, error)
+              console.log(`📋 Contact User ID: ${sender?.id || 'unknown'}, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User avatar_url: error`)
             })
         } else {
           // No sender info or Supabase UUID, clear avatar
@@ -234,21 +234,21 @@ export function MessageItem({ message, isOwn, onActionClick }: MessageItemProps)
           getContactImgUrl(contactSupabaseUserId)
             .then(imgUrl => {
               if (imgUrl) {
-                console.log(`✅ Got contact img_url from conversation when senderInfo not found:`, imgUrl)
-                console.log(`📋 Contact User ID: unknown, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User img_url: ${imgUrl}`)
+                console.log(`✅ Got contact avatar_url from conversation when senderInfo not found:`, imgUrl)
+                console.log(`📋 Contact User ID: unknown, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User avatar_url: ${imgUrl}`)
                 setSenderAvatar(imgUrl)
               } else {
-                console.log(`📋 Contact User ID: unknown, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User img_url: null`)
+                console.log(`📋 Contact User ID: unknown, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User avatar_url: null`)
               }
             })
             .catch((error) => {
-              console.error(`❌ Error loading contact img_url when senderInfo not found:`, error)
-              console.log(`📋 Contact User ID: unknown, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User img_url: error`)
+              console.error(`❌ Error loading contact avatar_url when senderInfo not found:`, error)
+              console.log(`📋 Contact User ID: unknown, Contact Supabase User ID: ${contactSupabaseUserId}, Contact User avatar_url: error`)
               setSenderAvatar(undefined)
             })
         } else {
           console.log(`⚠️ No senderInfo and no contact_supabase_user_id for sender_id ${message.sender_id}`)
-          console.log(`📋 Contact User ID: unknown, Contact Supabase User ID: null, Contact User img_url: null`)
+          console.log(`📋 Contact User ID: unknown, Contact Supabase User ID: null, Contact User avatar_url: null`)
           setSenderAvatar(undefined)
         }
       }
@@ -258,7 +258,7 @@ export function MessageItem({ message, isOwn, onActionClick }: MessageItemProps)
   // Update current user avatar when participant changes (for sent messages)
   useEffect(() => {
     if (isOwn && currentUserParticipant) {
-      // Use backend-provided avatar from participant (from img_url in user_profiles)
+      // Use backend-provided avatar from participant (from avatar_url in user_profiles)
       if (currentUserParticipant.avatar && currentUserParticipant.avatar.trim() !== "" && currentUserParticipant.avatar !== "null") {
         console.log(`✅ Using current user avatar from participants:`, currentUserParticipant.avatar)
         setCurrentUserAvatar(currentUserParticipant.avatar)

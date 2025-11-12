@@ -92,7 +92,6 @@ export interface UserProfile {
   onboarding_completed_at?: string
   onboarding_skipped_at?: string
   is_new_user?: boolean
-  img_url?: string
   avatar_url?: string
   supabase_user_id?: string
 }

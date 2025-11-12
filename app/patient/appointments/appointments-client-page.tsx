@@ -21,16 +21,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -40,9 +30,18 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { PermissionGuard } from "@/components/patient/permission-guard"
-import type { Contact } from "@/components/messages/recipient-autocomplete"
 import { detectUserTimezone } from "@/lib/utils/timezone"
 import type { FrontendAppointment } from "@/types/appointments"
+
+interface AppointmentTypeOption {
+  id: string
+  name?: string
+  description?: string | null
+  duration?: number | null
+  price?: number | null
+  type?: string | null
+  category?: string | null
+}
 
 interface Doctor {
   id: string | number
@@ -56,6 +55,7 @@ interface Doctor {
   timezone?: string | null
   acuityCalendarId?: string | null
   acuityOwnerId?: string | null
+  appointmentTypes?: AppointmentTypeOption[]
 }
 
 // Combined date and time slot type
@@ -83,11 +83,11 @@ function AppointmentsClientPageContent() {
 
   const [appointmentsData, setAppointmentsData] = useState<FrontendAppointment[]>([])
   const [loadingAppointments, setLoadingAppointments] = useState(true)
-  const [appointmentToCancel, setAppointmentToCancel] = useState<string | null>(null)
-  const [rescheduleAppointmentId, setRescheduleAppointmentId] = useState<string | null>(null)
 
   // New appointment form state
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null)
+  const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<string>("")
+  const [selectedAppointmentType, setSelectedAppointmentType] = useState<AppointmentTypeOption | null>(null)
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null)
   const [selectedType, setSelectedType] = useState<"virtual" | "in-person" | "phone" | "">("")
   const [appointmentNote, setAppointmentNote] = useState<string>("")
@@ -99,7 +99,7 @@ function AppointmentsClientPageContent() {
   const [isBooking, setIsBooking] = useState(false)
 
   // Doctor search state
-  const [availableDoctors, setAvailableDoctors] = useState<Contact[]>([])
+  const [availableDoctors, setAvailableDoctors] = useState<Doctor[]>([])
   const [doctorLoadError, setDoctorLoadError] = useState<string | null>(null)
   const [loadingDoctors, setLoadingDoctors] = useState(false)
   const [loadingMoreDoctors, setLoadingMoreDoctors] = useState(false)
@@ -111,13 +111,23 @@ function AppointmentsClientPageContent() {
   const doctorsLimit = 20
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  const isRescheduleMode = Boolean(rescheduleAppointmentId)
-
   // Available time slots for selected doctor (from Acuity API)
   const [weeklyTimeSlots, setWeeklyTimeSlots] = useState<{ date: string; slots: TimeSlot[] }[]>([])
   const selectedDateRef = useRef(selectedDate)
 
   const fallbackTimezone = useMemo(() => detectUserTimezone(), [])
+  const formatCurrencyValue = useCallback(
+    (amount?: number | null) => {
+      if (amount === undefined || amount === null || Number.isNaN(amount)) {
+        return undefined
+      }
+      return new Intl.NumberFormat(
+        language === "es" ? "es-ES" : language === "pt" ? "pt-BR" : "en-US",
+        { style: "currency", currency: "USD" }
+      ).format(amount)
+    },
+    [language]
+  )
   const resolvedTimezone = selectedDoctor?.timezone || selectedTimezone || fallbackTimezone
   const timezoneDisplay = useMemo(() => {
     if (!resolvedTimezone) {
@@ -198,8 +208,10 @@ function AppointmentsClientPageContent() {
     if (weekColumnsCount === 0) {
       return undefined
     }
+    // Use at least 5 columns, or the actual count if more than 5
+    const gridColumnCount = Math.max(5, weekColumnsCount)
     return {
-      gridTemplateColumns: `repeat(${weekColumnsCount}, minmax(180px, 1fr))`,
+      gridTemplateColumns: `repeat(${gridColumnCount}, minmax(180px, 1fr))`,
     }
   }, [weekColumnsCount])
 
@@ -327,33 +339,40 @@ function AppointmentsClientPageContent() {
         limit: doctorsLimit
       })
 
-      // Transform API response to Contact format
-      const contacts: Contact[] = doctors.map((doctor) => ({
-        id: doctor.id.toString(),
+      const mappedDoctors: Doctor[] = doctors.map((doctor) => ({
+        id: doctor.id,
         name: doctor.name,
         firstName: doctor.firstName,
         lastName: doctor.lastName,
-        role: doctor.specialty || "Doctor",
-        specialty: doctor.specialty || undefined,
-        avatar: doctor.avatar || undefined,
-        isOnline: doctor.isOnline || false,
-        acuityCalendarId: doctor.acuityCalendarId || undefined,
-        acuityOwnerId: doctor.acuityOwnerId || undefined,
-        timezone: doctor.timezone || undefined
+        specialty: doctor.specialty ?? null,
+        avatar: doctor.avatar ?? null,
+        isOnline: doctor.isOnline ?? false,
+        email: doctor.email,
+        acuityCalendarId: doctor.acuityCalendarId ?? null,
+        acuityOwnerId: doctor.acuityOwnerId ?? null,
+        timezone: doctor.timezone ?? null,
+        appointmentTypes: (doctor.appointmentTypes ?? []).map((type) => ({
+          id: type.id?.toString() ?? "",
+          name: type.name,
+          description: type.description ?? null,
+          duration: typeof type.duration === "number" ? type.duration : null,
+          price: type.price !== undefined && type.price !== null ? Number(type.price) : null,
+          type: type.type ?? null,
+          category: type.category ?? null,
+        })),
       }))
 
-      // Check if there are more doctors to load
-      const hasMore = contacts.length >= doctorsLimit
+      const hasMore = mappedDoctors.length >= doctorsLimit
       setHasMoreDoctors(hasMore)
 
       if (reset) {
-        setAvailableDoctors(contacts)
-        const newOffset = contacts.length
+        setAvailableDoctors(mappedDoctors)
+        const newOffset = mappedDoctors.length
         setDoctorsOffset(newOffset)
         doctorsOffsetRef.current = newOffset
       } else {
-        setAvailableDoctors(prev => [...prev, ...contacts])
-        const newOffset = doctorsOffsetRef.current + contacts.length
+        setAvailableDoctors(prev => [...prev, ...mappedDoctors])
+        const newOffset = doctorsOffsetRef.current + mappedDoctors.length
         setDoctorsOffset(newOffset)
         doctorsOffsetRef.current = newOffset
       }
@@ -401,6 +420,29 @@ function AppointmentsClientPageContent() {
     await loadDoctors(false, currentSearchQuery)
   }, [loadingMoreDoctors, hasMoreDoctors, currentSearchQuery, loadDoctors])
 
+  const handleAppointmentTypeSelect = useCallback(
+    (typeId: string) => {
+      if (!selectedDoctor) {
+        return
+      }
+      setSelectedAppointmentTypeId(typeId)
+      const chosen =
+        selectedDoctor.appointmentTypes?.find((type) => type.id === typeId) || null
+      setSelectedAppointmentType(chosen)
+      setSelectedTimeSlot(null)
+
+      if (!selectedDate) {
+        const today = new Date()
+        setSelectedDate(format(today, "yyyy-MM-dd"))
+      }
+      if (!currentWeekStart) {
+        const weekStartStr = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd")
+        setCurrentWeekStart(weekStartStr)
+      }
+    },
+    [selectedDoctor, selectedDate, currentWeekStart]
+  )
+
   const handleWeekChange = useCallback(
     (direction: "prev" | "next") => {
       const baseDate = currentWeekStart
@@ -416,12 +458,11 @@ function AppointmentsClientPageContent() {
   )
 
   const handleAppointmentTypeChange = (value: "virtual" | "in-person" | "phone") => {
-    console.log(value);
     setSelectedType(value)
     if (value !== "phone") {
       setAppointmentPhone("")
     }
-  };
+  }
 
   // Load doctors when dialog opens - only once
   useEffect(() => {
@@ -432,31 +473,34 @@ function AppointmentsClientPageContent() {
       setDoctorsOffset(0)
       doctorsOffsetRef.current = 0
       setHasMoreDoctors(false)
-      if (!isRescheduleMode) {
-        setWeeklyTimeSlots([])
-        setSelectedDoctor(null)
-        setSelectedTimeSlot(null)
-        setSelectedType("")
-        setSelectedDate("")
-        setSelectedTimezone("")
-        setCurrentWeekStart("")
-      }
+      setWeeklyTimeSlots([])
+      setSelectedDoctor(null)
+      setSelectedAppointmentTypeId("")
+      setSelectedAppointmentType(null)
+      setSelectedTimeSlot(null)
+      setSelectedType("")
+      setSelectedDate("")
+      setSelectedTimezone("")
+      setCurrentWeekStart("")
       if (searchDebounceRef.current) {
         clearTimeout(searchDebounceRef.current)
         searchDebounceRef.current = null
       }
 
-      // Load doctors - call directly since we're resetting state
-      if (!isRescheduleMode) {
-        loadDoctors(true, "")
-      }
+      loadDoctors(true, "")
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDialogOpen, rescheduleAppointmentId]) // Only run when dialog opens/closes, not when loadDoctors changes
+  }, [isDialogOpen, loadDoctors])
 
-  // Fetch available time slots for the current week
+  // Fetch available time slots for the current week (only after appointment type is selected)
   useEffect(() => {
     if (!selectedDoctor) {
+      setWeeklyTimeSlots([])
+      setSelectedTimeSlot(null)
+      return
+    }
+
+    // Don't fetch availability until appointment type is selected
+    if (!selectedAppointmentTypeId) {
       setWeeklyTimeSlots([])
       setSelectedTimeSlot(null)
       return
@@ -500,7 +544,31 @@ function AppointmentsClientPageContent() {
     const fetchTimeSlots = async () => {
       setLoadingTimeSlots(true)
       try {
-        const weeklyAvailability = await appointmentsApiService.getAvailabilityWeek(calendarId, currentWeekStart)
+        // Validate that selectedAppointmentTypeId belongs to the selected doctor's calendar
+        let validAppointmentTypeId: number | undefined = undefined
+        if (selectedAppointmentTypeId && selectedDoctor?.appointmentTypes) {
+          const isValidType = selectedDoctor.appointmentTypes.some(
+            (type) => type.id === selectedAppointmentTypeId
+          )
+          if (isValidType) {
+            validAppointmentTypeId = parseInt(selectedAppointmentTypeId, 10)
+          } else {
+            // Clear invalid appointment type selection
+            console.warn("Selected appointment type does not belong to selected doctor's calendar, clearing selection")
+            setSelectedAppointmentTypeId("")
+            setSelectedAppointmentType(null)
+            setWeeklyTimeSlots([])
+            setSelectedTimeSlot(null)
+            setLoadingTimeSlots(false)
+            return
+          }
+        }
+        
+        const weeklyAvailability = await appointmentsApiService.getAvailabilityWeek(
+          calendarId,
+          currentWeekStart,
+          validAppointmentTypeId
+        )
 
         const weekly = weekDates.map((dateStr, index) => {
           const rawSlots = weeklyAvailability[dateStr] || []
@@ -553,7 +621,7 @@ function AppointmentsClientPageContent() {
     }
 
     fetchTimeSlots()
-  }, [selectedDoctor, currentWeekStart])
+  }, [selectedDoctor, currentWeekStart, selectedAppointmentTypeId]) // Include selectedAppointmentTypeId to re-validate when it changes
 
   const loadAppointments = useCallback(async () => {
     setLoadingAppointments(true)
@@ -581,12 +649,31 @@ function AppointmentsClientPageContent() {
           appointmentType = "phone"
         }
 
+        let appointmentTypeIdValue: string | number | null = null
+        if (apt.appointment_type_id !== undefined && apt.appointment_type_id !== null) {
+          appointmentTypeIdValue = apt.appointment_type_id
+        }
+
+        const appointmentTypePriceValue =
+          typeof apt.appointment_type_price === "number"
+            ? apt.appointment_type_price
+            : apt.appointment_type_price != null
+            ? Number(apt.appointment_type_price)
+            : null
+
         const costValue =
           typeof apt.cost === "number"
             ? apt.cost
-            : apt.consultation_type === "virtual"
-              ? 120
-              : 180
+            : appointmentTypePriceValue !== null
+            ? appointmentTypePriceValue
+            : undefined
+
+        const amountPaidValue =
+          typeof apt.amount_paid === "number"
+            ? apt.amount_paid
+            : apt.amount_paid != null
+            ? Number(apt.amount_paid)
+            : null
 
         return {
           id: apt.id.toString(),
@@ -597,10 +684,19 @@ function AppointmentsClientPageContent() {
           status: appointmentStatus,
           type: appointmentType,
           cost: costValue,
+          amountPaid: amountPaidValue,
           virtual_meeting_url: apt.virtual_meeting_url,
           timezone: apt.timezone,
           acuityCalendarId: apt.acuity_calendar_id || null,
+          confirmation_page: apt.confirmation_page || null,
           notes: apt.notes || "",
+          appointmentTypeId: appointmentTypeIdValue !== null ? String(appointmentTypeIdValue) : null,
+          appointmentTypeName: apt.appointment_type_name ?? null,
+          appointmentTypeDuration:
+            apt.appointment_type_duration !== undefined && apt.appointment_type_duration !== null
+              ? Number(apt.appointment_type_duration)
+              : null,
+          appointmentTypePrice: appointmentTypePriceValue,
         }
       })
       setAppointmentsData(transformed)
@@ -626,104 +722,11 @@ function AppointmentsClientPageContent() {
   const pastAppointments = appointmentsData.filter((appointment) => appointment.status === "completed")
   const cancelledAppointments = appointmentsData.filter((appointment) => appointment.status === "cancelled")
 
-  // Handle appointment cancellation
-  const handleCancelAppointment = (id: string) => {
-    setAppointmentToCancel(id)
-  }
-
   const handleDialogOpenChange = (open: boolean) => {
     setIsDialogOpen(open)
     if (!open) {
       resetDialog()
     }
-  }
-
-  const confirmCancelAppointment = async () => {
-    if (!appointmentToCancel) {
-      return
-    }
-
-    try {
-      await appointmentsApiService.cancelAppointment(appointmentToCancel)
-      setAppointmentsData((prev) =>
-        prev.map((appointment) =>
-          appointment.id === appointmentToCancel
-            ? { ...appointment, status: "cancelled", frontend_status: "cancelled" }
-            : appointment,
-        ),
-      )
-      toast({
-        title: t("appointments.cancelSuccessTitle"),
-        description: t("appointments.cancelSuccessDescription"),
-      })
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.detail || t("appointments.cancelError"),
-        variant: "destructive",
-      })
-    } finally {
-      setAppointmentToCancel(null)
-    }
-  }
-
-  // Handle appointment rescheduling
-  const handleRescheduleAppointment = (id: string) => {
-    const appointment = appointmentsData.find((apt) => apt.id === id)
-    if (!appointment) {
-      toast({
-        title: "Error",
-        description: "Unable to find appointment details.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    const appointmentDate = new Date(appointment.date)
-    const isoString = appointmentDate.toISOString()
-    const dateStr = format(appointmentDate, "yyyy-MM-dd")
-    const timeStr = format(appointmentDate, "HH:mm")
-    const weekStartStr = format(startOfWeek(appointmentDate, { weekStartsOn: 1 }), "yyyy-MM-dd")
-
-    const doctorNameParts = appointment.doctor.split(" ")
-    const doctorFirstName = doctorNameParts[0] || appointment.doctor
-    const doctorLastName = doctorNameParts.slice(1).join(" ")
-
-    const doctorIdentifier =
-      (appointment.doctorId !== undefined && appointment.doctorId !== null
-        ? appointment.doctorId.toString()
-        : appointment.acuityCalendarId || appointment.doctor)
-
-    const doctorForReschedule: Doctor = {
-      id: doctorIdentifier,
-      name: appointment.doctor,
-      firstName: doctorFirstName,
-      lastName: doctorLastName,
-      specialty: appointment.specialty,
-      avatar: null,
-      isOnline: false,
-      acuityCalendarId: appointment.acuityCalendarId || null,
-      acuityOwnerId: null,
-      timezone: appointment.timezone || null
-    }
-
-    setSelectedDoctor(doctorForReschedule)
-    setSelectedType(appointment.type)
-    setSelectedTimezone(appointment.timezone || fallbackTimezone)
-    setSelectedDate(dateStr)
-    setCurrentWeekStart(weekStartStr)
-    setSelectedTimeSlot({
-      id: `reschedule-${id}`,
-      date: dateStr,
-      time: timeStr,
-      formattedDateTime: formatDateTime(appointmentDate),
-      displayTime: timeStr,
-      isoTime: isoString,
-      rawTime: isoString,
-    })
-    setAppointmentNote(appointment.notes || "")
-    setRescheduleAppointmentId(id)
-    setIsDialogOpen(true)
   }
 
   // Handle join call
@@ -754,21 +757,64 @@ function AppointmentsClientPageContent() {
       return
     }
 
-    if (!selectedDoctor || !selectedTimeSlot || !selectedType || !selectedDate) {
+    // Validate required fields
+    if (!selectedDoctor) {
       toast({
-        title: "Error",
-        description: "Please fill in all required fields",
+        title: t("appointments.validationError"),
+        description: t("appointments.selectDoctorRequired"),
+        variant: "destructive",
+      })
+      setIsBooking(false)
+      return
+    }
+    
+    if (!selectedAppointmentTypeId) {
+      toast({
+        title: t("appointments.validationError"),
+        description: t("appointments.selectAppointmentTypeRequired"),
+        variant: "destructive",
+      })
+      setIsBooking(false)
+      return
+    }
+    
+    if (!selectedTimeSlot) {
+      toast({
+        title: t("appointments.validationError"),
+        description: t("appointments.selectTimeSlotRequired"),
+        variant: "destructive",
+      })
+      setIsBooking(false)
+      return
+    }
+    
+    if (!selectedType) {
+      toast({
+        title: t("appointments.validationError"),
+        description: t("appointments.selectConsultationTypeRequired"),
+        variant: "destructive",
+      })
+      setIsBooking(false)
+      return
+    }
+    
+    if (!selectedDate) {
+      toast({
+        title: t("appointments.validationError"),
+        description: t("appointments.fillAllRequiredFields"),
         variant: "destructive"
       })
+      setIsBooking(false)
       return
     }
 
     if (selectedType === "phone" && !appointmentPhone) {
       toast({
-        title: "Error",
-        description: "Please provide phone number for phone appointment",
+        title: t("appointments.validationError"),
+        description: t("appointments.providePhoneNumber"),
         variant: "destructive"
       })
+      setIsBooking(false)
       return
     }
 
@@ -782,6 +828,18 @@ function AppointmentsClientPageContent() {
       const firstName = nameParts[0] || ""
       const lastName = nameParts.slice(1).join(" ") || ""
 
+      // Validate lastname is present
+      if (!lastName || lastName.trim() === "") {
+        toast({
+          title: "Profile Incomplete",
+          description: "Please complete your profile by adding your last name before scheduling an appointment.",
+          variant: "destructive",
+          duration: 5000,
+        })
+        setIsBooking(false)
+        return
+      }
+
       // Build datetime string with timezone
       const timezoneToUse = selectedDoctor?.timezone || selectedTimezone || fallbackTimezone
 
@@ -793,39 +851,25 @@ function AppointmentsClientPageContent() {
       // Build appointment request
       const appointmentData = {
         calendar_id: selectedDoctor.acuityCalendarId || "",
+        appointment_type_id: selectedAppointmentTypeId ? parseInt(selectedAppointmentTypeId, 10) : undefined,
         datetime: datetimeISO,
         first_name: firstName,
         last_name: lastName,
         email: userEmail,
         phone: selectedType === "phone" ? appointmentPhone : undefined,
-        appointment_type: selectedType,
+        consultation_type: selectedType,
         note: appointmentNote || undefined,
         timezone: timezoneToUse || undefined
       }
 
-      if (rescheduleAppointmentId) {
-        await appointmentsApiService.rescheduleAppointment(rescheduleAppointmentId, {
-          appointment_date: datetimeISO,
-          appointment_type: selectedType || undefined,
-          notes: appointmentNote || undefined,
-        })
+      await appointmentsApiService.bookAppointment(appointmentData)
 
-        toast({
-          title: "Appointment Updated",
-          description: "Your appointment has been rescheduled successfully.",
-        })
-        await loadAppointments()
-        setIsDialogOpen(false)
-      } else {
-        await appointmentsApiService.bookAppointment(appointmentData)
-
-        toast({
-          title: "Appointment Booked",
-          description: `Your appointment with ${selectedDoctor.name} has been booked successfully.`,
-        })
-        await loadAppointments()
-        setIsDialogOpen(false)
-      }
+      toast({
+        title: "Appointment Booked",
+        description: `Your appointment with ${selectedDoctor.name} has been booked successfully.`,
+      })
+      await loadAppointments()
+      setIsDialogOpen(false)
     } catch (error: any) {
       console.error("Failed to book appointment:", error)
       toast({
@@ -841,6 +885,8 @@ function AppointmentsClientPageContent() {
   // Reset dialog state
   const resetDialog = () => {
     setSelectedDoctor(null)
+    setSelectedAppointmentTypeId("")
+    setSelectedAppointmentType(null)
     setSelectedTimeSlot(null)
     setSelectedType("")
     setAppointmentNote("")
@@ -849,7 +895,6 @@ function AppointmentsClientPageContent() {
     setSelectedTimezone("")
     setWeeklyTimeSlots([])
     setCurrentWeekStart("")
-    setRescheduleAppointmentId(null)
     setIsBooking(false)
     setCurrentSearchQuery("")
     setAvailableDoctors([])
@@ -859,35 +904,23 @@ function AppointmentsClientPageContent() {
   }
 
   // Handle doctor selection from list/search results
-  const handleSelectDoctor = (contact: Contact | null) => {
-    if (isRescheduleMode) {
-      return
-    }
-    if (contact) {
-      // Convert Contact to Doctor format
-      const doctor: Doctor = {
-        id: contact.id,
-        name: contact.name,
-        firstName: contact.firstName,
-        lastName: contact.lastName,
-        specialty: contact.specialty || null,
-        avatar: contact.avatar || null,
-        isOnline: contact.isOnline,
-        acuityCalendarId: contact.acuityCalendarId || null,
-        acuityOwnerId: contact.acuityOwnerId || null,
-        timezone: contact.timezone || null
-      }
+  const handleSelectDoctor = (doctor: Doctor | null) => {
+    if (doctor) {
       setSelectedDoctor(doctor)
+      setSelectedAppointmentTypeId("")
+      setSelectedAppointmentType(null)
+      setSelectedTimeSlot(null)
+      setWeeklyTimeSlots([])
       const today = new Date()
       const todayStr = format(today, "yyyy-MM-dd")
       const weekStartStr = format(startOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd")
       setSelectedDate(todayStr)
       setCurrentWeekStart(weekStartStr)
-      setSelectedTimeSlot(null)
-      setWeeklyTimeSlots([])
-      setSelectedTimezone(contact.timezone || fallbackTimezone)
+      setSelectedTimezone(doctor.timezone || fallbackTimezone)
     } else {
       setSelectedDoctor(null)
+      setSelectedAppointmentTypeId("")
+      setSelectedAppointmentType(null)
       setSelectedTimezone("")
       setSelectedDate("")
       setCurrentWeekStart("")
@@ -924,24 +957,9 @@ function AppointmentsClientPageContent() {
     }
   }
 
-  // Get appointment type icon
-  const getAppointmentTypeIcon = (type: string) => {
-    switch (type) {
-      case "virtual":
-        return <Video className="h-4 w-4" />
-      case "in-person":
-        return <MapPin className="h-4 w-4" />
-      case "phone":
-        return <Phone className="h-4 w-4" />
-      default:
-        return null
-    }
-  }
-
   // Get user data from Redux store
   const { user } = useSelector((state: RootState) => state.auth)
   const userName = user?.user_metadata?.full_name || "User"
-  const firstName = userName.split(' ')[0] || "User"
 
   return (
     <div className="container py-4">
@@ -953,24 +971,19 @@ function AppointmentsClientPageContent() {
               {t("appointments.bookNew")}
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[1120px] max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogContent className="sm:max-w-[1120px] max-h-[90vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>
-                {rescheduleAppointmentId
-                  ? t("appointments.rescheduleAppointment")
-                  : t("appointments.bookNew")}
+                {t("appointments.bookNew")}
               </DialogTitle>
               <DialogDescription>
-                {rescheduleAppointmentId
-                  ? t("appointments.rescheduleDescription")
-                  : t("appointments.fillDetails")}
+                {t("appointments.fillDetails")}
               </DialogDescription>
             </DialogHeader>
 
             {/* Side-by-side layout: Doctor List and Schedule Panel */}
-            <div className={`flex-1 flex overflow-hidden min-h-0 ${!isRescheduleMode ? "gap-4" : ""}`}>
-              {!isRescheduleMode && (
-                <div className="w-[26%] max-w-[280px] min-w-[240px] border rounded-md overflow-hidden flex flex-col">
+            <div className="flex-1 flex overflow-hidden min-h-0 gap-4">
+              <div className="w-[26%] max-w-[280px] min-w-[240px] border rounded-md overflow-hidden flex flex-col">
                   <div className="border-b bg-muted/60 p-3 space-y-3">
                     <div className="font-medium text-sm uppercase tracking-wide text-muted-foreground">
                       {t("appointments.selectDoctor")}
@@ -1059,7 +1072,6 @@ function AppointmentsClientPageContent() {
                     </div>
                   </ScrollArea>
                 </div>
-              )}
 
               <div className="flex-1 border rounded-md overflow-hidden flex flex-col">
                 <div className="bg-muted p-2 font-medium border-b">
@@ -1095,24 +1107,62 @@ function AppointmentsClientPageContent() {
                         </Button>
                       </div>
                     </div>
-                    {isRescheduleMode && selectedDoctor && (
-                      <div className="px-4 pt-4">
-                        <div className="rounded-md border bg-muted/50 p-3">
-                          <p className="text-sm font-medium text-foreground">
-                            {t("appointments.reschedulingWith")}{" "}
-                            {selectedDoctor.name}
-                          </p>
-                          {selectedDoctor.specialty && (
-                            <p className="text-xs text-muted-foreground mt-1">{selectedDoctor.specialty}</p>
-                          )}
-                        </div>
-                      </div>
-                    )}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                      {/* Appointment Type Selection */}
+                      <div>
+                        <Label className="mb-2 block">
+                          {t("appointments.selectAppointmentType") ?? "Select appointment type"}
+                        </Label>
+                        {selectedDoctor?.appointmentTypes && selectedDoctor.appointmentTypes.length > 0 ? (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {selectedDoctor.appointmentTypes.map((type) => {
+                              const isSelected = selectedAppointmentTypeId === type.id
+                              const formattedPrice = formatCurrencyValue(type.price)
+                              return (
+                                <button
+                                  key={type.id}
+                                  type="button"
+                                  onClick={() => handleAppointmentTypeSelect(type.id)}
+                                  className={`rounded-lg border p-3 text-left transition-colors ${
+                                    isSelected
+                                      ? "border-teal-500 bg-teal-50 dark:bg-teal-900/40"
+                                      : "border-border hover:border-teal-400"
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-medium">
+                                      {type.name || t("appointments.appointmentType")}
+                                    </span>
+                                    {formattedPrice && (
+                                      <span className="text-sm text-teal-700 dark:text-teal-200">
+                                        {formattedPrice}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                                    {type.duration ? <div>{type.duration} min</div> : null}
+                                    {type.description ? <div>{type.description}</div> : null}
+                                  </div>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                            {t("appointments.noAppointmentTypes") ??
+                              "No appointment types are available for this doctor."}
+                          </div>
+                        )}
+                      </div>
+
                       {/* Weekly Availability */}
-                      <div className="flex-1 min-h-[200px]">
+                      <div className="min-h-[200px]">
                         <Label className="mb-2 block">{t("appointments.weeklyAvailability")}</Label>
-                        {loadingTimeSlots ? (
+                        {!selectedAppointmentTypeId ? (
+                          <div className="flex items-center justify-center h-32 text-sm text-muted-foreground border rounded-md">
+                            {t("appointments.selectAppointmentTypePrompt") ?? "Choose an appointment type to view available times."}
+                          </div>
+                        ) : loadingTimeSlots ? (
                           <div className="flex items-center justify-center h-32">
                             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                             <span className="ml-2 text-sm text-muted-foreground">Loading available slots...</span>
@@ -1123,14 +1173,16 @@ function AppointmentsClientPageContent() {
                           </div>
                         ) : (
                           <div className="flex items-center justify-center h-32 text-sm text-muted-foreground border rounded-md">
-                            No availability for this week
+                            {t("appointments.noAvailability") ?? "No availability for this week"}
                           </div>
                         )}
                       </div>
 
-                      {/* Appointment Type */}
+                      {/* Consultation Method */}
                       <div>
-                        <Label className="mb-2 block">{t("appointments.appointmentType")}</Label>
+                        <Label className="mb-2 block">
+                          {t("appointments.consultationMethod") ?? "Consultation method"}
+                        </Label>
                         <RadioGroup
                           value={selectedType}
                           onValueChange={(value) => handleAppointmentTypeChange(value as "virtual" | "in-person" | "phone")}
@@ -1239,10 +1291,8 @@ function AppointmentsClientPageContent() {
                 {isBooking ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {rescheduleAppointmentId ? "Updating..." : "Scheduling..."}
+                    Scheduling...
                   </>
-                ) : rescheduleAppointmentId ? (
-                  "Update Appointment"
                 ) : (
                   "Schedule Appointment"
                 )}
@@ -1252,21 +1302,6 @@ function AppointmentsClientPageContent() {
         </Dialog>
       </div>
 
-      {/* Cancel Confirmation Dialog */}
-      <AlertDialog open={!!appointmentToCancel} onOpenChange={(open) => !open && setAppointmentToCancel(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("appointments.cancelAppointment")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("appointments.cancelConfirmation")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("appointments.keepAppointment")}</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmCancelAppointment} className="bg-red-600 hover:bg-red-700">
-              {t("appointments.yesCancelAppointment")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <Tabs defaultValue="upcoming" className="w-full">
         <TabsList className="mb-4 w-full sm:w-auto">
@@ -1300,8 +1335,8 @@ function AppointmentsClientPageContent() {
                       status={appointment.status}
                       type={appointment.type}
                       cost={appointment.cost}
-                      onCancel={handleCancelAppointment}
-                      onReschedule={handleRescheduleAppointment}
+                      confirmation_page={appointment.confirmation_page}
+                      duration={appointment.appointmentTypeDuration}
                       onJoinCall={appointment.virtual_meeting_url ? handleJoinCall : undefined}
                       virtual_meeting_url={appointment.virtual_meeting_url}
                       timezone={appointment.timezone}
@@ -1330,6 +1365,8 @@ function AppointmentsClientPageContent() {
                       status={appointment.status}
                       type={appointment.type}
                       cost={appointment.cost}
+                      confirmation_page={appointment.confirmation_page}
+                      duration={appointment.appointmentTypeDuration}
                       timezone={appointment.timezone}
                     />
                   ))}
@@ -1356,6 +1393,8 @@ function AppointmentsClientPageContent() {
                       status={appointment.status}
                       type={appointment.type}
                       cost={appointment.cost}
+                      confirmation_page={appointment.confirmation_page}
+                      duration={appointment.appointmentTypeDuration}
                       timezone={appointment.timezone}
                     />
                   ))}

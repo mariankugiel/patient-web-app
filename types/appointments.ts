@@ -10,9 +10,15 @@ export interface FrontendAppointment {
   status: AppointmentStatus
   type: AppointmentConsultationType
   cost?: number
+  amountPaid?: number | null
   virtual_meeting_url?: string
   timezone?: string
   acuityCalendarId?: string | null
+  confirmation_page?: string | null  // Acuity confirmation/reschedule/cancel page URL
   notes?: string
+  appointmentTypeId?: string | number | null
+  appointmentTypeName?: string | null
+  appointmentTypeDuration?: number | null
+  appointmentTypePrice?: number | null
 }
 

@@ -853,7 +853,14 @@ function MedicationsClientPageContent() {
         </TabsList>
 
         <TabsContent value="current">
-          {currentMeds.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Loader2 className="h-16 w-16 text-muted-foreground mb-4 animate-spin" />
+              <h3 className="text-lg font-semibold mb-2">
+                {language === "en" ? "Loading medications..." : t("medications.loading") || "Loading medications..."}
+              </h3>
+            </div>
+          ) : currentMeds.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Pill className="h-16 w-16 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">
@@ -1034,7 +1041,14 @@ function MedicationsClientPageContent() {
         </TabsContent>
 
         <TabsContent value="previous">
-          {previousMeds.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Loader2 className="h-16 w-16 text-muted-foreground mb-4 animate-spin" />
+              <h3 className="text-lg font-semibold mb-2">
+                {language === "en" ? "Loading medications..." : t("medications.loading") || "Loading medications..."}
+              </h3>
+            </div>
+          ) : previousMeds.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Pill className="h-16 w-16 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">

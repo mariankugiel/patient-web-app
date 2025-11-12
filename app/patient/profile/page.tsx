@@ -190,7 +190,7 @@ export default function ProfileTabPage() {
           // Load profile picture from Supabase Storage
           try {
             // Use avatar from profile data if available
-            const avatarUrlFromProfile = profileData.img_url || profileData.avatar_url
+            const avatarUrlFromProfile = profileData.avatar_url
             let avatarUrl = avatarUrlFromProfile
             
             // If no avatar in profile data, try to get from storage

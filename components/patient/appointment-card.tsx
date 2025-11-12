@@ -17,8 +17,8 @@ interface AppointmentCardProps {
   cost?: number
   virtual_meeting_url?: string // Video meeting URL for virtual appointments
   timezone?: string
-  onCancel?: (id: string) => void
-  onReschedule?: (id: string) => void
+  confirmation_page?: string | null // Acuity confirmation/reschedule/cancel page URL
+  duration?: number | null // Duration in minutes
   onJoinCall?: (id: string) => void
 }
 
@@ -32,13 +32,22 @@ export function AppointmentCard({
   cost = 150,
   virtual_meeting_url,
   timezone,
-  onCancel,
-  onReschedule,
+  confirmation_page,
+  duration,
   onJoinCall,
 }: AppointmentCardProps) {
   const appointmentDate = new Date(date)
   const formattedDate = format(appointmentDate, "MMMM d, yyyy")
-  const formattedTime = format(appointmentDate, "h:mm a")
+  const startTime = format(appointmentDate, "h:mm a")
+  
+  // Calculate end time if duration is available
+  let timeDisplay = startTime
+  if (duration && duration > 0) {
+    const endDate = new Date(appointmentDate.getTime() + duration * 60 * 1000)
+    const endTime = format(endDate, "h:mm a")
+    timeDisplay = `${startTime} - ${endTime}`
+  }
+  
   const isUpcoming = status === "upcoming"
   const isVirtual = type === "virtual"
   const isPhone = type === "phone"
@@ -80,7 +89,7 @@ export function AppointmentCard({
           <div className="flex items-center text-sm">
             <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
             <span>
-              {formattedTime}
+              {timeDisplay}
               {timezone ? <span className="ml-2 text-muted-foreground">({timezone})</span> : null}
             </span>
           </div>
@@ -122,18 +131,24 @@ export function AppointmentCard({
               Join Video Conference
             </Button>
           )}
-          <div className="flex w-full space-x-2">
-            {onReschedule && (
-              <Button variant="outline" onClick={() => onReschedule(id)} className="flex-1">
+          {confirmation_page && (
+            <div className="flex w-full space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => window.open(confirmation_page, '_blank')}
+                className="flex-1"
+              >
                 Reschedule
               </Button>
-            )}
-            {onCancel && (
-              <Button variant="destructive" onClick={() => onCancel(id)} className="flex-1">
+              <Button
+                variant="destructive"
+                onClick={() => window.open(confirmation_page, '_blank')}
+                className="flex-1"
+              >
                 Cancel
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </CardFooter>
       )}
     </Card>

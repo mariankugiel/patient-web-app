@@ -108,7 +108,7 @@ export function ConversationList({
     conversations.forEach(conversation => {
       // Only load if we don't have it cached
       if (conversation.id && !loadedAvatars[conversation.id]) {
-        // Use backend provided avatar URL if available (from img_url in user_profiles)
+        // Use backend provided avatar URL if available (from avatar_url in user_profiles)
         console.log(`🔍 [WEB CONSOLE] Processing avatar for conversation ${conversation.id}:`, {
           contact_avatar: conversation.contact_avatar,
           contact_avatar_type: typeof conversation.contact_avatar,
@@ -122,8 +122,8 @@ export function ConversationList({
         if (conversation.contact_avatar && 
             conversation.contact_avatar.trim() !== "" && 
             conversation.contact_avatar !== "null") {
-          // Backend provided avatar URL from img_url - use it directly
-          console.log(`✅ [WEB CONSOLE] Using backend avatar (img_url) for conversation ${conversation.id}:`, conversation.contact_avatar)
+          // Backend provided avatar URL from avatar_url - use it directly
+          console.log(`✅ [WEB CONSOLE] Using backend avatar (avatar_url) for conversation ${conversation.id}:`, conversation.contact_avatar)
           setLoadedAvatars(prev => ({
             ...prev,
             [conversation.id]: conversation.contact_avatar!

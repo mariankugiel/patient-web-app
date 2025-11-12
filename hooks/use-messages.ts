@@ -238,8 +238,8 @@ export function useMessages(patientId?: number | null): UseMessagesReturn {
       console.log('📋 Conversations count:', response.conversations.length)
       console.log('📋 Current user ID from backend:', response.current_user_id)
       
-      // Log detailed img_url/avatar_url information for each conversation
-      console.log('🔍 [WEB CONSOLE] Detailed img_url/avatar_url analysis:')
+      // Log detailed avatar_url information for each conversation
+      console.log('🔍 [WEB CONSOLE] Detailed avatar_url analysis:')
       response.conversations.forEach((conv: Conversation, index: number) => {
         console.log(`  📋 Conversation ${index + 1}:`, {
           id: conv.id,

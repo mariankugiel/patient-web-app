@@ -68,9 +68,9 @@ export class MessagesApiService {
         })))
       }
       
-      // Log img_url/avatar_url for each conversation
+      // Log avatar_url for each conversation
       if (response.data?.conversations) {
-        console.log('🔍 [WEB CONSOLE] Conversations img_url/avatar_url data:')
+        console.log('🔍 [WEB CONSOLE] Conversations avatar_url data:')
         response.data.conversations.forEach((conv: any, index: number) => {
           console.log(`  Conversation ${index + 1} (ID: ${conv.id}):`, {
             contact_id: conv.contact_id,
