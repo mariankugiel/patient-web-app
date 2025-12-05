@@ -39,21 +39,30 @@ export default function HistoryPage() {
     conditions: currentConditions, 
     loading: currentLoading, 
     error: currentError,
-    refresh: refreshCurrentConditions
+    refresh: refreshCurrentConditions,
+    addCondition: addCurrentCondition,
+    updateCondition: updateCurrentCondition,
+    deleteCondition: deleteCurrentCondition
   } = useCurrentMedicalConditions()
   
   const { 
     conditions: pastConditions, 
     loading: pastLoading, 
     error: pastError,
-    refresh: refreshPastConditions
+    refresh: refreshPastConditions,
+    addCondition: addPastCondition,
+    updateCondition: updatePastCondition,
+    deleteCondition: deletePastCondition
   } = usePastMedicalConditions()
   
   const { 
     history: familyHistory, 
     loading: familyLoading, 
     error: familyError,
-    refresh: refreshFamilyHistory
+    refresh: refreshFamilyHistory,
+    addHistoryEntry,
+    updateHistoryEntry,
+    deleteHistoryEntry
   } = useFamilyMedicalHistory()
 
   return (
@@ -82,16 +91,16 @@ export default function HistoryPage() {
             {currentLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin" />
-                <span className="ml-2">Loading current conditions...</span>
+                <span className="ml-2">{t("health.loadingCurrentConditions")}</span>
               </div>
             ) : currentError ? (
               <div className="text-center py-8 text-red-600">
-                <p>Error loading current conditions: {currentError}</p>
+                <p>{t("health.errorLoadingCurrentConditions")}: {currentError}</p>
               </div>
             ) : currentConditions.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <p>No current medical conditions recorded.</p>
-                <p className="text-sm">Click Add to add your current conditions.</p>
+                <p>{t("health.noCurrentConditions")}</p>
+                <p className="text-sm">{t("health.noCurrentConditionsDesc")}</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -163,16 +172,16 @@ export default function HistoryPage() {
             {pastLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin" />
-                <span className="ml-2">Loading past conditions...</span>
+                <span className="ml-2">{t("health.loadingPastConditions")}</span>
               </div>
             ) : pastError ? (
               <div className="text-center py-8 text-red-600">
-                <p>Error loading past conditions: {pastError}</p>
+                <p>{t("health.errorLoadingPastConditions")}: {pastError}</p>
               </div>
             ) : pastConditions.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <p>No past medical conditions recorded.</p>
-                <p className="text-sm">Click Add to add your past conditions.</p>
+                <p>{t("health.noPastConditions")}</p>
+                <p className="text-sm">{t("health.noPastConditionsDesc")}</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -242,16 +251,16 @@ export default function HistoryPage() {
           {familyLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin" />
-              <span className="ml-2">Loading family history...</span>
+              <span className="ml-2">{t("health.loadingFamilyHistory")}</span>
             </div>
           ) : familyError ? (
             <div className="text-center py-8 text-red-600">
-              <p>Error loading family history: {familyError}</p>
+              <p>{t("health.errorLoadingFamilyHistory")}: {familyError}</p>
             </div>
           ) : familyHistory.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <p>No family medical history recorded.</p>
-              <p className="text-sm">Click Add to add your family medical history.</p>
+              <p>{t("health.noFamilyHistory")}</p>
+              <p className="text-sm">{t("health.noFamilyHistoryDesc")}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -271,33 +280,33 @@ export default function HistoryPage() {
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="font-semibold text-base group-hover:text-blue-600 transition-colors">{formatRelationName(entry.relation)}</h3>
                       <Badge variant={isDeceased ? "secondary" : "default"}>
-                        {isDeceased ? "Deceased" : "Alive"}
+                        {isDeceased ? t("health.deceased") : t("health.alive")}
                       </Badge>
                     </div>
                     
                     {isDeceased ? (
                       <div className="text-sm text-muted-foreground space-y-1">
                         {entry.age_at_death && (
-                          <p><span className="font-medium">Age at Death:</span> {entry.age_at_death}</p>
+                          <p><span className="font-medium">{t("health.ageAtDeath")}:</span> {entry.age_at_death}</p>
                         )}
                         {entry.cause_of_death && (
-                          <p><span className="font-medium">Cause of Death:</span> {entry.cause_of_death}</p>
+                          <p><span className="font-medium">{t("health.causeOfDeath")}:</span> {entry.cause_of_death}</p>
                         )}
                       </div>
                     ) : (
                       <div className="space-y-2">
                         {entry.current_age && (
                           <p className="text-sm text-muted-foreground">
-                            <span className="font-medium">Current Age:</span> {entry.current_age}
+                            <span className="font-medium">{t("health.currentAge")}:</span> {entry.current_age}
                           </p>
                         )}
                         {chronicDiseases.length > 0 && (
                           <div>
-                            <p className="text-sm font-medium mb-1">Chronic Diseases:</p>
+                            <p className="text-sm font-medium mb-1">{t("health.chronicDiseases")}:</p>
                             <div className="space-y-1">
                               {chronicDiseases.map((disease: any, idx: number) => (
                                 <div key={idx} className="text-sm text-muted-foreground pl-3">
-                                  • {disease.disease} {disease.age_at_diagnosis && `(diagnosed at age ${disease.age_at_diagnosis})`}
+                                  • {disease.disease} {disease.age_at_diagnosis && `(${t("health.diagnosedAtAge")} ${disease.age_at_diagnosis})`}
                                   {disease.comments && <span className="text-xs italic"> - {disease.comments}</span>}
                                 </div>
                               ))}
@@ -310,9 +319,9 @@ export default function HistoryPage() {
                     {/* Legacy condition display for backward compatibility */}
                     {entry.condition && (
                       <div className="mt-2 text-sm text-muted-foreground border-t pt-2">
-                        <p><span className="font-medium">Condition:</span> {entry.condition}</p>
-                        {entry.ageOfOnset && <p><span className="font-medium">Age of Onset:</span> {entry.ageOfOnset}</p>}
-                        {entry.outcome && <p><span className="font-medium">Outcome:</span> {entry.outcome}</p>}
+                        <p><span className="font-medium">{t("health.condition")}:</span> {entry.condition}</p>
+                        {entry.ageOfOnset && <p><span className="font-medium">{t("health.ageOfOnset")}:</span> {entry.ageOfOnset}</p>}
+                        {entry.outcome && <p><span className="font-medium">{t("health.outcome")}:</span> {entry.outcome}</p>}
                       </div>
                     )}
                   </div>
@@ -335,6 +344,9 @@ export default function HistoryPage() {
         }}
         onRefresh={refreshCurrentConditions}
         selectedCondition={selectedCurrentCondition}
+        addCondition={addCurrentCondition}
+        updateCondition={updateCurrentCondition}
+        deleteCondition={deleteCurrentCondition}
       />
       <PastConditionsDialog 
         open={editPastConditionsOpen} 
@@ -344,6 +356,9 @@ export default function HistoryPage() {
         }}
         onRefresh={refreshPastConditions}
         selectedCondition={selectedPastCondition}
+        addCondition={addPastCondition}
+        updateCondition={updatePastCondition}
+        deleteCondition={deletePastCondition}
       />
       <FamilyHistoryDialog 
         open={editFamilyHistoryOpen} 
@@ -354,6 +369,9 @@ export default function HistoryPage() {
         onRefresh={refreshFamilyHistory}
         selectedEntry={selectedFamilyHistory}
         existingEntries={familyHistory}
+        addHistoryEntry={addHistoryEntry}
+        updateHistoryEntry={updateHistoryEntry}
+        deleteHistoryEntry={deleteHistoryEntry}
       />
     </div>
   )

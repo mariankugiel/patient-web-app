@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Smartphone, X, Lock, CheckCircle2, Circle } from "lucide-react"
 import { toast } from "react-toastify"
+import { useLanguage } from "@/contexts/language-context"
 import { AuthApiService } from "@/lib/api/auth-api"
 import { enrollMFA, verifyMFAEnrollment, listMFAFactors, unenrollMFAFactor } from "@/lib/auth-helpers"
 import { useSelector } from "react-redux"
@@ -37,6 +38,7 @@ const passwordChangeSchema = z
 type PasswordChangeFormValues = z.infer<typeof passwordChangeSchema>
 
 export default function SecurityTabPage() {
+  const { t } = useLanguage()
   const { isRestoringSession, isAuthenticated, user } = useSelector((state: RootState) => state.auth)
   const [accountSettings, setAccountSettings] = useState({ twoFactorAuth: false })
   const [mfaFactors, setMfaFactors] = useState<Array<{id: string, type: string, friendly_name: string, status: string, created_at: string}>>([])
@@ -601,8 +603,8 @@ export default function SecurityTabPage() {
               </svg>
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text_base">Change Password</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Update your password to keep your account secure</p>
+              <h3 className="font-semibold text_base">{t("profile.changePassword")}</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("profile.changePasswordDesc")}</p>
             </div>
           </div>
 
@@ -611,7 +613,7 @@ export default function SecurityTabPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <FormField control={passwordForm.control} name="currentPassword" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-xs font-medium">Current Password</FormLabel>
+                    <FormLabel className="text-xs font-medium">{t("profile.currentPassword")}</FormLabel>
                     <FormControl>
                       <Input type="password" className="h-9 text-sm" placeholder="••••••••" {...field} />
                     </FormControl>
@@ -620,7 +622,7 @@ export default function SecurityTabPage() {
                 )} />
                 <FormField control={passwordForm.control} name="newPassword" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-xs font-medium">New Password</FormLabel>
+                    <FormLabel className="text-xs font-medium">{t("profile.newPassword")}</FormLabel>
                     <FormControl>
                       <Input type="password" className="h-9 text-sm" placeholder="••••••••" {...field} onChange={(e) => { field.onChange(e); setNewPasswordValue(e.target.value) }} />
                     </FormControl>
@@ -629,7 +631,7 @@ export default function SecurityTabPage() {
                 )} />
                 <FormField control={passwordForm.control} name="confirmPassword" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-xs font-medium">Confirm New Password</FormLabel>
+                    <FormLabel className="text-xs font-medium">{t("profile.confirmNewPassword")}</FormLabel>
                     <FormControl>
                       <Input type="password" className="h-9 text-sm" placeholder="••••••••" {...field} />
                     </FormControl>
@@ -640,20 +642,20 @@ export default function SecurityTabPage() {
 
               {newPasswordValue.length > 0 && (
                 <div className="rounded-md bg-muted/50 p-3 space-y-1.5">
-                  <p className="text-xs font-medium mb-2">Password Requirements:</p>
+                  <p className="text-xs font-medium mb-2">{t("profile.passwordRequirements")}</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    <div className="flex items-center gap-2 text-xs">{passwordChecks.minLength ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}<span className={passwordChecks.minLength ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>At least 8 characters</span></div>
-                    <div className="flex items-center gap-2 text-xs">{passwordChecks.hasLowercase ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}<span className={passwordChecks.hasLowercase ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>One lowercase letter</span></div>
-                    <div className="flex items-center gap-2 text-xs">{passwordChecks.hasUppercase ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}<span className={passwordChecks.hasUppercase ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>One uppercase letter</span></div>
-                    <div className="flex items-center gap-2 text-xs">{passwordChecks.hasNumber ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}<span className={passwordChecks.hasNumber ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>One number</span></div>
-                    <div className="flex items-center gap-2 text-xs">{passwordChecks.hasSpecial ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}<span className={passwordChecks.hasSpecial ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>One special character</span></div>
-                    <div className="flex items-center gap-2 text-xs">{passwordChecks.passwordsMatch ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}<span className={passwordChecks.passwordsMatch ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>Passwords match</span></div>
+                    <div className="flex items-center gap-2 text-xs">{passwordChecks.minLength ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}<span className={passwordChecks.minLength ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>{t("profile.atLeast8Chars")}</span></div>
+                    <div className="flex items-center gap-2 text-xs">{passwordChecks.hasLowercase ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}<span className={passwordChecks.hasLowercase ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>{t("profile.oneLowercase")}</span></div>
+                    <div className="flex items-center gap-2 text-xs">{passwordChecks.hasUppercase ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}<span className={passwordChecks.hasUppercase ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>{t("profile.oneUppercase")}</span></div>
+                    <div className="flex items-center gap-2 text-xs">{passwordChecks.hasNumber ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}<span className={passwordChecks.hasNumber ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>{t("profile.oneNumber")}</span></div>
+                    <div className="flex items-center gap-2 text-xs">{passwordChecks.hasSpecial ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}<span className={passwordChecks.hasSpecial ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>{t("profile.oneSpecial")}</span></div>
+                    <div className="flex items-center gap-2 text-xs">{passwordChecks.passwordsMatch ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}<span className={passwordChecks.passwordsMatch ? "text-green-600 dark:text-green-500" : "text-muted-foreground"}>{t("profile.passwordsMatch")}</span></div>
                   </div>
                 </div>
               )}
 
               <Button type="submit" size="sm" className="bg-teal-600 hover:bg-teal-700 h-8 text-xs" disabled={isChangingPassword}>
-                {isChangingPassword ? "Changing..." : "Update Password"}
+                {isChangingPassword ? t("profile.changing") : t("profile.updatePassword")}
               </Button>
             </form>
           </Form>
@@ -665,16 +667,16 @@ export default function SecurityTabPage() {
               <div className="flex gap-0.5"><Lock className="h-4 w-4 text-primary" /><Lock className="h-4 w-4 text-primary" /></div>
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-base">Two-Factor Authentication</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Add an extra layer of security to your account</p>
+              <h3 className="font-semibold text-base">{t("profile.twoFactorAuth")}</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("profile.twoFactorAuthDesc")}</p>
             </div>
           </div>
           <div className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
             <div className="flex items-center gap-3">
               <div className="rounded-md bg-background p-2"><Smartphone className="h-4 w-4 text-muted-foreground" /></div>
               <div>
-                <h4 className="font-medium text-sm">Authenticator App</h4>
-                <p className="text-xs text-muted-foreground">Use an app to generate verification codes</p>
+                <h4 className="font-medium text-sm">{t("profile.authenticatorApp")}</h4>
+                <p className="text-xs text-muted-foreground">{t("profile.authenticatorAppDesc")}</p>
               </div>
             </div>
             <Switch checked={accountSettings.twoFactorAuth} onCheckedChange={handleToggle2FA} disabled={isLoadingMFA} />
@@ -685,12 +687,12 @@ export default function SecurityTabPage() {
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>
-                {isDisabling2FA ? "Disable Two-Factor Authentication" : "Scan QR Code"}
+                {isDisabling2FA ? t("profile.disable2FA") : t("profile.scanQRCode")}
               </DialogTitle>
               <DialogDescription>
                 {isDisabling2FA 
-                  ? "Enter your current verification code to disable two-factor authentication."
-                  : "Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)"
+                  ? t("profile.disable2FADesc")
+                  : t("profile.scanQRCodeDesc")
                 }
               </DialogDescription>
             </DialogHeader>
@@ -699,7 +701,7 @@ export default function SecurityTabPage() {
                 <img src={qrCodeUrl} alt="QR Code" className="w-64 h-64 border rounded-lg" />
               )}
               <Input 
-                placeholder="Enter 6-digit code"
+                placeholder={t("profile.enter6DigitCode")}
                 value={verificationCode}
                 onChange={(e) => setVerificationCode(e.target.value)}
                 maxLength={6}
@@ -712,8 +714,8 @@ export default function SecurityTabPage() {
               </Button>
               <Button onClick={handleVerifyEnrollment} disabled={verificationCode.length !== 6 || isLoadingMFA}>
                 {isLoadingMFA 
-                  ? (isDisabling2FA ? "Disabling..." : "Verifying...")
-                  : (isDisabling2FA ? "Disable 2FA" : "Verify")
+                  ? (isDisabling2FA ? t("profile.disabling") : t("profile.verifying"))
+                  : (isDisabling2FA ? t("profile.disable2FABtn") : t("profile.verify"))
                 }
               </Button>
             </DialogFooter>

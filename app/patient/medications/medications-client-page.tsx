@@ -251,23 +251,23 @@ function MedicationsClientPageContent() {
   const handleAddMedication = async () => {
     // Validate required fields
     if (!newMedication.name) {
-      toast.error("Please fill in medication name")
+      toast.error(t("medications.pleaseFillInName"))
       return
     }
     if (!newMedication.dosage) {
-      toast.error("Please fill in dosage")
+      toast.error(t("medications.pleaseFillInDosage"))
       return
     }
     if (!newMedication.frequency) {
-      toast.error("Please fill in frequency")
+      toast.error(t("medications.pleaseFillInFrequency"))
       return
     }
     if (!newMedication.startDate) {
-      toast.error("Please fill in start date")
+      toast.error(t("medications.pleaseFillInStartDate"))
       return
     }
     if (!newMedication.endDate) {
-      toast.error("Please fill in end date")
+      toast.error(t("medications.pleaseFillInEndDate"))
       return
     }
     
@@ -857,7 +857,7 @@ function MedicationsClientPageContent() {
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Loader2 className="h-16 w-16 text-muted-foreground mb-4 animate-spin" />
               <h3 className="text-lg font-semibold mb-2">
-                {language === "en" ? "Loading medications..." : t("medications.loading") || "Loading medications..."}
+                {t("medications.loading")}
               </h3>
             </div>
           ) : currentMeds.length === 0 ? (
@@ -1045,7 +1045,7 @@ function MedicationsClientPageContent() {
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Loader2 className="h-16 w-16 text-muted-foreground mb-4 animate-spin" />
               <h3 className="text-lg font-semibold mb-2">
-                {language === "en" ? "Loading medications..." : t("medications.loading") || "Loading medications..."}
+                {t("medications.loading")}
               </h3>
             </div>
           ) : previousMeds.length === 0 ? (

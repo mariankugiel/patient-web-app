@@ -15,6 +15,7 @@ import apiClient from '@/lib/api/axios-config'
 import { formatDateForInput } from '@/lib/date-utils'
 import { Loader2, Upload, FileText, CheckCircle, XCircle, AlertTriangle, Edit, Trash2 } from 'lucide-react'
 import { useLanguage } from '@/contexts/language-context'
+import { DuplicateFileDialog } from '@/components/ui/duplicate-file-dialog'
 
 // Function to format reference range display
 const formatReferenceRangeDisplay = (result: any, t: (key: string) => string) => {
@@ -246,6 +247,13 @@ export function LabDocumentDialog({
   const [hasFormChanged, setHasFormChanged] = useState(false)
   const [rejectedResults, setRejectedResults] = useState(false)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
+  const [duplicateInfo, setDuplicateInfo] = useState<{
+    existingDocument: any
+    fileName: string
+    fileSize: number
+  } | null>(null)
+  const [pendingUpload, setPendingUpload] = useState<(() => void) | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [formData, setFormData] = useState({
@@ -583,6 +591,24 @@ export function LabDocumentDialog({
           })
           
           const uploadResult = response.data
+          
+          // Check for duplicate file
+          if (uploadResult.duplicate_found) {
+            setDuplicateInfo({
+              existingDocument: uploadResult.existing_document,
+              fileName: selectedFile.name,
+              fileSize: selectedFile.size
+            })
+            setPendingUpload(() => async () => {
+              // Retry upload after user confirms
+              await performUpload()
+            })
+            setShowDuplicateDialog(true)
+            setUploading(false)
+            setLoading(false)
+            return
+          }
+          
           const dateForBackend = formData.lab_test_date || new Date().toISOString().split('T')[0]
           let result: MedicalDocument | null = null
           
@@ -750,6 +776,133 @@ export function LabDocumentDialog({
     } finally {
       setLoading(false)
       setUploading(false)
+    }
+  }
+
+  const handleContinueUpload = async () => {
+    if (!selectedFile || !pendingUpload) return
+
+    setLoading(true)
+    setUploading(true)
+    try {
+      // Perform the upload again (user has confirmed to continue)
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', selectedFile)
+      uploadFormData.append('description', formData.description || '')
+      uploadFormData.append('doc_date', formData.lab_test_date || '')
+      uploadFormData.append('doc_type', formData.lab_test_type || '')
+      uploadFormData.append('provider', formData.provider || '')
+      
+      const response = await apiClient.post('/health-records/health-record-doc-lab/upload', uploadFormData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+      
+      const uploadResult = response.data
+      
+      // If duplicate found again, show dialog again (shouldn't happen, but handle it)
+      if (uploadResult.duplicate_found) {
+        setShowDuplicateDialog(true)
+        setUploading(false)
+        setLoading(false)
+        return
+      }
+      
+      // Process the upload result normally
+      const dateForBackend = formData.lab_test_date || new Date().toISOString().split('T')[0]
+      let result: MedicalDocument | null = null
+      
+      if (editableResults.length > 0 && !rejectedResults) {
+        const bulkData = {
+          records: editableResults.map(result => ({
+            lab_name: formData.provider || 'Unknown Lab',
+            type_of_analysis: result.type_of_analysis || 'General Lab Analysis',
+            metric_name: result.metric_name,
+            date_of_value: result.date_of_value || dateForBackend,
+            value: result.value,
+            unit: result.unit || '',
+            reference: result.reference_range || ''
+          })),
+          file_name: selectedFile.name,
+          description: formData.description,
+          s3_url: uploadResult.s3_url,
+          lab_test_date: dateForBackend,
+          provider: formData.provider,
+          document_type: formData.lab_test_type
+        }
+
+        const bulkResponse = await apiClient.post('/health-records/health-record-doc-lab/bulk', bulkData)
+        
+        if (bulkResponse.data.success) {
+          const bulkResult = bulkResponse.data
+          const newRecordsCount = bulkResult.created_records_count || bulkResult.created_records?.length || bulkResult.summary?.new_records || 0
+          const updatedRecordsCount = bulkResult.updated_records?.length || bulkResult.summary?.updated_records || 0
+          
+          result = { 
+            id: bulkResult.medical_document_id, 
+            file_name: selectedFile.name,
+            s3_url: uploadResult.s3_url,
+            lab_test_date: dateForBackend,
+            provider: formData.provider,
+            description: formData.description,
+            lab_doc_type: formData.lab_test_type,
+            general_doc_type: 'lab_result'
+          } as MedicalDocument
+          
+          if (newRecordsCount > 0 && updatedRecordsCount > 0) {
+            toast.success(`Successfully created ${newRecordsCount} new health records and updated ${updatedRecordsCount} existing records!`)
+          } else if (newRecordsCount > 0) {
+            toast.success(`Successfully created ${newRecordsCount} new health records!`)
+          } else if (updatedRecordsCount > 0) {
+            toast.success(`Updated ${updatedRecordsCount} existing health records!`)
+          } else {
+            toast.info('No new records were created or updated.')
+          }
+        }
+      } else {
+        const documentData = {
+          health_record_type_id: 1,
+          file_name: selectedFile.name,
+          description: formData.description,
+          s3_url: uploadResult.s3_url,
+          lab_test_date: dateForBackend,
+          provider: formData.provider,
+          document_type: formData.lab_test_type,
+          lab_doc_type: formData.lab_test_type,
+          general_doc_type: "lab_result"
+        }
+        
+        const documentResponse = await apiClient.post('/health-records/health-record-doc-lab', documentData)
+        result = documentResponse.data
+        toast.success('Document saved successfully without health records!')
+      }
+
+      if (result) {
+        onDocumentCreated?.(result)
+        onAnalysisComplete?.(analysisResults)
+      }
+
+      resetFormAfterSuccess()
+      onOpenChange(false)
+    } catch (error) {
+      console.error('Upload error:', error)
+      toast.error('Failed to upload document')
+    } finally {
+      setUploading(false)
+      setLoading(false)
+    }
+  }
+
+  const handleDuplicateCancel = () => {
+    setShowDuplicateDialog(false)
+    setDuplicateInfo(null)
+    setPendingUpload(null)
+  }
+
+  const handleDuplicateContinue = () => {
+    if (pendingUpload) {
+      handleContinueUpload()
     }
   }
 
@@ -1114,6 +1267,15 @@ export function LabDocumentDialog({
         </div>
       </DialogContent>
     </Dialog>
+      <DuplicateFileDialog
+        open={showDuplicateDialog}
+        onOpenChange={setShowDuplicateDialog}
+        onCancel={handleDuplicateCancel}
+        onContinue={handleDuplicateContinue}
+        existingDocument={duplicateInfo?.existingDocument || null}
+        fileName={duplicateInfo?.fileName || ''}
+        fileSize={duplicateInfo?.fileSize || 0}
+      />
     </>
   )
 }

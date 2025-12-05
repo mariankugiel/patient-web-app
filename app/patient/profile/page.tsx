@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import * as z from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { useLanguage } from "@/contexts/language-context"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "react-toastify"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ProfilePictureUpload } from "@/components/profile-picture-upload"
 import { LocationSearch } from "@/components/ui/location-search"
@@ -21,14 +21,15 @@ import { timezones } from "@/lib/timezones"
 import { Save } from "lucide-react"
 import { useSelector, useDispatch } from "react-redux"
 import { RootState } from "@/lib/store"
-import { updateUser } from "@/lib/features/auth/authSlice"
+import { updateUser, fetchProfileSuccess, updateProfile } from "@/lib/features/auth/authSlice"
 import { AuthApiService, AuthAPI } from "@/lib/api/auth-api"
 import { getProfilePictureUrl } from "@/lib/profile-utils"
 import { useSwitchedPatient } from "@/contexts/patient-context"
 import { getFirstAccessiblePage } from "@/lib/utils/patient-navigation"
 import { useRouter } from "next/navigation"
 
-const profileFormSchema = z.object({
+// Schema will be created inside component to access translations
+const createProfileFormSchema = (t: (key: string) => string) => z.object({
   firstName: z.string().min(2, { message: "First name must be at least 2 characters." }),
   lastName: z.string().min(2, { message: "Last name must be at least 2 characters." }),
   dob: z.string(),
@@ -37,15 +38,15 @@ const profileFormSchema = z.object({
   weight: z.string(),
   waistDiameter: z.string(),
   bloodType: z.string(),
-  email: z.string().email({ message: "Please enter a valid email address." }),
+  email: z.string().email({ message: t("common.pleaseEnterValidEmail") }),
   countryCode: z.string(),
   countryName: z.string().optional(),
-  mobileNumber: z.string().min(5, { message: "Please enter a valid mobile number." }),
+  mobileNumber: z.string().min(5, { message: t("common.pleaseEnterValidMobile") }),
   location: z.string().min(5, { message: "Location must be at least 5 characters." }),
   timezone: z.string(),
 })
 
-type ProfileFormValues = z.infer<typeof profileFormSchema>
+type ProfileFormValues = z.infer<ReturnType<typeof createProfileFormSchema>>
 
 const defaultValues: Partial<ProfileFormValues> = {
   firstName: "John",
@@ -68,7 +69,6 @@ export default function ProfileTabPage() {
   const dispatch = useDispatch()
   const router = useRouter()
   const { t, language, setLanguage } = useLanguage()
-  const { toast } = useToast()
   const { patientToken, isViewingOtherPatient, switchedPatientInfo } = useSwitchedPatient()
   const [selectedLanguage, setSelectedLanguage] = useState(language)
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">("light")
@@ -76,6 +76,7 @@ export default function ProfileTabPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isProfileLoading, setIsProfileLoading] = useState(true)
   const { user } = useSelector((state: RootState) => state.auth)
+  const profileFormSchema = useMemo(() => createProfileFormSchema(t), [t])
   const form = useForm<ProfileFormValues>({ resolver: zodResolver(profileFormSchema), defaultValues })
 
   // Redirect away from profile page if viewing another patient
@@ -116,6 +117,7 @@ export default function ProfileTabPage() {
   }, [])
 
   // Load user profile data (only for current user, not when viewing another patient)
+  // Always fetch fresh profile data on this page
   useEffect(() => {
     const loadProfile = async () => {
       // Don't load profile if viewing another patient (should have been redirected)
@@ -137,6 +139,8 @@ export default function ProfileTabPage() {
         console.log("📥 Calling AuthApiService.getProfile()...")
         const profileData = await AuthApiService.getProfile()
         console.log("📦 Profile data received:", profileData)
+        // Update Redux with fresh profile data
+        dispatch(fetchProfileSuccess(profileData))
         
         // Always populate the form with data, even if some fields are null/empty
         if (profileData) {
@@ -233,12 +237,8 @@ export default function ProfileTabPage() {
         } else {
           // Only log and show toast for non-connection errors
           console.error("❌ Error loading profile:", error)
-          const errorMessage = error?.response?.data?.detail || error?.message || "Failed to load profile"
-          toast({
-            title: "Error",
-            description: errorMessage,
-            variant: "destructive",
-          })
+          const errorMessage = error?.response?.data?.detail || error?.message || t("common.failedToLoadProfile")
+          toast.error(errorMessage)
         }
       } finally {
         setIsProfileLoading(false)
@@ -251,11 +251,7 @@ export default function ProfileTabPage() {
 
   async function onSubmit(data: ProfileFormValues) {
     if (!user?.id) {
-      toast({
-        title: "Error",
-        description: "You must be logged in to update your profile.",
-        variant: "destructive",
-      })
+      toast.error(t("common.failedToLoadProfile") || "Failed to load profile")
       return
     }
     
@@ -305,32 +301,75 @@ export default function ProfileTabPage() {
       
       console.log("💾 Saved all profile data including preferences")
       
-      toast({
-        title: t("profile.updateSuccess") || "Profile updated",
-        description: t("profile.updateSuccessDesc") || "Your profile has been updated successfully.",
-        duration: 3000,
-      })
+      toast.success(t("profile.updateSuccessDesc") || "Your profile has been updated successfully.")
     } catch (error: any) {
       console.error("Error updating profile:", error)
-      toast({
-        title: "Error",
-        description: error.message || "An unexpected error occurred while updating your profile.",
-        variant: "destructive",
-        duration: 3000,
-      })
+      toast.error(error.message || t("common.failedToLoadProfile") || "Failed to update profile")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const savePreferences = () => {
-    if (selectedLanguage !== language) setLanguage(selectedLanguage as "en" | "es" | "pt")
-    localStorage.setItem("theme", selectedTheme)
-    toast({
-      title: t("preferences.savedSuccessfully") || "Preferences saved",
-      description: t("preferences.savedSuccessfullyDesc") || "Your preferences have been saved successfully.",
-      duration: 3000,
-    })
+  const savePreferences = async () => {
+    if (!user?.id) {
+      toast.error(t("common.failedToLoadProfile") || "Failed to load profile")
+      return
+    }
+
+    try {
+      // Prepare update data
+      const updateData: any = {
+        language: selectedLanguage,
+        theme: selectedTheme,
+      }
+
+      // Remove undefined values
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === undefined || updateData[key] === null) {
+          delete updateData[key]
+        }
+      })
+
+      console.log("💾 Saving preferences to backend:", updateData)
+
+      // Save via backend API
+      await AuthApiService.updateProfile(updateData)
+
+      // Update language context IMMEDIATELY before Redux updates
+      // This ensures the UI updates right away
+      if (selectedLanguage !== language) {
+        setLanguage(selectedLanguage as "en" | "es" | "pt")
+        // Also save to localStorage immediately
+        if (typeof window !== 'undefined') {
+          localStorage.setItem("language", selectedLanguage)
+        }
+      }
+
+      // Update Redux state with new profile data
+      dispatch(updateProfile({
+        language: selectedLanguage,
+        theme: selectedTheme,
+      }))
+
+      // Also update user_metadata
+      dispatch(updateUser({
+        user_metadata: {
+          ...user?.user_metadata,
+          language: selectedLanguage,
+          theme: selectedTheme,
+        }
+      }))
+
+      // Save theme to localStorage
+      localStorage.setItem("theme", selectedTheme)
+
+      console.log("💾 Preferences saved successfully")
+
+      toast.success(t("preferences.savedSuccessfullyDesc") || "Your preferences have been saved successfully.")
+    } catch (error: any) {
+      console.error("Error updating preferences:", error)
+      toast.error(error.message || t("common.failedToLoadProfile") || "Failed to save preferences")
+    }
   }
 
   return (
@@ -373,9 +412,9 @@ export default function ProfileTabPage() {
                     name="firstName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>First Name</FormLabel>
+                        <FormLabel>{t("profile.firstName")}</FormLabel>
                         <FormControl>
-                          <Input placeholder="Your first name" {...field} disabled={isViewingOtherPatient} />
+                          <Input placeholder={t("profile.placeholderFirstName")} {...field} disabled={isViewingOtherPatient} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -386,9 +425,9 @@ export default function ProfileTabPage() {
                     name="lastName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Last Name</FormLabel>
+                        <FormLabel>{t("profile.lastName")}</FormLabel>
                         <FormControl>
-                          <Input placeholder="Your last name" {...field} disabled={isViewingOtherPatient} />
+                          <Input placeholder={t("profile.placeholderLastName")} {...field} disabled={isViewingOtherPatient} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -399,7 +438,7 @@ export default function ProfileTabPage() {
                     name="height"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Height</FormLabel>
+                        <FormLabel>{t("profile.height")}</FormLabel>
                         <FormControl>
                           <div className="relative">
                             <Input type="number" placeholder="178" {...field} className="pr-10 w-full" disabled={isViewingOtherPatient} />
@@ -415,7 +454,7 @@ export default function ProfileTabPage() {
                     name="weight"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Weight</FormLabel>
+                        <FormLabel>{t("profile.weight")}</FormLabel>
                         <FormControl>
                           <div className="relative">
                             <Input type="number" placeholder="80" {...field} className="pr-10 w-full" disabled={isViewingOtherPatient} />
@@ -434,7 +473,7 @@ export default function ProfileTabPage() {
                     name="dob"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Date of Birth</FormLabel>
+                        <FormLabel>{t("profile.dateOfBirth")}</FormLabel>
                         <FormControl>
                           <Input type="date" {...field} className="w-full" disabled={isViewingOtherPatient} />
                         </FormControl>
@@ -447,18 +486,18 @@ export default function ProfileTabPage() {
                     name="gender"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Gender</FormLabel>
+                        <FormLabel>{t("profile.gender")}</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value} disabled={isViewingOtherPatient}>
                           <FormControl>
                             <SelectTrigger className="w-full" disabled={isViewingOtherPatient}>
-                              <SelectValue placeholder="Select" />
+                              <SelectValue placeholder={t("common.select")} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="male">Male</SelectItem>
-                            <SelectItem value="female">Female</SelectItem>
-                            <SelectItem value="other">Other</SelectItem>
-                            <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
+                            <SelectItem value="male">{t("profile.genderMale")}</SelectItem>
+                            <SelectItem value="female">{t("profile.genderFemale")}</SelectItem>
+                            <SelectItem value="other">{t("profile.genderOther")}</SelectItem>
+                            <SelectItem value="prefer-not-to-say">{t("profile.genderPreferNotToSay")}</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -470,7 +509,7 @@ export default function ProfileTabPage() {
                     name="waistDiameter"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Waist Diameter</FormLabel>
+                        <FormLabel>{t("profile.waistDiameter")}</FormLabel>
                         <FormControl>
                           <div className="relative">
                             <Input type="number" placeholder="90" {...field} className="pr-10 w-full" disabled={isViewingOtherPatient} />
@@ -486,11 +525,11 @@ export default function ProfileTabPage() {
                     name="bloodType"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Blood Type</FormLabel>
+                        <FormLabel>{t("profile.bloodType")}</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value} disabled={isViewingOtherPatient}>
                           <FormControl>
                             <SelectTrigger className="w-full" disabled={isViewingOtherPatient}>
-                              <SelectValue placeholder="Select" />
+                              <SelectValue placeholder={t("common.select")} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -516,9 +555,9 @@ export default function ProfileTabPage() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel>{t("profile.email")}</FormLabel>
                         <FormControl>
-                          <Input type="email" placeholder="your.email@example.com" {...field} disabled={isViewingOtherPatient} />
+                          <Input type="email" placeholder={t("profile.placeholderEmail")} {...field} disabled={isViewingOtherPatient} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -526,7 +565,7 @@ export default function ProfileTabPage() {
                   />
 
                   <div>
-                    <Label>Mobile Number</Label>
+                    <Label>{t("profile.mobileNumber")}</Label>
                     <div className="flex gap-2 mt-2">
                       <FormField
                         control={form.control}
@@ -573,7 +612,7 @@ export default function ProfileTabPage() {
                         render={({ field }) => (
                           <FormItem className="flex-1">
                             <FormControl>
-                              <Input type="tel" placeholder="555 123 4567" {...field} disabled={isViewingOtherPatient} />
+                              <Input type="tel" placeholder={t("profile.placeholderMobile")} {...field} disabled={isViewingOtherPatient} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -589,12 +628,12 @@ export default function ProfileTabPage() {
                     name="location"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Location</FormLabel>
+                        <FormLabel>{t("profile.location")}</FormLabel>
                         <FormControl>
                           <LocationSearch
                             value={field.value}
                             onChange={(location) => field.onChange(location)}
-                            placeholder="City, State/Country"
+                            placeholder={t("profile.placeholderLocation")}
                             className={isViewingOtherPatient ? "pointer-events-none opacity-70" : undefined}
                           />
                         </FormControl>
@@ -608,11 +647,11 @@ export default function ProfileTabPage() {
                     name="timezone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Time Zone</FormLabel>
+                        <FormLabel>{t("profile.timeZone")}</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value} disabled={isViewingOtherPatient}>
                           <FormControl>
                             <SelectTrigger disabled={isViewingOtherPatient}>
-                              <SelectValue placeholder="Select timezone" />
+                              <SelectValue placeholder={t("common.selectTimezone")} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent className="max-h-[300px]">
@@ -633,28 +672,28 @@ export default function ProfileTabPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
                   <div className="space-y-2">
-                    <Label htmlFor="language">Language</Label>
+                    <Label htmlFor="language">{t("profile.language")}</Label>
                     <Select value={selectedLanguage} onValueChange={(v) => setSelectedLanguage(v as "en" | "es" | "pt")} disabled={isViewingOtherPatient}>
                       <SelectTrigger id="language" disabled={isViewingOtherPatient}>
-                        <SelectValue placeholder="Select language" />
+                        <SelectValue placeholder={t("common.selectLanguage")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="en">English</SelectItem>
-                        <SelectItem value="es">Español</SelectItem>
-                        <SelectItem value="pt">Português</SelectItem>
+                        <SelectItem value="en">{t("profile.english")}</SelectItem>
+                        <SelectItem value="es">{t("profile.español")}</SelectItem>
+                        <SelectItem value="pt">{t("profile.portuguese")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="theme">Theme</Label>
+                    <Label htmlFor="theme">{t("profile.theme")}</Label>
                     <Select value={selectedTheme} onValueChange={(value: any) => setSelectedTheme(value)} disabled={isViewingOtherPatient}>
                       <SelectTrigger id="theme" disabled={isViewingOtherPatient}>
-                        <SelectValue placeholder="Select theme" />
+                        <SelectValue placeholder={t("common.selectTheme")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="light">Light</SelectItem>
-                        <SelectItem value="dark">Dark</SelectItem>
+                        <SelectItem value="light">{t("profile.light")}</SelectItem>
+                        <SelectItem value="dark">{t("profile.dark")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

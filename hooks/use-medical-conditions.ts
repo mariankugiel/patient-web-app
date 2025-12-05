@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'react-toastify'
 import { MedicalConditionApiService, BackendMedicalCondition, BackendFamilyHistory } from '@/lib/api/medical-condition-api'
+import { useLanguage } from '@/contexts/language-context'
 
 // ============================================================================
 // TYPES
@@ -48,6 +49,7 @@ export interface FamilyHistoryEntry {
 // ============================================================================
 
 export function useCurrentMedicalConditions() {
+  const { language } = useLanguage()
   const [conditions, setConditions] = useState<CurrentCondition[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -213,6 +215,7 @@ export function useCurrentMedicalConditions() {
 // ============================================================================
 
 export function usePastMedicalConditions() {
+  const { language } = useLanguage()
   const [conditions, setConditions] = useState<PastCondition[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -420,6 +423,7 @@ export function usePastMedicalConditions() {
 // ============================================================================
 
 export function useFamilyMedicalHistory() {
+  const { language } = useLanguage()
   const [history, setHistory] = useState<FamilyHistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

@@ -33,6 +33,7 @@ import { logout } from '@/lib/features/auth/authSlice'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
 import { useSwitchedPatient } from '@/contexts/patient-context'
+import { fetchUserProfile } from '@/lib/features/auth/authThunks'
 
 interface UserMenuDropdownProps {
   onLogout?: () => void
@@ -375,9 +376,14 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId, patientToken, isViewingOtherPatient])
 
+  // Get current user's avatar URL from Redux profile
+  const profile = useSelector((state: RootState) => state.auth.profile)
+  
   // ALWAYS display current user's info in dropdown (not the switched user)
   // The dropdown should always show who is logged in, not who they're viewing
-  const displayName = (user?.user_metadata?.full_name?.trim() || 
+  // Prioritize profile data (from Supabase) as it's more up-to-date, fallback to user_metadata, then email
+  const displayName = (profile?.full_name?.trim() || 
+                       user?.user_metadata?.full_name?.trim() || 
                        (user?.email ? user.email.split('@')[0] : null) || 
                        'User') || 'User'
   const displayEmail = user?.email || ''
@@ -404,31 +410,9 @@ export function UserMenuDropdown({ onLogout }: UserMenuDropdownProps) {
       return '?'
     }
   }
-  
-  // Get current user's avatar URL (always show current user's avatar in dropdown)
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  
-  useEffect(() => {
-    const fetchAvatar = async () => {
-      // Always fetch current user's avatar for dropdown
-      if (!user?.id) {
-        setAvatarUrl(null)
-        return
-      }
-      
-      try {
-        const profile = await AuthAPI.getProfile()
-        const avatar = profile.avatar_url || null
-        // Only set avatar if it's a valid non-empty string
-        setAvatarUrl(avatar && avatar.trim() && avatar !== 'null' ? avatar : null)
-      } catch (error) {
-        // Silently fail - avatar is optional, fallback to initials will be used
-        setAvatarUrl(null)
-      }
-    }
-    
-    fetchAvatar()
-  }, [user?.id])
+  const avatarUrl = profile?.avatar_url && profile.avatar_url.trim() && profile.avatar_url !== 'null' 
+    ? profile.avatar_url 
+    : null
 
   const currentUser = accessiblePatients.find(p => p.granted_for === "Self")
   const otherPatients = accessiblePatients.filter(p => p.granted_for !== "Self" && p.granted_for !== undefined)

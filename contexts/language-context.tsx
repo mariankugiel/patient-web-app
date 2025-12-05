@@ -2,6 +2,8 @@
 
 import { createContext, useState, useEffect, useContext, type ReactNode } from "react"
 import { translations as translationsData, getTranslation, type Language as TranslationLanguage } from "@/lib/translations"
+import { useSelector } from "react-redux"
+import { RootState } from "@/lib/store"
 
 // Define available languages (map to translations.ts format)
 export type Language = "en" | "es" | "pt"
@@ -27,22 +29,72 @@ const LanguageContext = createContext<LanguageContextType>({
   t: (key: string) => key,
 })
 
+// Helper function to get initial language
+function getInitialLanguage(): Language {
+  // Always return "en" for initial state to match server-side rendering
+  // The language will be updated from Redux/profile in useEffect after hydration
+  return "en"
+}
+
 // Create the provider component
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  // Try to get the saved language from localStorage, default to English
-  const [language, setLanguage] = useState<Language>("en")
+  // Get user profile from Redux to check for language preference
+  const profile = useSelector((state: RootState) => state.auth.profile)
+  const user = useSelector((state: RootState) => state.auth.user)
+  
+  // Initialize with default "en" to match server-side rendering
+  // We'll update it from Redux state or localStorage in useEffect after hydration
+  const [language, setLanguage] = useState<Language>(getInitialLanguage)
+  const [isHydrated, setIsHydrated] = useState(false)
 
-  // Load language from localStorage on mount
+  // Mark as hydrated after first render
   useEffect(() => {
-    const savedLanguage = localStorage.getItem("language") as Language
-    if (savedLanguage && ["en", "es", "pt"].includes(savedLanguage)) {
-      setLanguage(savedLanguage)
-    }
+    setIsHydrated(true)
   }, [])
+
+  // Load language from user profile when it becomes available
+  useEffect(() => {
+    // Only update language after hydration to prevent mismatch
+    if (!isHydrated) return
+    
+    // Priority: 1. Profile language, 2. User metadata language, 3. localStorage, 4. Default "en"
+    const profileLanguage = profile?.language as Language
+    const userMetadataLanguage = user?.user_metadata?.language as Language
+    
+    // Determine the new language to use
+    const newLanguage = profileLanguage && ["en", "es", "pt"].includes(profileLanguage)
+      ? profileLanguage
+      : userMetadataLanguage && ["en", "es", "pt"].includes(userMetadataLanguage)
+      ? userMetadataLanguage
+      : typeof window !== 'undefined'
+      ? (localStorage.getItem("language") as Language)
+      : null
+    
+    // Only update if the language actually changed to avoid unnecessary updates
+    // Also check localStorage to see if there's a more recent manual update
+    if (typeof window !== 'undefined') {
+      const localStorageLanguage = localStorage.getItem("language") as Language
+      // If localStorage has a different language than what we're about to set,
+      // and it's different from current, prefer localStorage (manual update takes precedence)
+      if (localStorageLanguage && ["en", "es", "pt"].includes(localStorageLanguage) && localStorageLanguage !== language) {
+        setLanguage(localStorageLanguage)
+        return
+      }
+    }
+    
+    if (newLanguage && ["en", "es", "pt"].includes(newLanguage) && newLanguage !== language) {
+      setLanguage(newLanguage)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem("language", newLanguage)
+      }
+    }
+  }, [profile?.language, user?.user_metadata?.language, isHydrated, language])
 
   // Save language to localStorage when it changes
   useEffect(() => {
+    if (typeof window !== 'undefined') {
     localStorage.setItem("language", language)
+    }
   }, [language])
 
   // Translation function using nested structure

@@ -92,7 +92,6 @@ export const timezones: TimezoneItem[] = [
   { value: "Australia/Darwin", label: "Australian Central Time - Darwin (ACT)", group: "Australia & Pacific" },
   { value: "Pacific/Auckland", label: "New Zealand Time (NZST)", group: "Australia & Pacific" },
   { value: "Pacific/Fiji", label: "Fiji Time (FJT)", group: "Australia & Pacific" },
-  { value: "Pacific/Honolulu", label: "Hawaii Time (HST)", group: "Australia & Pacific" },
   
   // UTC
   { value: "UTC", label: "Coordinated Universal Time (UTC)", group: "UTC" },

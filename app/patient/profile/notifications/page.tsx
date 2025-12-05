@@ -11,10 +11,11 @@ import { Save } from "lucide-react"
 import { useSelector } from "react-redux"
 import { RootState } from "@/lib/store"
 import { AuthApiService } from "@/lib/api/auth-api"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "react-toastify"
+import { useLanguage } from "@/contexts/language-context"
 
 export default function NotificationsTabPage() {
-  const { toast } = useToast()
+  const { t } = useLanguage()
   const user = useSelector((state: RootState) => state.auth.user)
   const [isLoading, setIsLoading] = useState(false)
   
@@ -78,11 +79,7 @@ export default function NotificationsTabPage() {
 
   const savePreferences = async () => {
     if (!user?.id) {
-      toast({
-        title: "Error",
-        description: "You must be logged in to update your preferences.",
-        variant: "destructive",
-      })
+      toast.error("You must be logged in to update your preferences.")
       return
     }
     
@@ -110,19 +107,10 @@ export default function NotificationsTabPage() {
       
       console.log("💾 Notifications saved")
       
-      toast({
-        title: "Preferences updated",
-        description: "Your notification preferences have been saved successfully.",
-        duration: 3000,
-      })
+      toast.success(t("preferences.savedSuccessfullyDesc") || "Your notification preferences have been saved successfully.")
     } catch (error: any) {
       console.error("Error saving notifications:", error)
-      toast({
-        title: "Error",
-        description: error.message || "An unexpected error occurred.",
-        variant: "destructive",
-        duration: 3000,
-      })
+      toast.error(error.message || "An unexpected error occurred.")
     } finally {
       setIsLoading(false)
     }
@@ -132,32 +120,32 @@ export default function NotificationsTabPage() {
     <Card>
       <CardContent className="pt-6 space-y-6">
         <div>
-          <h3 className="text-lg font-medium mb-2">Notification Preferences</h3>
-          <p className="text-sm text-muted-foreground mb-6">Choose how you want to receive notifications for different events</p>
+          <h3 className="text-lg font-medium mb-2">{t("profile.notificationPreferences")}</h3>
+          <p className="text-sm text-muted-foreground mb-6">{t("profile.notificationPreferencesDesc")}</p>
 
           <div className="overflow-x-auto">
             <div className="min-w-[700px]">
               <div className="grid grid-cols-5 gap-4 pb-4 border-b">
-                <div className="font-medium text-sm">Notification Type</div>
-                <div className="font-medium text-sm text-center">Email</div>
-                <div className="font-medium text-sm text-center">SMS</div>
-                <div className="font-medium text-sm text-center">WhatsApp</div>
-                <div className="font-medium text-sm text-center">Mobile App</div>
+                <div className="font-medium text-sm">{t("profile.notificationType")}</div>
+                <div className="font-medium text-sm text-center">{t("profile.notificationEmail")}</div>
+                <div className="font-medium text-sm text-center">{t("profile.notificationSms")}</div>
+                <div className="font-medium text-sm text-center">{t("profile.notificationWhatsapp")}</div>
+                <div className="font-medium text-sm text-center">{t("profile.notificationMobileApp")}</div>
               </div>
 
               <div className="grid grid-cols-5 gap-4 py-4 border-b items-center hover:bg-muted/50 transition-colors">
                 <div className="space-y-2">
-                  <div className="font-medium text-sm">Appointment Reminders</div>
-                  <p className="text-xs text-muted-foreground mb-2">Upcoming appointments</p>
+                  <div className="font-medium text-sm">{t("profile.appointmentReminders")}</div>
+                  <p className="text-xs text-muted-foreground mb-2">{t("profile.appointmentRemindersDesc")}</p>
                   <Select value={accountSettings.appointmentHoursBefore} onValueChange={(value) => setAccountSettings((p) => ({ ...p, appointmentHoursBefore: value }))}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1">1 hour before</SelectItem>
-                      <SelectItem value="2">2 hours before</SelectItem>
-                      <SelectItem value="4">4 hours before</SelectItem>
-                      <SelectItem value="12">12 hours before</SelectItem>
-                      <SelectItem value="24">24 hours before</SelectItem>
-                      <SelectItem value="48">48 hours before</SelectItem>
+                      <SelectItem value="1">1 {t("profile.hourBefore")}</SelectItem>
+                      <SelectItem value="2">2 {t("profile.hoursBefore")}</SelectItem>
+                      <SelectItem value="4">4 {t("profile.hoursBefore")}</SelectItem>
+                      <SelectItem value="12">12 {t("profile.hoursBefore")}</SelectItem>
+                      <SelectItem value="24">24 {t("profile.hoursBefore")}</SelectItem>
+                      <SelectItem value="48">48 {t("profile.hoursBefore")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -169,17 +157,17 @@ export default function NotificationsTabPage() {
 
               <div className="grid grid-cols-5 gap-4 py-4 border-b items-center hover:bg-muted/50 transition-colors">
                 <div className="space-y-2">
-                  <div className="font-medium text-sm">Medication Reminders</div>
-                  <p className="text-xs text-muted-foreground mb-2">Time to take medications</p>
+                  <div className="font-medium text-sm">{t("profile.medicationReminders")}</div>
+                  <p className="text-xs text-muted-foreground mb-2">{t("profile.medicationRemindersDesc")}</p>
                   <Select value={accountSettings.medicationMinutesBefore} onValueChange={(value) => setAccountSettings((p) => ({ ...p, medicationMinutesBefore: value }))}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="0">At medication time</SelectItem>
-                      <SelectItem value="5">5 minutes before</SelectItem>
-                      <SelectItem value="10">10 minutes before</SelectItem>
-                      <SelectItem value="15">15 minutes before</SelectItem>
-                      <SelectItem value="30">30 minutes before</SelectItem>
-                      <SelectItem value="60">1 hour before</SelectItem>
+                      <SelectItem value="0">{t("profile.atMedicationTime")}</SelectItem>
+                      <SelectItem value="5">5 {t("profile.minutesBefore")}</SelectItem>
+                      <SelectItem value="10">10 {t("profile.minutesBefore")}</SelectItem>
+                      <SelectItem value="15">15 {t("profile.minutesBefore")}</SelectItem>
+                      <SelectItem value="30">30 {t("profile.minutesBefore")}</SelectItem>
+                      <SelectItem value="60">1 {t("profile.hourBefore")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -191,8 +179,8 @@ export default function NotificationsTabPage() {
 
               <div className="grid grid-cols-5 gap-4 py-4 border-b items-center hover:bg-muted/50 transition-colors">
                 <div className="space-y-2">
-                  <div className="font-medium text-sm">Tasks Reminders</div>
-                  <p className="text-xs text-muted-foreground mb-2">Pending health tasks</p>
+                  <div className="font-medium text-sm">{t("profile.tasksReminders")}</div>
+                  <p className="text-xs text-muted-foreground mb-2">{t("profile.tasksRemindersDesc")}</p>
                   <Input type="time" value={accountSettings.tasksReminderTime} onChange={(e) => setAccountSettings((p) => ({ ...p, tasksReminderTime: e.target.value }))} className="h-8 text-xs" />
                 </div>
                 <div className="flex justify-center"><Switch checked={accountSettings.emailTasks} onCheckedChange={() => handleToggle("emailTasks")} /></div>
@@ -203,8 +191,8 @@ export default function NotificationsTabPage() {
 
               <div className="grid grid-cols-5 gap-4 py-4 items-center hover:bg-muted/50 transition-colors">
                 <div>
-                  <div className="font-medium text-sm">Newsletter</div>
-                  <p className="text-xs text-muted-foreground">Health tips and updates</p>
+                  <div className="font-medium text-sm">{t("profile.newsletter")}</div>
+                  <p className="text-xs text-muted-foreground">{t("profile.newsletterDesc")}</p>
                 </div>
                 <div className="flex justify-center"><Switch checked={accountSettings.emailNewsletter} onCheckedChange={() => handleToggle("emailNewsletter")} /></div>
                 <div className="flex justify-center"><span className="text-xs text-muted-foreground">—</span></div>
@@ -215,7 +203,7 @@ export default function NotificationsTabPage() {
           </div>
         </div>
 
-        <Button className="bg-teal-600 hover:bg-teal-700" onClick={savePreferences} disabled={isLoading}><Save className="mr-2 h-4 w-4" />{isLoading ? "Saving..." : "Save Preferences"}</Button>
+        <Button className="bg-teal-600 hover:bg-teal-700" onClick={savePreferences} disabled={isLoading}><Save className="mr-2 h-4 w-4" />{isLoading ? t("profile.saving") : t("profile.saveNotificationPreferences")}</Button>
       </CardContent>
     </Card>
   )

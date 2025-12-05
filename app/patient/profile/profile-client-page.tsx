@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
+import { useDispatch, useSelector } from "react-redux"
 import { Button } from "@/components/ui/button"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
@@ -26,11 +27,14 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { useLanguage } from "@/contexts/language-context"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "react-toastify"
 import { ProfilePictureUpload } from "@/components/profile-picture-upload"
 import { LocationSearch } from "@/components/ui/location-search"
 import { countryCodes } from "@/lib/country-codes"
 import { TimezoneSelector } from "@/components/ui/timezone-selector"
+import { AuthApiService } from "@/lib/api/auth-api"
+import { updateUser, fetchProfileSuccess, updateProfile } from "@/lib/features/auth/authSlice"
+import { RootState } from "@/lib/store"
 
 const profileFormSchema = z.object({
   firstName: z.string().min(2, {
@@ -123,11 +127,19 @@ const passwordChangeSchema = z
 type PasswordChangeFormValues = z.infer<typeof passwordChangeSchema>
 
 export default function ProfileClientPage() {
+  const dispatch = useDispatch()
+  const { user, profile } = useSelector((state: RootState) => state.auth)
   const { t, language, setLanguage } = useLanguage()
   const [selectedLanguage, setSelectedLanguage] = useState(language)
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">("light")
-  const { toast } = useToast()
   const [profileImage, setProfileImage] = useState("/middle-aged-man-profile.png")
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false)
+
+  // Get user's display name - prioritize profile data, fallback to user_metadata, then email
+  const displayName = profile?.full_name?.trim() || 
+                      user?.user_metadata?.full_name?.trim() || 
+                      user?.email?.split('@')[0] || 
+                      t("common.user")
 
   useEffect(() => {
     if (selectedTheme === "dark") {
@@ -268,11 +280,7 @@ export default function ProfileClientPage() {
 
   const handleRemoveContact = (id: number) => {
     setEmergencyContacts((prev) => prev.filter((contact) => contact.id !== id))
-    toast({
-      title: "Contact removed",
-      description: "Emergency contact has been removed successfully.",
-      duration: 3000,
-  })
+    toast.success("Emergency contact has been removed successfully.")
   }
 
   const onSubmitEmergencyContact = (data: EmergencyContactFormValues) => {
@@ -282,11 +290,7 @@ export default function ProfileClientPage() {
           contact.id === editingContactId ? { ...contact, ...data, email: data.email || "" } : contact,
         ),
       )
-      toast({
-        title: "Contact updated",
-        description: "Emergency contact has been updated successfully.",
-        duration: 3000,
-      })
+      toast.success("Emergency contact has been updated successfully.")
     } else {
       const newContact: EmergencyContact = {
         id: Math.max(...emergencyContacts.map((c) => c.id), 0) + 1,
@@ -294,40 +298,24 @@ export default function ProfileClientPage() {
         email: data.email || "",
       }
       setEmergencyContacts((prev) => [...prev, newContact])
-      toast({
-        title: "Contact added",
-        description: "Emergency contact has been added successfully.",
-        duration: 3000,
-      })
+      toast.success("Emergency contact has been added successfully.")
     }
     setEmergencyContactDialogOpen(false)
   }
 
   const onSubmitEmergencyInfo = (data: EmergencyInfoFormValues) => {
     console.log(data)
-    toast({
-      title: "Emergency information updated",
-      description: "Your emergency information has been saved successfully.",
-      duration: 3000,
-    })
+    toast.success("Your emergency information has been saved successfully.")
   }
 
   const handleMobileSync = (platform: "ios" | "android") => {
-    toast({
-      title: "Syncing to mobile",
-      description: `Your emergency information is being synced to your ${platform === "ios" ? "iOS" : "Android"} device.`,
-      duration: 3000,
-    })
+    toast.info(`Your emergency information is being synced to your ${platform === "ios" ? "iOS" : "Android"} device.`)
     setMobileSyncDialogOpen(false)
   }
 
   function onSubmit(data: ProfileFormValues) {
     console.log(data)
-    toast({
-      title: t("profile.updateSuccess") || "Profile updated",
-      description: t("profile.updateSuccessDesc") || "Your profile has been updated successfully.",
-      duration: 3000,
-    })
+    toast.success(t("profile.updateSuccessDesc") || "Your profile has been updated successfully.")
   }
 
   const handleToggle = (key: keyof typeof accountSettings) => {
@@ -337,36 +325,85 @@ export default function ProfileClientPage() {
     }))
   }
 
-  const savePreferences = () => {
-    if (selectedLanguage !== language) {
-      setLanguage(selectedLanguage as "en" | "es" | "pt")
+  const savePreferences = async () => {
+    if (!user?.id) {
+      toast.error(t("common.failedToLoadProfile") || "Failed to load profile")
+      return
     }
 
+    setIsSavingPreferences(true)
+
+    try {
+      // Prepare update data
+      const updateData: any = {
+        language: selectedLanguage,
+        theme: selectedTheme,
+      }
+
+      // Remove undefined values
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === undefined || updateData[key] === null) {
+          delete updateData[key]
+        }
+      })
+
+      console.log("💾 Saving preferences to backend:", updateData)
+
+      // Save via backend API
+      const updatedProfile = await AuthApiService.updateProfile(updateData)
+
+      // Update language context IMMEDIATELY before Redux updates
+      // This ensures the UI updates right away
+    if (selectedLanguage !== language) {
+      setLanguage(selectedLanguage as "en" | "es" | "pt")
+        // Also save to localStorage immediately
+        if (typeof window !== 'undefined') {
+          localStorage.setItem("language", selectedLanguage)
+        }
+      }
+
+      // Update Redux state with new profile data
+      dispatch(updateProfile({
+        language: selectedLanguage,
+        theme: selectedTheme,
+      }))
+
+      // Also update user_metadata
+      dispatch(updateUser({
+        user_metadata: {
+          ...user?.user_metadata,
+          language: selectedLanguage,
+          theme: selectedTheme,
+        }
+      }))
+
+      // Also update the profile in Redux if it exists
+      if (updatedProfile) {
+        dispatch(fetchProfileSuccess(updatedProfile))
+      }
+
+      // Save theme to localStorage
     localStorage.setItem("theme", selectedTheme)
 
-    toast({
-      title: t("preferences.savedSuccessfully") || "Preferences saved",
-      description: t("preferences.savedSuccessfullyDesc") || "Your preferences have been saved successfully.",
-      duration: 3000,
-    })
+      console.log("💾 Preferences saved successfully")
+
+      toast.success(t("preferences.savedSuccessfullyDesc") || "Your preferences have been saved successfully.")
+    } catch (error: any) {
+      console.error("Error updating preferences:", error)
+      toast.error(error.message || t("common.failedToLoadProfile") || "Failed to save preferences")
+    } finally {
+      setIsSavingPreferences(false)
+    }
   }
 
   const handleDataExport = () => {
-    toast({
-      title: "Data export requested",
-      description: "You will receive an email with your data within 24 hours.",
-      duration: 3000,
-    })
+    toast.info("You will receive an email with your data within 24 hours.")
     setDataExportOpen(false)
   }
 
   const onSubmitPasswordChange = (data: PasswordChangeFormValues) => {
     console.log("[v0] Password change data:", data)
-    toast({
-      title: "Password updated",
-      description: "Your password has been changed successfully.",
-      duration: 3000,
-    })
+    toast.success("Your password has been changed successfully.")
     passwordForm.reset()
     setNewPasswordValue("")
   }
@@ -379,7 +416,7 @@ export default function ProfileClientPage() {
           <AvatarFallback>JS</AvatarFallback>
         </Avatar>
         <div className="text-center sm:text-left">
-          <h1 className="text-2xl font-bold tracking-tight text-primary">{t("greeting.morning")}, John!</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-primary">{t("greeting.morning")}, {displayName}!</h1>
           <p className="text-muted-foreground">{t("profile.manageProfile")}</p>
         </div>
       </div>
@@ -403,7 +440,7 @@ export default function ProfileClientPage() {
               {t("tabs.integrations")}
             </TabsTrigger>
             <TabsTrigger value="privacy" className="flex-1 sm:flex-none sm:min-w-[100px]">
-              Privacy
+              {t("tabs.privacy")}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -421,9 +458,9 @@ export default function ProfileClientPage() {
                           name="firstName"
                       render={({ field }) => (
                         <FormItem>
-                              <FormLabel>First Name</FormLabel>
+                              <FormLabel>{t("profile.firstName")}</FormLabel>
                           <FormControl>
-                                <Input placeholder="Your first name" {...field} />
+                                <Input placeholder={t("profile.placeholderFirstName")} {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -435,9 +472,9 @@ export default function ProfileClientPage() {
                           name="lastName"
                       render={({ field }) => (
                         <FormItem>
-                              <FormLabel>Last Name</FormLabel>
+                              <FormLabel>{t("profile.lastName")}</FormLabel>
                           <FormControl>
-                                <Input placeholder="Your last name" {...field} />
+                                <Input placeholder={t("profile.placeholderLastName")} {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -451,7 +488,7 @@ export default function ProfileClientPage() {
                           name="dob"
                       render={({ field }) => (
                         <FormItem>
-                              <FormLabel>Date of Birth</FormLabel>
+                              <FormLabel>{t("profile.dateOfBirth")}</FormLabel>
                           <FormControl>
                                 <Input type="date" {...field} className="w-full" />
                           </FormControl>
@@ -465,7 +502,7 @@ export default function ProfileClientPage() {
                           name="gender"
                       render={({ field }) => (
                         <FormItem>
-                              <FormLabel>Gender</FormLabel>
+                              <FormLabel>{t("profile.gender")}</FormLabel>
                               <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                                   <SelectTrigger className="w-full">
@@ -473,10 +510,10 @@ export default function ProfileClientPage() {
                                   </SelectTrigger>
                           </FormControl>
                                 <SelectContent>
-                                  <SelectItem value="male">Male</SelectItem>
-                                  <SelectItem value="female">Female</SelectItem>
-                                  <SelectItem value="other">Other</SelectItem>
-                                  <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
+                                  <SelectItem value="male">{t("profile.genderMale")}</SelectItem>
+                                  <SelectItem value="female">{t("profile.genderFemale")}</SelectItem>
+                                  <SelectItem value="other">{t("profile.genderOther")}</SelectItem>
+                                  <SelectItem value="prefer-not-to-say">{t("profile.genderPreferNotToSay")}</SelectItem>
                                 </SelectContent>
                               </Select>
                           <FormMessage />
@@ -489,7 +526,7 @@ export default function ProfileClientPage() {
                       name="height"
                       render={({ field }) => (
                         <FormItem>
-                              <FormLabel>Height</FormLabel>
+                              <FormLabel>{t("profile.height")}</FormLabel>
                           <FormControl>
                                 <div className="relative">
                                   <Input type="number" placeholder="178" {...field} className="pr-10 w-full" />
@@ -508,7 +545,7 @@ export default function ProfileClientPage() {
                           name="bloodType"
                       render={({ field }) => (
                         <FormItem>
-                              <FormLabel>Blood Type</FormLabel>
+                              <FormLabel>{t("profile.bloodType")}</FormLabel>
                               <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                                   <SelectTrigger className="w-full">
@@ -538,9 +575,9 @@ export default function ProfileClientPage() {
                           name="email"
                         render={({ field }) => (
                           <FormItem>
-                              <FormLabel>Email</FormLabel>
+                              <FormLabel>{t("profile.email")}</FormLabel>
                             <FormControl>
-                                <Input type="email" placeholder="your.email@example.com" {...field} />
+                                <Input type="email" placeholder={t("profile.placeholderEmail")} {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -548,7 +585,7 @@ export default function ProfileClientPage() {
                         />
 
                         <div>
-                          <Label>Mobile Number</Label>
+                          <Label>{t("profile.mobileNumber")}</Label>
                           <div className="flex gap-2 mt-2">
                             <FormField
                               control={form.control}
@@ -600,7 +637,7 @@ export default function ProfileClientPage() {
                               render={({ field }) => (
                                 <FormItem className="flex-1">
                                   <FormControl>
-                                    <Input type="tel" placeholder="555 123 4567" {...field} />
+                                    <Input type="tel" placeholder={t("profile.placeholderMobile")} {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -616,12 +653,12 @@ export default function ProfileClientPage() {
                           name="location"
                         render={({ field }) => (
                           <FormItem>
-                              <FormLabel>Location</FormLabel>
+                              <FormLabel>{t("profile.location")}</FormLabel>
                             <FormControl>
                                 <LocationSearch
                                   value={field.value}
                                   onChange={(location) => field.onChange(location)}
-                                  placeholder="City, State/Country"
+                                  placeholder={t("profile.placeholderLocation")}
                               />
                             </FormControl>
                               <FormMessage />
@@ -634,7 +671,7 @@ export default function ProfileClientPage() {
                           name="timezone"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Time Zone</FormLabel>
+                              <FormLabel>{t("profile.timeZone")}</FormLabel>
                               <FormControl>
                                 <TimezoneSelector
                                   value={field.value}
@@ -654,28 +691,28 @@ export default function ProfileClientPage() {
                         <h3 className="text-lg font-medium">Preferences</h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
                           <div className="space-y-2">
-                            <Label htmlFor="language">Language</Label>
+                            <Label htmlFor="language">{t("profile.language")}</Label>
                             <Select value={selectedLanguage} onValueChange={(v) => setSelectedLanguage(v as "en" | "es" | "pt")}>
                               <SelectTrigger id="language">
                                 <SelectValue placeholder="Select language" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="en">English</SelectItem>
-                                <SelectItem value="es">Español</SelectItem>
-                                <SelectItem value="pt">Português</SelectItem>
+                                <SelectItem value="en">{t("profile.english")}</SelectItem>
+                                <SelectItem value="es">{t("profile.español")}</SelectItem>
+                                <SelectItem value="pt">{t("profile.portuguese")}</SelectItem>
                               </SelectContent>
                             </Select>
                   </div>
 
                           <div className="space-y-2">
-                            <Label htmlFor="theme">Theme</Label>
+                            <Label htmlFor="theme">{t("profile.theme")}</Label>
                             <Select value={selectedTheme} onValueChange={(value: any) => setSelectedTheme(value)}>
                               <SelectTrigger id="theme">
                                 <SelectValue placeholder="Select theme" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="light">Light</SelectItem>
-                                <SelectItem value="dark">Dark</SelectItem>
+                                <SelectItem value="light">{t("profile.light")}</SelectItem>
+                                <SelectItem value="dark">{t("profile.dark")}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -690,7 +727,13 @@ export default function ProfileClientPage() {
 
                     <div className="lg:w-64 flex justify-center lg:justify-start">
                       <div className="sticky top-6">
-                        <ProfilePictureUpload currentImage={profileImage} onImageChange={setProfileImage} />
+                        {user?.id && (
+                          <ProfilePictureUpload 
+                            currentImage={profileImage || "/placeholder-user.jpg"} 
+                            onImageChange={setProfileImage}
+                            userId={user.id}
+                          />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -705,12 +748,12 @@ export default function ProfileClientPage() {
             <CardContent className="pt-6 space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
-                  <h3 className="text-base font-semibold">Emergency Contacts</h3>
-                  <p className="text-xs text-muted-foreground">People to contact in case of emergency</p>
+                  <h3 className="text-base font-semibold">{t("profile.emergencyContacts")}</h3>
+                  <p className="text-xs text-muted-foreground">{t("profile.emergencyContactsDesc")}</p>
                     </div>
                 <Button className="bg-teal-600 hover:bg-teal-700 w-full sm:w-auto h-9" onClick={handleAddContact}>
                   <Plus className="mr-2 h-3.5 w-3.5" />
-                  Add Contact
+                  {t("profile.addContact")}
                 </Button>
                     </div>
 
@@ -754,11 +797,11 @@ export default function ProfileClientPage() {
               <Dialog open={emergencyContactDialogOpen} onOpenChange={setEmergencyContactDialogOpen}>
                 <DialogContent className="sm:max-w-[500px]">
                   <DialogHeader>
-                    <DialogTitle>{editingContactId ? "Edit Emergency Contact" : "Add Emergency Contact"}</DialogTitle>
+                    <DialogTitle>{editingContactId ? t("profile.editEmergencyContact") : t("profile.addEmergencyContact")}</DialogTitle>
                     <DialogDescription>
                       {editingContactId
-                        ? "Update the emergency contact information."
-                        : "Add a new emergency contact who can be reached in case of emergency."}
+                        ? t("profile.editContactDesc")
+                        : t("profile.addContactDesc")}
                     </DialogDescription>
                   </DialogHeader>
                   <Form {...emergencyContactForm}>
@@ -768,9 +811,9 @@ export default function ProfileClientPage() {
                         name="name"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Name</FormLabel>
+                            <FormLabel>{t("profile.contactName")}</FormLabel>
                             <FormControl>
-                              <Input placeholder="Full name" {...field} />
+                              <Input placeholder={t("profile.placeholderFullName")} {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -782,20 +825,20 @@ export default function ProfileClientPage() {
                         name="relationship"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Relationship</FormLabel>
+                            <FormLabel>{t("profile.relationship")}</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                               <FormControl>
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Select relationship" />
+                                  <SelectValue placeholder={t("profile.selectRelationship")} />
                         </SelectTrigger>
                               </FormControl>
                         <SelectContent>
-                                <SelectItem value="Spouse/Partner">Spouse/Partner</SelectItem>
-                                <SelectItem value="Parent">Parent</SelectItem>
-                                <SelectItem value="Sibling">Sibling</SelectItem>
-                                <SelectItem value="Child">Child</SelectItem>
-                                <SelectItem value="Friend">Friend</SelectItem>
-                                <SelectItem value="Other">Other</SelectItem>
+                                <SelectItem value="Spouse/Partner">{t("profile.relationshipSpouse")}</SelectItem>
+                                <SelectItem value="Parent">{t("profile.relationshipParent")}</SelectItem>
+                                <SelectItem value="Sibling">{t("profile.relationshipSibling")}</SelectItem>
+                                <SelectItem value="Child">{t("profile.relationshipChild")}</SelectItem>
+                                <SelectItem value="Friend">{t("profile.relationshipFriend")}</SelectItem>
+                                <SelectItem value="Other">{t("profile.relationshipOther")}</SelectItem>
                         </SelectContent>
                       </Select>
                             <FormMessage />
@@ -804,7 +847,7 @@ export default function ProfileClientPage() {
                       />
 
                       <div>
-                        <Label>Mobile Phone</Label>
+                        <Label>{t("profile.mobilePhone")}</Label>
                         <div className="flex gap-2 mt-2">
                           <FormField
                             control={emergencyContactForm.control}
@@ -842,7 +885,7 @@ export default function ProfileClientPage() {
                             render={({ field }) => (
                               <FormItem className="flex-1">
                                 <FormControl>
-                                  <Input type="tel" placeholder="555 123 4567" {...field} />
+                                  <Input type="tel" placeholder={t("profile.placeholderMobile")} {...field} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -856,9 +899,9 @@ export default function ProfileClientPage() {
                         name="email"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Email (Optional)</FormLabel>
+                            <FormLabel>{t("profile.emailOptional")}</FormLabel>
                             <FormControl>
-                              <Input type="email" placeholder="email@example.com" {...field} />
+                              <Input type="email" placeholder={t("profile.placeholderEmail")} {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -870,7 +913,7 @@ export default function ProfileClientPage() {
                           Cancel
                         </Button>
                         <Button type="submit" className="bg-teal-600 hover:bg-teal-700">
-                          {editingContactId ? "Update Contact" : "Add Contact"}
+                          {editingContactId ? t("profile.updateContact") : t("profile.addContact")}
                         </Button>
                       </DialogFooter>
                     </form>
@@ -883,20 +926,20 @@ export default function ProfileClientPage() {
               <div className="space-y-3">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
-                    <h3 className="text-base font-semibold">Emergency Medical Information</h3>
-                    <p className="text-xs text-muted-foreground">Critical health information for emergency responders</p>
+                    <h3 className="text-base font-semibold">{t("profile.emergencyMedicalInfo")}</h3>
+                    <p className="text-xs text-muted-foreground">{t("profile.emergencyMedicalInfoDesc")}</p>
                   </div>
                   <Dialog open={mobileSyncDialogOpen} onOpenChange={setMobileSyncDialogOpen}>
                     <DialogTrigger asChild>
                       <Button variant="outline" className="w-full sm:w-auto h-9 bg-transparent">
                         <Smartphone className="mr-2 h-3.5 w-3.5" />
-                        Sync to Mobile
+                        {t("profile.syncToMobile")}
                       </Button>
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>Sync to Mobile Device</DialogTitle>
-                        <DialogDescription>Choose your mobile platform to sync your emergency information</DialogDescription>
+                        <DialogTitle>{t("profile.syncToMobileDevice")}</DialogTitle>
+                        <DialogDescription>{t("profile.syncToMobileDesc")}</DialogDescription>
                       </DialogHeader>
                       <div className="grid grid-cols-2 gap-4 py-4">
                         <Button
@@ -927,10 +970,10 @@ export default function ProfileClientPage() {
                           name="allergies"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-sm font-medium">Allergies</FormLabel>
+                              <FormLabel className="text-sm font-medium">{t("profile.allergies")}</FormLabel>
                               <FormControl>
                     <Textarea
-                                  placeholder="List any allergies (medications, food, etc.)"
+                                  placeholder={t("profile.placeholderAllergies")}
                                   className="resize-none text-sm"
                                   rows={3}
                                   {...field}
@@ -946,10 +989,10 @@ export default function ProfileClientPage() {
                           name="medications"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-sm font-medium">Current Medications</FormLabel>
+                              <FormLabel className="text-sm font-medium">{t("profile.currentMedications")}</FormLabel>
                               <FormControl>
                                 <Textarea
-                                  placeholder="List current medications and dosages"
+                                  placeholder={t("profile.placeholderMedications")}
                                   className="resize-none text-sm"
                                   rows={3}
                                   {...field}
@@ -967,10 +1010,10 @@ export default function ProfileClientPage() {
                           name="healthProblems"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-sm font-medium">Health Problems</FormLabel>
+                              <FormLabel className="text-sm font-medium">{t("profile.healthProblems")}</FormLabel>
                               <FormControl>
                                 <Textarea
-                                  placeholder="List chronic conditions or health issues"
+                                  placeholder={t("profile.placeholderHealthProblems")}
                                   className="resize-none text-sm"
                                   rows={3}
                                   {...field}
@@ -987,18 +1030,18 @@ export default function ProfileClientPage() {
                             name="pregnancy"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-sm font-medium">Pregnancy Status</FormLabel>
+                                <FormLabel className="text-sm font-medium">{t("profile.pregnancyStatus")}</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                   <FormControl>
                                     <SelectTrigger className="h-9 text-sm">
-                                      <SelectValue placeholder="Select status" />
+                                      <SelectValue placeholder={t("profile.selectStatus")} />
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent>
-                                    <SelectItem value="no">Not Pregnant</SelectItem>
-                                    <SelectItem value="yes">Pregnant</SelectItem>
-                                    <SelectItem value="unknown">Unknown</SelectItem>
-                                    <SelectItem value="na">Not Applicable</SelectItem>
+                                    <SelectItem value="no">{t("profile.pregnancyNotPregnant")}</SelectItem>
+                                    <SelectItem value="yes">{t("profile.pregnancyPregnant")}</SelectItem>
+                                    <SelectItem value="unknown">{t("profile.pregnancyUnknown")}</SelectItem>
+                                    <SelectItem value="na">{t("profile.pregnancyNotApplicable")}</SelectItem>
                                   </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -1011,9 +1054,9 @@ export default function ProfileClientPage() {
                             name="organDonor"
                             render={({ field }) => (
                               <FormItem className="flex flex-col justify-end">
-                                <FormLabel className="text-sm font-medium mb-2">Organ Donor</FormLabel>
+                                <FormLabel className="text-sm font-medium mb-2">{t("profile.organDonor")}</FormLabel>
                                 <div className="flex items-center justify-between rounded-md border px-3 h-9">
-                                  <span className="text-sm">Willing to donate</span>
+                                  <span className="text-sm">{t("profile.willingToDonate")}</span>
                                   <FormControl>
                                     <Switch checked={field.value} onCheckedChange={field.onChange} />
                                   </FormControl>
@@ -1027,7 +1070,7 @@ export default function ProfileClientPage() {
 
                     <Button type="submit" className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 h-9">
                       <Save className="mr-2 h-3.5 w-3.5" />
-                      Save Emergency Information
+                      {t("profile.saveEmergencyInfo")}
               </Button>
                   </form>
                 </Form>
@@ -1059,8 +1102,8 @@ export default function ProfileClientPage() {
                     </svg>
               </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text_base">Change Password</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">Update your password to keep your account secure</p>
+                    <h3 className="font-semibold text_base">{t("profile.changePassword")}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t("profile.changePasswordDesc")}</p>
                 </div>
                 </div>
 
@@ -1072,7 +1115,7 @@ export default function ProfileClientPage() {
                         name="currentPassword"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs font-medium">Current Password</FormLabel>
+                            <FormLabel className="text-xs font-medium">{t("profile.currentPassword")}</FormLabel>
                             <FormControl>
                               <Input type="password" className="h-9 text-sm" placeholder="••••••••" {...field} />
                             </FormControl>
@@ -1085,7 +1128,7 @@ export default function ProfileClientPage() {
                         name="newPassword"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs font-medium">New Password</FormLabel>
+                            <FormLabel className="text-xs font-medium">{t("profile.newPassword")}</FormLabel>
                             <FormControl>
                               <Input
                                 type="password"
@@ -1107,7 +1150,7 @@ export default function ProfileClientPage() {
                         name="confirmPassword"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs font-medium">Confirm New Password</FormLabel>
+                            <FormLabel className="text-xs font-medium">{t("profile.confirmNewPassword")}</FormLabel>
                             <FormControl>
                               <Input type="password" className="h-9 text-sm" placeholder="••••••••" {...field} />
                             </FormControl>
@@ -1528,9 +1571,9 @@ export default function ProfileClientPage() {
                 </div>
               </div>
 
-              <Button className="bg-teal-600 hover:bg-teal-700" onClick={savePreferences}>
+              <Button className="bg-teal-600 hover:bg-teal-700" onClick={savePreferences} disabled={isSavingPreferences}>
                 <Save className="mr-2 h-4 w-4" />
-                Save Preferences
+                {isSavingPreferences ? "Saving..." : "Save Preferences"}
               </Button>
             </CardContent>
           </Card>
@@ -1644,8 +1687,8 @@ export default function ProfileClientPage() {
           <Card>
             <CardContent className="pt-6 space-y-6">
               <div>
-                <h3 className="text-lg font-medium mb-2">Privacy & Data</h3>
-                <p className="text-sm text-muted-foreground">Manage how your data is used and request copies of your information</p>
+                <h3 className="text-lg font-medium mb-2">{t("profile.privacyData")}</h3>
+                <p className="text-sm text-muted-foreground">{t("profile.privacyDataDesc")}</p>
               </div>
 
               <Separator />
@@ -1813,7 +1856,7 @@ export default function ProfileClientPage() {
 
               <Button className="bg-teal-600 hover:bg-teal-700" onClick={savePreferences}>
                 <Save className="mr-2 h-4 w-4" />
-                Save Privacy Settings
+                {t("profile.savePrivacySettings")}
               </Button>
             </CardContent>
           </Card>

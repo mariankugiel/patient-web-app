@@ -285,7 +285,7 @@ export default function PatientDashboardClient() {
     <div className="container py-6">
       {loading && (
         <div className="flex items-center justify-center py-8">
-          <div className="text-gray-500">Loading dashboard data...</div>
+          <div className="text-gray-500">{t("dashboard.loadingDashboardData")}</div>
         </div>
       )}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:grid-cols-4">

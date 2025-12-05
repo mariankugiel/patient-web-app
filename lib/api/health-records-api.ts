@@ -154,13 +154,13 @@ export class HealthRecordsApiService {
 
   // Health Record Sections
   static async getSections(typeId?: number): Promise<HealthRecordSection[]> {
-    const params = typeId ? { health_record_type_id: typeId } : {}
+    const params: any = typeId ? { health_record_type_id: typeId } : {}
     const response = await apiClient.get('/health-records/sections', { params })
     return response.data
   }
 
   static async getSectionTemplates(typeId?: number): Promise<HealthRecordSection[]> {
-    const params = typeId ? { health_record_type_id: typeId } : {}
+    const params: any = typeId ? { health_record_type_id: typeId } : {}
     const response = await apiClient.get('/health-records/sections/templates', { params })
     return response.data
   }

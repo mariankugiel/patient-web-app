@@ -27,7 +27,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Trash2, Loader2, Plus } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
-import { useFamilyMedicalHistory } from "@/hooks/use-medical-conditions"
 
 interface FamilyHistoryDialogProps {
   open: boolean
@@ -35,6 +34,9 @@ interface FamilyHistoryDialogProps {
   onRefresh?: () => Promise<void>
   selectedEntry?: any | null
   existingEntries?: any[]
+  addHistoryEntry?: (entry: any) => Promise<any>
+  updateHistoryEntry?: (id: number, entry: any) => Promise<void>
+  deleteHistoryEntry?: (id: number) => Promise<void>
 }
 
 export function FamilyHistoryDialog({ 
@@ -42,10 +44,12 @@ export function FamilyHistoryDialog({
   onOpenChange, 
   onRefresh, 
   selectedEntry,
-  existingEntries = []
+  existingEntries = [],
+  addHistoryEntry: addFamilyMember,
+  updateHistoryEntry: updateFamilyMember,
+  deleteHistoryEntry: deleteFamilyMember
 }: FamilyHistoryDialogProps) {
   const { t } = useLanguage()
-  const { history: familyHistory, loading, addHistoryEntry: addFamilyMember, updateHistoryEntry: updateFamilyMember, deleteHistoryEntry: deleteFamilyMember, refresh } = useFamilyMedicalHistory()
   
   const [saving, setSaving] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
@@ -95,16 +99,16 @@ export function FamilyHistoryDialog({
     const errors: {[key: string]: string} = {}
     
     if (!editingEntry?.relation?.trim()) {
-      errors.relation = 'Relation is required'
+      errors.relation = t('health.dialog.relationRequired')
     }
     
     // If deceased, age_at_death and cause_of_death are mandatory
     if (editingEntry?.is_deceased) {
       if (!editingEntry?.age_at_death?.trim()) {
-        errors.age_at_death = 'Age at death is required'
+        errors.age_at_death = t('health.dialog.ageAtDeathRequired')
       }
       if (!editingEntry?.cause_of_death?.trim()) {
-        errors.cause_of_death = 'Cause of death is required'
+        errors.cause_of_death = t('health.dialog.causeOfDeathRequired')
       }
     }
     
@@ -112,10 +116,10 @@ export function FamilyHistoryDialog({
     if (!editingEntry?.is_deceased && editingEntry?.chronic_diseases?.length > 0) {
       editingEntry.chronic_diseases.forEach((disease: any, index: number) => {
         if (!disease.disease?.trim()) {
-          errors[`chronic_disease_${index}_name`] = 'Disease name is required'
+          errors[`chronic_disease_${index}_name`] = t('health.dialog.diseaseNameRequired')
         }
         if (!disease.age_at_diagnosis?.trim()) {
-          errors[`chronic_disease_${index}_age`] = 'Age at diagnosis is required'
+          errors[`chronic_disease_${index}_age`] = t('health.dialog.ageAtDiagnosisRequired')
         }
       })
     }
@@ -181,18 +185,16 @@ export function FamilyHistoryDialog({
     try {
       if (isEditMode && editingEntry) {
         // Edit single entry
-        if (editingEntry.id) {
+        if (editingEntry.id && updateFamilyMember) {
           await updateFamilyMember(editingEntry.id, editingEntry)
         }
-      } else if (!isEditMode && editingEntry) {
+      } else if (!isEditMode && editingEntry && addFamilyMember) {
         // Add mode - add single new entry
         await addFamilyMember(editingEntry)
       }
       
       if (onRefresh) {
         await onRefresh()
-      } else {
-        await refresh()
       }
       
       onOpenChange(false)
@@ -204,14 +206,12 @@ export function FamilyHistoryDialog({
   }
 
   const handleDelete = async () => {
-    if (!editingEntry?.id) return
+    if (!editingEntry?.id || !deleteFamilyMember) return
     
     try {
       await deleteFamilyMember(editingEntry.id)
       if (onRefresh) {
         await onRefresh()
-      } else {
-        await refresh()
       }
       onOpenChange(false)
     } catch (error) {
@@ -229,13 +229,11 @@ export function FamilyHistoryDialog({
   }
 
   const handleDeleteConfirm = async () => {
-    if (entryToDelete) {
+    if (entryToDelete && deleteFamilyMember) {
       try {
         await deleteFamilyMember(entryToDelete)
         if (onRefresh) {
           await onRefresh()
-        } else {
-          await refresh()
         }
         onOpenChange(false)
       } catch (error) {
@@ -250,16 +248,16 @@ export function FamilyHistoryDialog({
   }
 
   const relationOptions = [
-    { value: 'MOTHER', label: 'Mother' },
-    { value: 'FATHER', label: 'Father' },
-    { value: 'MATERNAL_GRANDMOTHER', label: 'Maternal Grandmother' },
-    { value: 'MATERNAL_GRANDFATHER', label: 'Maternal Grandfather' },
-    { value: 'PATERNAL_GRANDMOTHER', label: 'Paternal Grandmother' },
-    { value: 'PATERNAL_GRANDFATHER', label: 'Paternal Grandfather' },
-    { value: 'SISTER', label: 'Sister' },
-    { value: 'BROTHER', label: 'Brother' },
-    { value: 'SON', label: 'Son' },
-    { value: 'DAUGHTER', label: 'Daughter' }
+    { value: 'MOTHER', label: t('health.dialog.relationMother') },
+    { value: 'FATHER', label: t('health.dialog.relationFather') },
+    { value: 'MATERNAL_GRANDMOTHER', label: t('health.dialog.relationMaternalGrandmother') },
+    { value: 'MATERNAL_GRANDFATHER', label: t('health.dialog.relationMaternalGrandfather') },
+    { value: 'PATERNAL_GRANDMOTHER', label: t('health.dialog.relationPaternalGrandmother') },
+    { value: 'PATERNAL_GRANDFATHER', label: t('health.dialog.relationPaternalGrandfather') },
+    { value: 'SISTER', label: t('health.dialog.relationSister') },
+    { value: 'BROTHER', label: t('health.dialog.relationBrother') },
+    { value: 'SON', label: t('health.dialog.relationSon') },
+    { value: 'DAUGHTER', label: t('health.dialog.relationDaughter') }
   ]
 
   // Filter out already used relations (only in add mode)
@@ -275,12 +273,12 @@ export function FamilyHistoryDialog({
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {isEditMode ? 'Edit Family History' : 'Add New Family History'}
+              {isEditMode ? t('health.dialog.editFamilyHistory') : t('health.dialog.addNewFamilyHistory')}
             </DialogTitle>
             <DialogDescription>
               {isEditMode 
-                ? 'Edit family member medical history details.'
-                : 'Add a new family member medical history. All fields are optional except Relation.'
+                ? t('health.dialog.editFamilyHistoryDesc')
+                : t('health.dialog.addNewFamilyHistoryDesc')
               }
             </DialogDescription>
           </DialogHeader>
@@ -290,7 +288,7 @@ export function FamilyHistoryDialog({
             {isEditMode && editingEntry && (
               <div className="border rounded-lg p-4 space-y-4">
                 <div className="flex justify-between items-center">
-                  <h4 className="font-medium text-gray-900">Edit Family Member</h4>
+                  <h4 className="font-medium text-gray-900">{t('health.dialog.editFamilyMember')}</h4>
                   <Button
                     onClick={confirmDelete}
                     size="sm"
@@ -303,13 +301,13 @@ export function FamilyHistoryDialog({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="relation">Relation <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="relation">{t('health.dialog.relation')} <span className="text-red-500">*</span></Label>
                     <Select
                       value={editingEntry.relation}
                       onValueChange={(value) => updateEntryField('relation', value)}
                     >
                       <SelectTrigger className={validationErrors.relation ? "border-red-500" : ""}>
-                        <SelectValue placeholder="Select relation" />
+                        <SelectValue placeholder={t('health.dialog.selectRelation')} />
                       </SelectTrigger>
                       <SelectContent>
                         {availableRelations.map(option => (
@@ -324,7 +322,7 @@ export function FamilyHistoryDialog({
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="current_age">Current Age</Label>
+                    <Label htmlFor="current_age">{t('health.dialog.currentAge')}</Label>
                     <Input
                       id="current_age"
                       type="number"
@@ -332,7 +330,7 @@ export function FamilyHistoryDialog({
                       max="150"
                       value={editingEntry.current_age}
                       onChange={(e) => updateEntryField('current_age', e.target.value)}
-                      placeholder="Enter current age"
+                      placeholder={t('health.dialog.enterCurrentAge')}
                       disabled={editingEntry.is_deceased}
                     />
                   </div>
@@ -344,13 +342,13 @@ export function FamilyHistoryDialog({
                     checked={editingEntry.is_deceased}
                     onCheckedChange={(checked) => updateEntryField('is_deceased', checked)}
                   />
-                  <Label htmlFor="is_deceased">Deceased</Label>
+                  <Label htmlFor="is_deceased">{t('health.dialog.deceased')}</Label>
                 </div>
 
                 {editingEntry.is_deceased && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="age_at_death">Age at Death <span className="text-red-500">*</span></Label>
+                      <Label htmlFor="age_at_death">{t('health.dialog.ageAtDeath')} <span className="text-red-500">*</span></Label>
                       <Input
                         id="age_at_death"
                         type="number"
@@ -358,7 +356,7 @@ export function FamilyHistoryDialog({
                         max="150"
                         value={editingEntry.age_at_death}
                         onChange={(e) => updateEntryField('age_at_death', e.target.value)}
-                        placeholder="Enter age at death"
+                        placeholder={t('health.dialog.enterAgeAtDeath')}
                         className={validationErrors.age_at_death ? "border-red-500" : ""}
                       />
                       {validationErrors.age_at_death && (
@@ -366,12 +364,12 @@ export function FamilyHistoryDialog({
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="cause_of_death">Cause of Death <span className="text-red-500">*</span></Label>
+                      <Label htmlFor="cause_of_death">{t('health.dialog.causeOfDeath')} <span className="text-red-500">*</span></Label>
                       <Input
                         id="cause_of_death"
                         value={editingEntry.cause_of_death}
                         onChange={(e) => updateEntryField('cause_of_death', e.target.value)}
-                        placeholder="Enter cause of death"
+                        placeholder={t('health.dialog.enterCauseOfDeath')}
                         className={validationErrors.cause_of_death ? "border-red-500" : ""}
                       />
                       {validationErrors.cause_of_death && (
@@ -385,17 +383,17 @@ export function FamilyHistoryDialog({
                 {!editingEntry.is_deceased && (
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
-                      <Label className="text-base font-medium">Chronic Diseases</Label>
+                      <Label className="text-base font-medium">{t('health.dialog.chronicDiseases')}</Label>
                       <Button onClick={addChronicDisease} size="sm" variant="outline">
                         <Plus className="h-4 w-4 mr-2" />
-                        Add Disease
+                        {t('health.dialog.addDisease')}
                       </Button>
                     </div>
                     
                     {(editingEntry.chronic_diseases || []).map((disease: any, index: number) => (
                       <div key={index} className="border rounded-lg p-3 space-y-3">
                         <div className="flex justify-between items-center">
-                          <h5 className="font-medium text-sm">Disease #{index + 1}</h5>
+                          <h5 className="font-medium text-sm">{t('health.dialog.diseaseNumber')}{index + 1}</h5>
                           <Button
                             onClick={() => removeChronicDisease(index)}
                             size="sm"
@@ -408,11 +406,11 @@ export function FamilyHistoryDialog({
                         
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                            <div className="space-y-1">
-                             <Label className="text-xs">Disease Name <span className="text-red-500">*</span></Label>
+                             <Label className="text-xs">{t('health.dialog.diseaseName')} <span className="text-red-500">*</span></Label>
                              <Input
                                value={disease.disease}
                                onChange={(e) => updateChronicDisease(index, 'disease', e.target.value)}
-                               placeholder="Disease name"
+                               placeholder={t('health.dialog.diseaseNamePlaceholder')}
                                className={`text-sm ${validationErrors[`chronic_disease_${index}_name`] ? "border-red-500" : ""}`}
                              />
                              {validationErrors[`chronic_disease_${index}_name`] && (
@@ -420,14 +418,14 @@ export function FamilyHistoryDialog({
                              )}
                            </div>
                            <div className="space-y-1">
-                             <Label className="text-xs">Age at Diagnosis <span className="text-red-500">*</span></Label>
+                             <Label className="text-xs">{t('health.dialog.ageAtDiagnosis')} <span className="text-red-500">*</span></Label>
                              <Input
                                type="number"
                                min="0"
                                max="150"
                                value={disease.age_at_diagnosis}
                                onChange={(e) => updateChronicDisease(index, 'age_at_diagnosis', e.target.value)}
-                               placeholder="Age"
+                               placeholder={t('health.dialog.agePlaceholder')}
                                className={`text-sm ${validationErrors[`chronic_disease_${index}_age`] ? "border-red-500" : ""}`}
                              />
                              {validationErrors[`chronic_disease_${index}_age`] && (
@@ -436,11 +434,11 @@ export function FamilyHistoryDialog({
                            </div>
                          </div>
                          <div className="space-y-1">
-                           <Label className="text-xs">Comments</Label>
+                           <Label className="text-xs">{t('health.dialog.comments')}</Label>
                            <Textarea
                              value={disease.comments}
                              onChange={(e) => updateChronicDisease(index, 'comments', e.target.value)}
-                             placeholder="Comments"
+                             placeholder={t('health.dialog.commentsPlaceholder')}
                              className="text-sm"
                              rows={2}
                            />
@@ -457,13 +455,13 @@ export function FamilyHistoryDialog({
               <div className="border rounded-lg p-4 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="add_relation">Relation <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="add_relation">{t('health.dialog.relation')} <span className="text-red-500">*</span></Label>
                     <Select
                       value={editingEntry.relation}
                       onValueChange={(value) => updateEntryField('relation', value)}
                     >
                       <SelectTrigger className={validationErrors.relation ? "border-red-500" : ""}>
-                        <SelectValue placeholder="Select relation" />
+                        <SelectValue placeholder={t('health.dialog.selectRelation')} />
                       </SelectTrigger>
                       <SelectContent>
                         {availableRelations.map(option => (
@@ -478,7 +476,7 @@ export function FamilyHistoryDialog({
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="add_current_age">Current Age</Label>
+                    <Label htmlFor="add_current_age">{t('health.dialog.currentAge')}</Label>
                     <Input
                       id="add_current_age"
                       type="number"
@@ -486,7 +484,7 @@ export function FamilyHistoryDialog({
                       max="150"
                       value={editingEntry.current_age}
                       onChange={(e) => updateEntryField('current_age', e.target.value)}
-                      placeholder="Enter current age"
+                      placeholder={t('health.dialog.enterCurrentAge')}
                       disabled={editingEntry.is_deceased}
                     />
                   </div>
@@ -498,13 +496,13 @@ export function FamilyHistoryDialog({
                     checked={editingEntry.is_deceased}
                     onCheckedChange={(checked) => updateEntryField('is_deceased', checked)}
                   />
-                  <Label htmlFor="add_is_deceased">Deceased</Label>
+                  <Label htmlFor="add_is_deceased">{t('health.dialog.deceased')}</Label>
                 </div>
 
                 {editingEntry.is_deceased && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="add_age_at_death">Age at Death <span className="text-red-500">*</span></Label>
+                      <Label htmlFor="add_age_at_death">{t('health.dialog.ageAtDeath')} <span className="text-red-500">*</span></Label>
                       <Input
                         id="add_age_at_death"
                         type="number"
@@ -512,7 +510,7 @@ export function FamilyHistoryDialog({
                         max="150"
                         value={editingEntry.age_at_death}
                         onChange={(e) => updateEntryField('age_at_death', e.target.value)}
-                        placeholder="Enter age at death"
+                        placeholder={t('health.dialog.enterAgeAtDeath')}
                         className={validationErrors.age_at_death ? "border-red-500" : ""}
                       />
                       {validationErrors.age_at_death && (
@@ -520,12 +518,12 @@ export function FamilyHistoryDialog({
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="add_cause_of_death">Cause of Death <span className="text-red-500">*</span></Label>
+                      <Label htmlFor="add_cause_of_death">{t('health.dialog.causeOfDeath')} <span className="text-red-500">*</span></Label>
                       <Input
                         id="add_cause_of_death"
                         value={editingEntry.cause_of_death}
                         onChange={(e) => updateEntryField('cause_of_death', e.target.value)}
-                        placeholder="Enter cause of death"
+                        placeholder={t('health.dialog.enterCauseOfDeath')}
                         className={validationErrors.cause_of_death ? "border-red-500" : ""}
                       />
                       {validationErrors.cause_of_death && (
@@ -539,17 +537,17 @@ export function FamilyHistoryDialog({
                 {!editingEntry.is_deceased && (
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
-                      <Label className="text-base font-medium">Chronic Diseases</Label>
+                      <Label className="text-base font-medium">{t('health.dialog.chronicDiseases')}</Label>
                       <Button onClick={addChronicDisease} size="sm" variant="outline">
                         <Plus className="h-4 w-4 mr-2" />
-                        Add Disease
+                        {t('health.dialog.addDisease')}
                       </Button>
                     </div>
                     
                     {(editingEntry.chronic_diseases || []).map((disease: any, index: number) => (
                       <div key={index} className="border rounded-lg p-3 space-y-3">
                         <div className="flex justify-between items-center">
-                          <h5 className="font-medium text-sm">Disease #{index + 1}</h5>
+                          <h5 className="font-medium text-sm">{t('health.dialog.diseaseNumber')}{index + 1}</h5>
                           <Button
                             onClick={() => removeChronicDisease(index)}
                             size="sm"
@@ -562,11 +560,11 @@ export function FamilyHistoryDialog({
                         
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                            <div className="space-y-1">
-                             <Label className="text-xs">Disease Name <span className="text-red-500">*</span></Label>
+                             <Label className="text-xs">{t('health.dialog.diseaseName')} <span className="text-red-500">*</span></Label>
                              <Input
                                value={disease.disease}
                                onChange={(e) => updateChronicDisease(index, 'disease', e.target.value)}
-                               placeholder="Disease name"
+                               placeholder={t('health.dialog.diseaseNamePlaceholder')}
                                className={`text-sm ${validationErrors[`chronic_disease_${index}_name`] ? "border-red-500" : ""}`}
                              />
                              {validationErrors[`chronic_disease_${index}_name`] && (
@@ -574,14 +572,14 @@ export function FamilyHistoryDialog({
                              )}
                            </div>
                            <div className="space-y-1">
-                             <Label className="text-xs">Age at Diagnosis <span className="text-red-500">*</span></Label>
+                             <Label className="text-xs">{t('health.dialog.ageAtDiagnosis')} <span className="text-red-500">*</span></Label>
                              <Input
                                type="number"
                                min="0"
                                max="150"
                                value={disease.age_at_diagnosis}
                                onChange={(e) => updateChronicDisease(index, 'age_at_diagnosis', e.target.value)}
-                               placeholder="Age"
+                               placeholder={t('health.dialog.agePlaceholder')}
                                className={`text-sm ${validationErrors[`chronic_disease_${index}_age`] ? "border-red-500" : ""}`}
                              />
                              {validationErrors[`chronic_disease_${index}_age`] && (
@@ -590,11 +588,11 @@ export function FamilyHistoryDialog({
                            </div>
                          </div>
                          <div className="space-y-1">
-                           <Label className="text-xs">Comments</Label>
+                           <Label className="text-xs">{t('health.dialog.comments')}</Label>
                            <Textarea
                              value={disease.comments}
                              onChange={(e) => updateChronicDisease(index, 'comments', e.target.value)}
-                             placeholder="Comments"
+                             placeholder={t('health.dialog.commentsPlaceholder')}
                              className="text-sm"
                              rows={2}
                            />
@@ -609,11 +607,11 @@ export function FamilyHistoryDialog({
 
           <DialogFooter>
             <Button variant="outline" onClick={handleCancel} disabled={saving}>
-              Cancel
+              {t('health.dialog.cancel')}
             </Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {isEditMode ? 'Update Entry' : 'Add Entry'}
+              {isEditMode ? t('health.dialog.updateEntry') : t('health.dialog.addEntry')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -623,15 +621,15 @@ export function FamilyHistoryDialog({
       <AlertDialog open={entryToDelete !== null} onOpenChange={() => setEntryToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+            <AlertDialogTitle>{t('health.dialog.confirmDeletion')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this family member entry? This action cannot be undone.
+              {t('health.dialog.deleteFamilyMemberConfirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleDeleteCancel}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={handleDeleteCancel}>{t('health.dialog.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteConfirm} className="bg-red-600 hover:bg-red-700">
-              Delete
+              {t('health.dialog.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

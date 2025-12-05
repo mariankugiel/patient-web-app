@@ -10,10 +10,11 @@ import { Save, Plus } from "lucide-react"
 import { useSelector } from "react-redux"
 import { RootState } from "@/lib/store"
 import { AuthApiService } from "@/lib/api/auth-api"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "react-toastify"
+import { useLanguage } from "@/contexts/language-context"
 
 export default function IntegrationsTabPage() {
-  const { toast } = useToast()
+  const { t } = useLanguage()
   const user = useSelector((state: RootState) => state.auth.user)
   const [isLoading, setIsLoading] = useState(false)
   
@@ -48,11 +49,7 @@ export default function IntegrationsTabPage() {
 
   const save = async () => {
     if (!user?.id) {
-      toast({
-        title: "Error",
-        description: "You must be logged in to update your integrations.",
-        variant: "destructive",
-      })
+      toast.error("You must be logged in to update your integrations.")
       return
     }
     
@@ -67,19 +64,10 @@ export default function IntegrationsTabPage() {
       
       console.log("💾 Integrations saved")
       
-      toast({
-        title: "Settings updated",
-        description: "Your integration settings have been saved successfully.",
-        duration: 3000,
-      })
+      toast.success(t("preferences.savedSuccessfullyDesc") || "Your integration settings have been saved successfully.")
     } catch (error: any) {
       console.error("Error saving integrations:", error)
-      toast({
-        title: "Error",
-        description: error.message || "An unexpected error occurred.",
-        variant: "destructive",
-        duration: 3000,
-      })
+      toast.error(error.message || "An unexpected error occurred.")
     } finally {
       setIsLoading(false)
     }
@@ -89,78 +77,78 @@ export default function IntegrationsTabPage() {
     <Card>
       <CardContent className="pt-6 space-y-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium">Wearable Integrations</h3>
+          <h3 className="text-lg font-medium">{t("profile.wearableIntegrations")}</h3>
           <Dialog open={newIntegrationOpen} onOpenChange={setNewIntegrationOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-teal-600 hover:bg-teal-700"><Plus className="mr-2 h-4 w-4" />Add Integration</Button>
+              <Button className="bg-teal-600 hover:bg-teal-700"><Plus className="mr-2 h-4 w-4" />{t("profile.addIntegration")}</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
-                <DialogTitle>Add New Integration</DialogTitle>
-                <DialogDescription>Connect your wearable device or health app</DialogDescription>
+                <DialogTitle>{t("profile.addNewIntegration")}</DialogTitle>
+                <DialogDescription>{t("profile.addNewIntegrationDesc")}</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">Integration Partner</p>
+                  <p className="text-sm font-medium">{t("profile.integrationPartner")}</p>
                   <Select>
-                    <SelectTrigger><SelectValue placeholder="Select integration partner" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t("profile.selectIntegrationPartner")} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="apple-health">Apple Health</SelectItem>
-                      <SelectItem value="google-fit">Google Fit</SelectItem>
-                      <SelectItem value="fitbit">Fitbit</SelectItem>
-                      <SelectItem value="garmin">Garmin</SelectItem>
-                      <SelectItem value="withings">Withings</SelectItem>
-                      <SelectItem value="oura">Oura Ring</SelectItem>
+                      <SelectItem value="apple-health">{t("profile.appleHealth")}</SelectItem>
+                      <SelectItem value="google-fit">{t("profile.googleFit")}</SelectItem>
+                      <SelectItem value="fitbit">{t("profile.fitbit")}</SelectItem>
+                      <SelectItem value="garmin">{t("profile.garmin")}</SelectItem>
+                      <SelectItem value="withings">{t("profile.withings")}</SelectItem>
+                      <SelectItem value="oura">{t("profile.ouraRing")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setNewIntegrationOpen(false)}>Cancel</Button>
-                <Button className="bg-teal-600 hover:bg-teal-700" onClick={() => setNewIntegrationOpen(false)}>Connect</Button>
+                <Button className="bg-teal-600 hover:bg-teal-700" onClick={() => setNewIntegrationOpen(false)}>{t("profile.connect")}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
 
-        <p className="text-sm text-muted-foreground">Sync your health data from wearable devices and fitness apps</p>
+        <p className="text-sm text-muted-foreground">{t("profile.syncDataDesc")}</p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors">
             <div className="flex-1">
-              <h4 className="font-medium text-sm">Google Fit</h4>
-              <p className="text-xs text-muted-foreground">Android fitness data</p>
+              <h4 className="font-medium text-sm">{t("profile.googleFit")}</h4>
+              <p className="text-xs text-muted-foreground">{t("profile.googleFitDesc")}</p>
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={settings.googleFit} onCheckedChange={() => toggle("googleFit")} />
-              {settings.googleFit && <Button size="sm" variant="outline" className="h-8 text-xs bg-transparent">Sync</Button>}
+              {settings.googleFit && <Button size="sm" variant="outline" className="h-8 text-xs bg-transparent">{t("profile.sync")}</Button>}
             </div>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors">
             <div className="flex-1">
-              <h4 className="font-medium text-sm">Fitbit</h4>
-              <p className="text-xs text-muted-foreground">Fitbit activity data</p>
+              <h4 className="font-medium text-sm">{t("profile.fitbit")}</h4>
+              <p className="text-xs text-muted-foreground">{t("profile.fitbitDesc")}</p>
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={settings.fitbit} onCheckedChange={() => toggle("fitbit")} />
-              {settings.fitbit && <Button size="sm" variant="outline" className="h-8 text-xs bg-transparent">Sync</Button>}
+              {settings.fitbit && <Button size="sm" variant="outline" className="h-8 text-xs bg-transparent">{t("profile.sync")}</Button>}
             </div>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors">
             <div className="flex-1">
-              <h4 className="font-medium text-sm">Garmin</h4>
-              <p className="text-xs text-muted-foreground">Garmin devices</p>
+              <h4 className="font-medium text-sm">{t("profile.garmin")}</h4>
+              <p className="text-xs text-muted-foreground">{t("profile.garminDesc")}</p>
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={settings.garmin} onCheckedChange={() => toggle("garmin")} />
-              {settings.garmin && <Button size="sm" variant="outline" className="h-8 text-xs bg-transparent">Sync</Button>}
+              {settings.garmin && <Button size="sm" variant="outline" className="h-8 text-xs bg-transparent">{t("profile.sync")}</Button>}
             </div>
           </div>
         </div>
 
-        <Button className="bg-teal-600 hover:bg-teal-700" onClick={save} disabled={isLoading}><Save className="mr-2 h-4 w-4" />{isLoading ? "Saving..." : "Save Settings"}</Button>
+        <Button className="bg-teal-600 hover:bg-teal-700" onClick={save} disabled={isLoading}><Save className="mr-2 h-4 w-4" />{isLoading ? t("profile.saving") : t("profile.saveSettings")}</Button>
       </CardContent>
     </Card>
   )

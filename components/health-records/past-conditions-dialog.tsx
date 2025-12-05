@@ -25,23 +25,28 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Trash2, Loader2 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
-import { PastCondition, usePastMedicalConditions } from "@/hooks/use-medical-conditions"
+import { PastCondition } from "@/hooks/use-medical-conditions"
 
 interface PastConditionsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onRefresh?: () => Promise<void>
   selectedCondition?: any | null
+  addCondition?: (condition: Omit<PastCondition, 'id'>) => Promise<PastCondition>
+  updateCondition?: (id: number, condition: Omit<PastCondition, 'id'>) => Promise<PastCondition>
+  deleteCondition?: (id: number) => Promise<void>
 }
 
 export function PastConditionsDialog({ 
   open, 
   onOpenChange, 
   onRefresh, 
-  selectedCondition 
+  selectedCondition,
+  addCondition,
+  updateCondition,
+  deleteCondition
 }: PastConditionsDialogProps) {
   const { t } = useLanguage()
-  const { conditions, loading, addCondition, updateCondition, deleteCondition, refresh } = usePastMedicalConditions()
   
   const [saving, setSaving] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
@@ -82,7 +87,7 @@ export function PastConditionsDialog({
         setEditingCondition(newCondition)
       }
     }
-  }, [open, conditions, selectedCondition])
+  }, [open, selectedCondition])
 
   const updateSingleConditionField = (field: keyof PastCondition, value: string) => {
     if (editingCondition) {
@@ -102,15 +107,15 @@ export function PastConditionsDialog({
     const errors: {[key: string]: string} = {}
     
     if (!editingCondition?.condition?.trim()) {
-      errors.condition = 'Condition name is required'
+      errors.condition = t('health.dialog.conditionNameRequired')
     }
     
     if (!editingCondition?.diagnosedDate?.trim()) {
-      errors.diagnosedDate = 'Diagnosed date is required'
+      errors.diagnosedDate = t('health.dialog.dateDiagnosedRequired')
     }
     
     if (!editingCondition?.resolvedDate?.trim()) {
-      errors.resolvedDate = 'Resolved date is required'
+      errors.resolvedDate = t('health.dialog.dateResolvedRequired')
     }
     
     setValidationErrors(errors)
@@ -126,18 +131,16 @@ export function PastConditionsDialog({
     try {
       if (isEditMode && editingCondition) {
         // Edit single condition
-        if (editingCondition.id) {
+        if (editingCondition.id && updateCondition) {
           await updateCondition(editingCondition.id, editingCondition)
         }
-      } else if (!isEditMode && editingCondition) {
+      } else if (!isEditMode && editingCondition && addCondition) {
         // Add mode - add single new condition
         await addCondition(editingCondition)
       }
       
       if (onRefresh) {
         await onRefresh()
-      } else {
-        await refresh()
       }
       
       onOpenChange(false)
@@ -149,14 +152,12 @@ export function PastConditionsDialog({
   }
 
   const handleDelete = async () => {
-    if (!editingCondition?.id) return
+    if (!editingCondition?.id || !deleteCondition) return
     
     try {
       await deleteCondition(editingCondition.id)
       if (onRefresh) {
         await onRefresh()
-      } else {
-        await refresh()
       }
       onOpenChange(false)
     } catch (error) {
@@ -174,13 +175,11 @@ export function PastConditionsDialog({
   }
 
   const handleDeleteConfirm = async () => {
-    if (conditionToDelete) {
+    if (conditionToDelete && deleteCondition) {
       try {
         await deleteCondition(conditionToDelete)
         if (onRefresh) {
           await onRefresh()
-        } else {
-          await refresh()
         }
         onOpenChange(false)
       } catch (error) {
@@ -200,12 +199,12 @@ export function PastConditionsDialog({
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {isEditMode ? 'Edit Past Medical Condition' : 'Add New Past Medical Condition'}
+              {isEditMode ? t('health.dialog.editPastCondition') : t('health.dialog.addNewPastCondition')}
             </DialogTitle>
             <DialogDescription>
               {isEditMode 
-                ? 'Edit your past medical condition details.'
-                : 'Add a new past medical condition. All fields are optional except Condition Name.'
+                ? t('health.dialog.editPastConditionDesc')
+                : t('health.dialog.addNewPastConditionDesc')
               }
             </DialogDescription>
           </DialogHeader>
@@ -215,7 +214,7 @@ export function PastConditionsDialog({
             {isEditMode && editingCondition && (
               <div className="border rounded-lg p-4 space-y-4">
                 <div className="flex justify-between items-center">
-                  <h4 className="font-medium text-gray-900">Edit Past Condition</h4>
+                  <h4 className="font-medium text-gray-900">{t('health.dialog.editPastConditionTitle')}</h4>
                   <Button
                     onClick={confirmDelete}
                     size="sm"
@@ -228,12 +227,12 @@ export function PastConditionsDialog({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="condition">Condition Name <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="condition">{t('health.dialog.conditionName')} <span className="text-red-500">*</span></Label>
                     <Input
                       id="condition"
                       value={editingCondition.condition}
                       onChange={(e) => updateSingleConditionField('condition', e.target.value)}
-                      placeholder="Enter condition name"
+                      placeholder={t('health.dialog.enterConditionName')}
                       className={validationErrors.condition ? "border-red-500" : ""}
                     />
                     {validationErrors.condition && (
@@ -241,19 +240,19 @@ export function PastConditionsDialog({
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="treatedWith">Treatment</Label>
+                    <Label htmlFor="treatedWith">{t('health.dialog.treatment')}</Label>
                     <Input
                       id="treatedWith"
                       value={editingCondition.treatedWith}
                       onChange={(e) => updateSingleConditionField('treatedWith', e.target.value)}
-                      placeholder="Treatment received"
+                      placeholder={t('health.dialog.treatmentReceived')}
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="diagnosedDate">Date Diagnosed <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="diagnosedDate">{t('health.dialog.dateDiagnosed')} <span className="text-red-500">*</span></Label>
                     <Input
                       id="diagnosedDate"
                       type="date"
@@ -266,7 +265,7 @@ export function PastConditionsDialog({
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="resolvedDate">Date Resolved <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="resolvedDate">{t('health.dialog.dateResolved')} <span className="text-red-500">*</span></Label>
                     <Input
                       id="resolvedDate"
                       type="date"
@@ -281,12 +280,12 @@ export function PastConditionsDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
+                  <Label htmlFor="notes">{t('health.dialog.notes')}</Label>
                   <Textarea
                     id="notes"
                     value={editingCondition.notes}
                     onChange={(e) => updateSingleConditionField('notes', e.target.value)}
-                    placeholder="Additional notes about the condition"
+                    placeholder={t('health.dialog.additionalNotes')}
                     rows={3}
                   />
                 </div>
@@ -298,12 +297,12 @@ export function PastConditionsDialog({
               <div className="border rounded-lg p-4 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="add_condition">Condition Name <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="add_condition">{t('health.dialog.conditionName')} <span className="text-red-500">*</span></Label>
                     <Input
                       id="add_condition"
                       value={editingCondition.condition}
                       onChange={(e) => updateSingleConditionField('condition', e.target.value)}
-                      placeholder="Enter condition name"
+                      placeholder={t('health.dialog.enterConditionName')}
                       className={validationErrors.condition ? "border-red-500" : ""}
                     />
                     {validationErrors.condition && (
@@ -311,19 +310,19 @@ export function PastConditionsDialog({
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="add_treatedWith">Treatment</Label>
+                    <Label htmlFor="add_treatedWith">{t('health.dialog.treatment')}</Label>
                     <Input
                       id="add_treatedWith"
                       value={editingCondition.treatedWith}
                       onChange={(e) => updateSingleConditionField('treatedWith', e.target.value)}
-                      placeholder="Treatment received"
+                      placeholder={t('health.dialog.treatmentReceived')}
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="add_diagnosedDate">Date Diagnosed <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="add_diagnosedDate">{t('health.dialog.dateDiagnosed')} <span className="text-red-500">*</span></Label>
                     <Input
                       id="add_diagnosedDate"
                       type="date"
@@ -336,7 +335,7 @@ export function PastConditionsDialog({
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="add_resolvedDate">Date Resolved <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="add_resolvedDate">{t('health.dialog.dateResolved')} <span className="text-red-500">*</span></Label>
                     <Input
                       id="add_resolvedDate"
                       type="date"
@@ -351,12 +350,12 @@ export function PastConditionsDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="add_notes">Notes</Label>
+                  <Label htmlFor="add_notes">{t('health.dialog.notes')}</Label>
                   <Textarea
                     id="add_notes"
                     value={editingCondition.notes}
                     onChange={(e) => updateSingleConditionField('notes', e.target.value)}
-                    placeholder="Additional notes about the condition"
+                    placeholder={t('health.dialog.additionalNotes')}
                     rows={3}
                   />
                 </div>
@@ -366,11 +365,11 @@ export function PastConditionsDialog({
 
           <DialogFooter>
             <Button variant="outline" onClick={handleCancel} disabled={saving}>
-              Cancel
+              {t('health.dialog.cancel')}
             </Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {isEditMode ? 'Update Condition' : 'Add Condition'}
+              {isEditMode ? t('health.dialog.updateCondition') : t('health.dialog.addCondition')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -380,15 +379,15 @@ export function PastConditionsDialog({
       <AlertDialog open={conditionToDelete !== null} onOpenChange={() => setConditionToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+            <AlertDialogTitle>{t('health.dialog.confirmDeletion')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this past medical condition? This action cannot be undone.
+              {t('health.dialog.deletePastConditionConfirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleDeleteCancel}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={handleDeleteCancel}>{t('health.dialog.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteConfirm} className="bg-red-600 hover:bg-red-700">
-              Delete
+              {t('health.dialog.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

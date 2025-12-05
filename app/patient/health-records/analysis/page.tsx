@@ -254,7 +254,7 @@ export default function AnalysisPage() {
         {/* AI Summary Card */}
         <div className="md:col-span-2">
           <AIAnalysisSection
-            title="AI Health Analysis"
+            title={t("health.aiHealthAnalysis")}
             analysis={aiAnalysis}
             loading={aiLoading}
             error={aiError}
@@ -270,10 +270,10 @@ export default function AnalysisPage() {
             <div>
                   <CardTitle className="flex items-center gap-2">
                     <FileText className="h-5 w-5" />
-                    Lab Documents
+                    {t("health.labDocuments")}
                   </CardTitle>
                   <CardDescription>
-                    Recent test results
+                    {t("health.recentTestResults")}
                   </CardDescription>
             </div>
                 <Button

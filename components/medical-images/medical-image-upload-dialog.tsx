@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Upload, FileText, Loader2, AlertCircle } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { medicalImagesApiService, ExtractedImageInfo, SaveImageRequest } from '@/lib/api/medical-images-api'
+import { DuplicateFileDialog } from '@/components/ui/duplicate-file-dialog'
 
 interface MedicalImageUploadDialogProps {
   open: boolean
@@ -36,6 +37,13 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
     findings: 'No Findings'
   })
   const [isDragOver, setIsDragOver] = useState(false)
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
+  const [duplicateInfo, setDuplicateInfo] = useState<{
+    existingDocument: any
+    fileName: string
+    fileSize: number
+  } | null>(null)
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -127,19 +135,15 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
       console.log('Response success check:', response.success, typeof response.success)
       
       // Handle duplicate file response
-      if (response.status === 409) {
-        const shouldUpdate = window.confirm(
-          `A similar file already exists.\n\n` +
-          `Do you want to update the existing file with the new one?`
-        )
-        
-        if (!shouldUpdate) {
-          setUploading(false)
-          return
-        }
-        
-        // TODO: Handle file update logic here
-        toast.info('File update functionality coming soon')
+      if (response.duplicate_found || response.status === 409) {
+        const existingDoc = response.existing_document
+        setDuplicateInfo({
+          existingDocument: existingDoc,
+          fileName: file.name,
+          fileSize: file.size
+        })
+        setPendingFile(file)
+        setShowDuplicateDialog(true)
         setUploading(false)
         return
       }
@@ -166,7 +170,80 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
     } catch (error: any) {
       console.error('Upload error:', error)
       console.error('Error details:', error.response?.data || error.message)
+      
+      // Check if it's a duplicate error from the backend
+      if (error.response?.status === 409 || error.response?.data?.duplicate_found) {
+        const existingDoc = error.response?.data?.existing_document
+        setDuplicateInfo({
+          existingDocument: existingDoc,
+          fileName: file.name,
+          fileSize: file.size
+        })
+        setPendingFile(file)
+        setShowDuplicateDialog(true)
+        setUploading(false)
+        return
+      }
+      
       toast.error('Failed to upload file')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleDuplicateCancel = () => {
+    setShowDuplicateDialog(false)
+    setDuplicateInfo(null)
+    setPendingFile(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleDuplicateContinue = async () => {
+    if (!pendingFile) return
+
+    setUploading(true)
+    try {
+      const response = await medicalImagesApiService.uploadMedicalImage(pendingFile)
+      
+      // If duplicate found again, show dialog again (shouldn't happen, but handle it)
+      if (response.duplicate_found || response.status === 409) {
+        setShowDuplicateDialog(true)
+        setUploading(false)
+        return
+      }
+      
+      if (response.success === true) {
+        setExtractedInfo(response.extracted_info)
+        setFormData(prev => ({
+          ...prev,
+          original_filename: pendingFile.name,
+          file_size_bytes: pendingFile.size,
+          image_type: mapExamTypeToImageType(response.extracted_info.exam_type || ''),
+          body_part: response.extracted_info.body_area || '',
+          image_date: convertDateFormat(response.extracted_info.date_of_exam || ''),
+          interpretation: response.extracted_info.interpretation || '',
+          conclusions: response.extracted_info.conclusions || '',
+          doctor_name: response.extracted_info.doctor_name || '',
+          doctor_number: response.extracted_info.doctor_number || '',
+          s3_key: response.s3_key,
+          findings: response.extracted_info.findings || 'No Findings'
+        }))
+        toast.success('File uploaded and analyzed successfully!')
+        setShowDuplicateDialog(false)
+        setDuplicateInfo(null)
+        setPendingFile(null)
+      } else {
+        toast.error('Failed to upload and analyze file')
+      }
+    } catch (error: any) {
+      console.error('Upload error:', error)
+      if (error.response?.status === 409 || error.response?.data?.duplicate_found) {
+        setShowDuplicateDialog(true)
+      } else {
+        toast.error('Failed to upload file')
+      }
     } finally {
       setUploading(false)
     }
@@ -282,6 +359,7 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -470,5 +548,15 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
         </div>
       </DialogContent>
     </Dialog>
+    <DuplicateFileDialog
+      open={showDuplicateDialog}
+      onOpenChange={setShowDuplicateDialog}
+      onCancel={handleDuplicateCancel}
+      onContinue={handleDuplicateContinue}
+      existingDocument={duplicateInfo?.existingDocument || null}
+      fileName={duplicateInfo?.fileName || ''}
+      fileSize={duplicateInfo?.fileSize || 0}
+    />
+    </>
   )
 }

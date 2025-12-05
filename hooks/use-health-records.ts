@@ -9,6 +9,7 @@ import {
   SectionWithMetrics,
   MetricWithData
 } from '@/lib/api/health-records-api'
+import { useLanguage } from '@/contexts/language-context'
 
 // ============================================================================
 // HEALTH RECORD SECTIONS HOOK
@@ -194,6 +195,7 @@ export function useHealthRecords(metricId: number) {
 // ============================================================================
 
 export function useAnalysisDashboard(healthRecordTypeId: number = 1, patientId?: number | null) {
+  const { language } = useLanguage()
   const [dashboard, setDashboard] = useState<AnalysisDashboardResponse | null>(null)
   const [sections, setSections] = useState<SectionWithMetrics[]>([])
   const [adminTemplates, setAdminTemplates] = useState<HealthRecordSection[]>([])

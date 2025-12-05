@@ -99,7 +99,7 @@ export default function GeneticsPage() {
                       <span>{t("health.dates.january152023")}</span>
                       <span>•</span>
                       <Stethoscope className="h-3 w-3" />
-                      <span>GenomicHealth Labs</span>
+                      <span>{t("health.genomicHealthLabs")}</span>
                     </div>
                   </div>
                 </div>
@@ -118,7 +118,7 @@ export default function GeneticsPage() {
                       <span>{t("health.dates.january152023")}</span>
                       <span>•</span>
                       <Stethoscope className="h-3 w-3" />
-                      <span>GenomicHealth Labs</span>
+                      <span>{t("health.genomicHealthLabs")}</span>
                     </div>
                   </div>
                 </div>

@@ -1,20 +1,22 @@
 "use client"
 
 import type React from "react"
-import { useSelector } from "react-redux"
+import { useSelector, useDispatch } from "react-redux"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useEffect, useState, useRef, Suspense } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import PatientSidebar from "@/components/patient/sidebar"
-import { LanguageProvider, useLanguage } from "@/contexts/language-context"
+import { useLanguage } from "@/contexts/language-context"
 import { PatientProvider, useSwitchedPatient } from "@/contexts/patient-context"
-import { type RootState } from "@/lib/store"
+import { type RootState, AppDispatch } from "@/lib/store"
 import { AuthAPI, AccessiblePatient } from "@/lib/api/auth-api"
 import { Users } from "lucide-react"
+import { fetchUserProfile } from "@/lib/features/auth/authThunks"
 
 function PatientLayoutContent({ children }: { children: React.ReactNode }) {
-  
+  const dispatch = useDispatch<AppDispatch>()
   const user = useSelector((s: RootState) => s.auth.user)
+  const profile = useSelector((s: RootState) => s.auth.profile)
   const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated)
   const isRestoringSession = useSelector((s: RootState) => s.auth.isRestoringSession)
   const { t, setLanguage } = useLanguage()
@@ -22,6 +24,13 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams()
   const { patientId, isViewingOtherPatient, switchedPatientInfo, isLoading } = useSwitchedPatient()
   const [avatarUrl, setAvatarUrl] = useState<string>("")
+  
+  // Fetch profile once when authenticated and not already loaded
+  useEffect(() => {
+    if (isAuthenticated && !isRestoringSession && !profile && user?.id) {
+      dispatch(fetchUserProfile())
+    }
+  }, [isAuthenticated, isRestoringSession, profile, user?.id, dispatch])
 
   // Apply theme and language from switched patient info
   useEffect(() => {
@@ -67,8 +76,8 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
   const displayFullName = isViewingOtherPatient
     ? (switchedPatientInfo?.profile?.full_name?.trim() || 
        switchedPatientInfo?.patient?.patient_name || 
-       (isLoading ? "Loading..." : "User"))
-    : (user?.user_metadata?.full_name?.trim() || user?.email?.split('@')[0] || "User")
+       (isLoading ? t("common.loadingUser") : t("common.user")))
+    : (profile?.full_name?.trim() || user?.user_metadata?.full_name?.trim() || user?.email?.split('@')[0] || t("common.user"))
 
   const displayEmail = isViewingOtherPatient
     ? (switchedPatientInfo?.profile?.email || 
@@ -83,39 +92,18 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
   })()
 
-  // Fetch avatar - use switched patient's profile if available
+  // Fetch avatar - use switched patient's profile if available, otherwise use Redux profile
   useEffect(() => {
-    const fetchAvatar = async () => {
-      if (isViewingOtherPatient && switchedPatientInfo) {
-        // Use switched patient's profile for avatar
-        const avatar = switchedPatientInfo.profile?.avatar_url || ""
-        setAvatarUrl(avatar && avatar.trim() && avatar !== 'null' ? avatar : "")
-      } else {
-        // Current user's avatar (only fetch if not viewing another patient)
-        if (user?.id) {
-          try {
-            const profile = await AuthAPI.getProfile()
-            const avatar = profile.avatar_url || ""
-            setAvatarUrl(avatar && avatar.trim() && avatar !== 'null' ? avatar : "")
-          } catch (error: any) {
-            const isConnectionError = error?.code === 'ECONNABORTED' || 
-                                      error?.code === 'ERR_NETWORK' ||
-                                      error?.message?.includes('Connection failed') ||
-                                      error?.message?.includes('timeout')
-            
-            if (!isConnectionError) {
-              console.error('Failed to fetch avatar:', error)
-            }
-            setAvatarUrl("")
-          }
-        } else {
-          setAvatarUrl("")
-        }
-      }
+    if (isViewingOtherPatient && switchedPatientInfo) {
+      // Use switched patient's profile for avatar
+      const avatar = switchedPatientInfo.profile?.avatar_url || ""
+      setAvatarUrl(avatar && avatar.trim() && avatar !== 'null' ? avatar : "")
+    } else {
+      // Current user's avatar from Redux profile
+      const avatar = profile?.avatar_url || ""
+      setAvatarUrl(avatar && avatar.trim() && avatar !== 'null' ? avatar : "")
     }
-
-    fetchAvatar()
-  }, [user?.id, isViewingOtherPatient, switchedPatientInfo])
+  }, [profile?.avatar_url, isViewingOtherPatient, switchedPatientInfo])
 
   // WebSocket connection should always use the logged-in user's ID (not the switched patient)
   // This ensures notifications and real-time updates are always for the main user
@@ -133,7 +121,6 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
   })()
 
   return (
-    <LanguageProvider>
       <div className="flex min-h-screen flex-col md:flex-row">
         <PatientSidebar />
         <main className="flex-1 pt-16 md:ml-64 md:pt-0 flex flex-col min-h-0">
@@ -170,7 +157,6 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
-    </LanguageProvider>
   )
 }
 

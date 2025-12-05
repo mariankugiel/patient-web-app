@@ -21,8 +21,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     unreadCount, 
     markAsRead, 
     dismissNotification, 
-    markAllAsRead,
-    isConnected 
+    markAllAsRead
   } = useWebSocketContext()
 
   return (
@@ -43,22 +42,16 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       <PopoverContent className="w-80 p-0" align="end">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="font-semibold">Notifications</h3>
-          <div className="flex items-center gap-2">
-            <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-xs text-muted-foreground">
-              {isConnected ? 'Live' : 'Offline'}
-            </span>
-            {unreadCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={markAllAsRead}
-                className="h-6 px-2 text-xs"
-              >
-                Mark all read
-              </Button>
-            )}
-          </div>
+          {unreadCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={markAllAsRead}
+              className="h-6 px-2 text-xs"
+            >
+              Mark all read
+            </Button>
+          )}
         </div>
         
         <div className="max-h-96 overflow-y-auto">

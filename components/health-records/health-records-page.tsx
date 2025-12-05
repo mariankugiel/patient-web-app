@@ -267,7 +267,11 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
         onOpenChange={setNewSectionDialogOpen}
         onSectionCreated={handleSectionCreated}
         healthRecordTypeId={healthRecordTypeId}
-        availableTemplates={adminTemplates}
+        existingSections={sections.map(s => ({
+          id: s.id,
+          display_name: s.display_name,
+          section_template_id: s.section_template_id
+        }))}
         createSection={createSection}
       />
 
@@ -277,6 +281,21 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
         onMetricCreated={handleMetricCreated}
         sectionId={selectedSectionForMetric?.id || 0}
         sectionName={selectedSectionForMetric?.display_name || ''}
+        sections={sections.map(s => ({
+          id: s.id,
+          display_name: s.display_name,
+          name: s.name,
+          section_template_id: s.section_template_id
+        }))}
+        existingMetrics={sections.flatMap(section => 
+          (section.metrics || []).map(metric => ({
+            id: metric.id,
+            display_name: metric.display_name,
+            name: metric.name,
+            section_id: section.id
+          }))
+        )}
+        healthRecordTypeId={healthRecordTypeId}
         createMetric={createMetric}
       />
 

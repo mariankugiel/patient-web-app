@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
-import { loginSuccess, sessionRestorationStart, sessionRestorationComplete } from '@/lib/features/auth/authSlice'
+import { loginSuccess, sessionRestorationStart, sessionRestorationComplete, fetchProfileSuccess } from '@/lib/features/auth/authSlice'
 import { AuthApiService } from '@/lib/api/auth-api'
 import { createClient } from '@/lib/supabase-client'
 
@@ -124,6 +124,8 @@ export function useSessionPersistence() {
           }
           
           dispatch(loginSuccess(restoredUser))
+          // Also store profile in Redux
+          dispatch(fetchProfileSuccess(userProfile))
         } catch (error: any) {
           // Only log non-connection errors
           const isConnectionError = error?.code === 'ECONNABORTED' || 

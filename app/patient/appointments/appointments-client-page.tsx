@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AppointmentCard } from "@/components/patient/appointment-card"
 import { Calendar, Plus, Video, MapPin, Phone, Search, Loader2, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react"
+import { LocationSearch } from "@/components/ui/location-search"
 import { useToast } from "@/hooks/use-toast"
 import { appointmentsApiService } from "@/lib/api/appointments-api"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -24,7 +25,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useLanguage } from "@/contexts/language-context"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -50,6 +50,7 @@ interface Doctor {
   lastName?: string
   specialty?: string | null
   avatar?: string | null
+  address?: string | null
   isOnline?: boolean
   email?: string
   timezone?: string | null
@@ -89,7 +90,6 @@ function AppointmentsClientPageContent() {
   const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<string>("")
   const [selectedAppointmentType, setSelectedAppointmentType] = useState<AppointmentTypeOption | null>(null)
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null)
-  const [selectedType, setSelectedType] = useState<"virtual" | "in-person" | "phone" | "">("")
   const [appointmentNote, setAppointmentNote] = useState<string>("")
   const [appointmentPhone, setAppointmentPhone] = useState<string>("")
   const [selectedDate, setSelectedDate] = useState<string>("")
@@ -104,9 +104,23 @@ function AppointmentsClientPageContent() {
   const [loadingDoctors, setLoadingDoctors] = useState(false)
   const [loadingMoreDoctors, setLoadingMoreDoctors] = useState(false)
   const [hasMoreDoctors, setHasMoreDoctors] = useState(false)
+  const [locationSearchValue, setLocationSearchValue] = useState("")
+  const [selectedLocation, setSelectedLocation] = useState<{
+    id: string
+    display_name: string
+    address: {
+      city?: string
+      state?: string
+      country?: string
+      country_code?: string
+    }
+    lat: string
+    lon: string
+  } | null>(null)
   const [doctorsOffset, setDoctorsOffset] = useState(0)
   const doctorsOffsetRef = useRef(0) // Use ref to track offset for callbacks
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  const locationDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const [currentSearchQuery, setCurrentSearchQuery] = useState("")
   const doctorsLimit = 20
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -315,7 +329,7 @@ function AppointmentsClientPageContent() {
   }
 
   // Load doctors from API
-  const loadDoctors = useCallback(async (reset: boolean = false, searchQuery: string = "") => {
+  const loadDoctors = useCallback(async (reset: boolean = false, searchQuery: string = "", locationFilter: string = "") => {
     try {
       if (reset) {
         setLoadingDoctors(true)
@@ -335,6 +349,7 @@ function AppointmentsClientPageContent() {
 
       const doctors = await appointmentsApiService.getDoctors({
         search: searchQuery || undefined,
+        location: locationFilter || undefined,
         offset: currentOffset,
         limit: doctorsLimit
       })
@@ -346,6 +361,7 @@ function AppointmentsClientPageContent() {
         lastName: doctor.lastName,
         specialty: doctor.specialty ?? null,
         avatar: doctor.avatar ?? null,
+        address: doctor.address ?? null,
         isOnline: doctor.isOnline ?? false,
         email: doctor.email,
         acuityCalendarId: doctor.acuityCalendarId ?? null,
@@ -399,9 +415,13 @@ function AppointmentsClientPageContent() {
       clearTimeout(searchDebounceRef.current)
     }
     searchDebounceRef.current = setTimeout(() => {
-      loadDoctors(true, query)
+      // Get location filter from selectedLocation
+      const locationFilter = selectedLocation 
+        ? (selectedLocation.address.city || selectedLocation.address.state || selectedLocation.address.country || "")
+        : ""
+      loadDoctors(true, query, locationFilter)
     }, 300)
-  }, [loadDoctors])
+  }, [loadDoctors, selectedLocation])
 
   useEffect(() => {
     return () => {
@@ -417,8 +437,11 @@ function AppointmentsClientPageContent() {
 
   const loadMoreDoctors = useCallback(async () => {
     if (loadingMoreDoctors || !hasMoreDoctors) return
-    await loadDoctors(false, currentSearchQuery)
-  }, [loadingMoreDoctors, hasMoreDoctors, currentSearchQuery, loadDoctors])
+    const locationFilter = selectedLocation 
+      ? (selectedLocation.address.city || selectedLocation.address.state || selectedLocation.address.country || "")
+      : ""
+    await loadDoctors(false, currentSearchQuery, locationFilter)
+  }, [loadingMoreDoctors, hasMoreDoctors, currentSearchQuery, selectedLocation, loadDoctors])
 
   const handleAppointmentTypeSelect = useCallback(
     (typeId: string) => {
@@ -457,12 +480,9 @@ function AppointmentsClientPageContent() {
     [currentWeekStart]
   )
 
-  const handleAppointmentTypeChange = (value: "virtual" | "in-person" | "phone") => {
-    setSelectedType(value)
-    if (value !== "phone") {
-      setAppointmentPhone("")
-    }
-  }
+  // Get category from selected appointment type
+  const selectedCategory = selectedAppointmentType?.category?.toLowerCase() || null
+  const isPhoneCategory = selectedCategory === "phone"
 
   // Load doctors when dialog opens - only once
   useEffect(() => {
@@ -478,7 +498,7 @@ function AppointmentsClientPageContent() {
       setSelectedAppointmentTypeId("")
       setSelectedAppointmentType(null)
       setSelectedTimeSlot(null)
-      setSelectedType("")
+      setAppointmentPhone("")
       setSelectedDate("")
       setSelectedTimezone("")
       setCurrentWeekStart("")
@@ -486,8 +506,12 @@ function AppointmentsClientPageContent() {
         clearTimeout(searchDebounceRef.current)
         searchDebounceRef.current = null
       }
+      if (locationDebounceRef.current) {
+        clearTimeout(locationDebounceRef.current)
+        locationDebounceRef.current = null
+      }
 
-      loadDoctors(true, "")
+      loadDoctors(true, "", "")
     }
   }, [isDialogOpen, loadDoctors])
 
@@ -609,8 +633,8 @@ function AppointmentsClientPageContent() {
       } catch (error: any) {
         console.error("Failed to fetch time slots:", error)
         toast({
-          title: "Error",
-          description: error.response?.data?.detail || "Failed to load available time slots",
+        title: t("common.error"),
+        description: error.response?.data?.detail || t("common.failedToLoad") + " " + t("appointments.weeklyAvailability").toLowerCase(),
           variant: "destructive",
         })
         setWeeklyTimeSlots([])
@@ -643,10 +667,14 @@ function AppointmentsClientPageContent() {
         }
 
         let appointmentType: "virtual" | "in-person" | "phone" = "in-person"
-        if (apt.consultation_type === "virtual") {
+        // Ensure consultation_type is properly parsed (handle case-insensitive and whitespace)
+        const consultationType = apt.consultation_type?.toLowerCase()?.trim()
+        if (consultationType === "virtual") {
           appointmentType = "virtual"
-        } else if (apt.consultation_type === "phone") {
+        } else if (consultationType === "phone") {
           appointmentType = "phone"
+        } else {
+          appointmentType = "in-person"
         }
 
         let appointmentTypeIdValue: string | number | null = null
@@ -697,14 +725,16 @@ function AppointmentsClientPageContent() {
               ? Number(apt.appointment_type_duration)
               : null,
           appointmentTypePrice: appointmentTypePriceValue,
+          phone: apt.phone || null,
+          location: apt.location || null,
         }
       })
       setAppointmentsData(transformed)
     } catch (error: any) {
       console.error("Error fetching appointments:", error)
       toast({
-        title: "Error",
-        description: "Failed to load appointments. Please try again.",
+        title: t("common.error"),
+        description: t("common.failedToLoad") + " " + t("appointments.title").toLowerCase() + ". " + t("common.pleaseTryAgain"),
         variant: "destructive",
       })
       setAppointmentsData([])
@@ -726,28 +756,6 @@ function AppointmentsClientPageContent() {
     setIsDialogOpen(open)
     if (!open) {
       resetDialog()
-    }
-  }
-
-  // Handle join call
-  const handleJoinCall = async (id: string) => {
-    try {
-      toast({
-        title: "Joining Video Call",
-        description: "Connecting to your appointment...",
-      })
-
-      const roomData = await appointmentsApiService.getVideoRoomUrl(parseInt(id))
-      const joinUrl = `${roomData.room_url}?t=${roomData.patient_token}`
-
-      // Open Daily.co room in new tab
-      window.open(joinUrl, '_blank')
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.detail || "Failed to join video call. Please try again.",
-        variant: "destructive"
-      })
     }
   }
 
@@ -788,16 +796,6 @@ function AppointmentsClientPageContent() {
       return
     }
     
-    if (!selectedType) {
-      toast({
-        title: t("appointments.validationError"),
-        description: t("appointments.selectConsultationTypeRequired"),
-        variant: "destructive",
-      })
-      setIsBooking(false)
-      return
-    }
-    
     if (!selectedDate) {
       toast({
         title: t("appointments.validationError"),
@@ -808,7 +806,8 @@ function AppointmentsClientPageContent() {
       return
     }
 
-    if (selectedType === "phone" && !appointmentPhone) {
+    // Validate phone number if category is Phone
+    if (isPhoneCategory && !appointmentPhone) {
       toast({
         title: t("appointments.validationError"),
         description: t("appointments.providePhoneNumber"),
@@ -831,8 +830,8 @@ function AppointmentsClientPageContent() {
       // Validate lastname is present
       if (!lastName || lastName.trim() === "") {
         toast({
-          title: "Profile Incomplete",
-          description: "Please complete your profile by adding your last name before scheduling an appointment.",
+          title: t("common.profileIncomplete"),
+          description: t("common.pleaseCompleteProfile"),
           variant: "destructive",
           duration: 5000,
         })
@@ -848,7 +847,7 @@ function AppointmentsClientPageContent() {
         buildIsoFromParts(selectedTimeSlot.rawTime || selectedTimeSlot.time, selectedDate)
       const datetimeISO = normalizeIsoString(slotIsoSource || `${selectedDate}T${selectedTimeSlot.time}:00`)
 
-      // Build appointment request
+      // Build appointment request (no longer sending consultation_type, using category from appointment type)
       const appointmentData = {
         calendar_id: selectedDoctor.acuityCalendarId || "",
         appointment_type_id: selectedAppointmentTypeId ? parseInt(selectedAppointmentTypeId, 10) : undefined,
@@ -856,26 +855,28 @@ function AppointmentsClientPageContent() {
         first_name: firstName,
         last_name: lastName,
         email: userEmail,
-        phone: selectedType === "phone" ? appointmentPhone : undefined,
-        consultation_type: selectedType,
+        phone: isPhoneCategory ? appointmentPhone : undefined,
         note: appointmentNote || undefined,
         timezone: timezoneToUse || undefined
       }
 
       await appointmentsApiService.bookAppointment(appointmentData)
 
+      const successMessage = t("appointments.bookingSuccessDescription") || `Your appointment with ${selectedDoctor.name} has been booked successfully.`
       toast({
-        title: "Appointment Booked",
-        description: `Your appointment with ${selectedDoctor.name} has been booked successfully.`,
+        title: t("appointments.bookingSuccess") || "Appointment Booked",
+        description: successMessage.replace("{doctorName}", selectedDoctor.name),
+        duration: 5000,
       })
       await loadAppointments()
       setIsDialogOpen(false)
     } catch (error: any) {
       console.error("Failed to book appointment:", error)
       toast({
-        title: "Error",
-        description: error.response?.data?.detail || "Failed to book appointment. Please try again.",
-        variant: "destructive"
+        title: t("appointments.bookingError") || "Error",
+        description: error.response?.data?.detail || t("appointments.bookingErrorDescription") || "Failed to book appointment. Please try again.",
+        variant: "destructive",
+        duration: 5000,
       })
     } finally {
       setIsBooking(false)
@@ -888,13 +889,14 @@ function AppointmentsClientPageContent() {
     setSelectedAppointmentTypeId("")
     setSelectedAppointmentType(null)
     setSelectedTimeSlot(null)
-    setSelectedType("")
-    setAppointmentNote("")
     setAppointmentPhone("")
+    setAppointmentNote("")
     setSelectedDate("")
     setSelectedTimezone("")
     setWeeklyTimeSlots([])
     setCurrentWeekStart("")
+    setLocationSearchValue("")
+    setSelectedLocation(null)
     setIsBooking(false)
     setCurrentSearchQuery("")
     setAvailableDoctors([])
@@ -997,6 +999,33 @@ function AppointmentsClientPageContent() {
                         className="pl-9"
                       />
                     </div>
+                    <LocationSearch
+                      value={locationSearchValue}
+                      onChange={(location, details) => {
+                        setLocationSearchValue(location)
+                        setSelectedLocation(details || null)
+                        
+                        // Clear previous debounce timeout
+                        if (locationDebounceRef.current) {
+                          clearTimeout(locationDebounceRef.current)
+                        }
+                        
+                        // Debounce location filter trigger (only when location is selected)
+                        if (details) {
+                          const locationFilter = details.address.city || details.address.state || details.address.country || ""
+                          locationDebounceRef.current = setTimeout(() => {
+                            loadDoctors(true, currentSearchQuery, locationFilter)
+                          }, 300)
+                        } else if (!location.trim()) {
+                          // Only clear filter if location input is empty
+                          locationDebounceRef.current = setTimeout(() => {
+                            loadDoctors(true, currentSearchQuery, "")
+                          }, 300)
+                        }
+                      }}
+                      placeholder={t("appointments.searchLocationPlaceholder")}
+                      className="w-full"
+                    />
                   </div>
                   <ScrollArea className="flex-1">
                     <div className="p-2 space-y-2">
@@ -1012,7 +1041,12 @@ function AppointmentsClientPageContent() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => loadDoctors(true, currentSearchQuery)}
+                            onClick={() => {
+                              const locationFilter = selectedLocation 
+                                ? (selectedLocation.address.city || selectedLocation.address.state || selectedLocation.address.country || "")
+                                : ""
+                              loadDoctors(true, currentSearchQuery, locationFilter)
+                            }}
                             disabled={loadingDoctors}
                           >
                             {loadingDoctors ? t("common.loading") : t("common.retry")}
@@ -1063,7 +1097,7 @@ function AppointmentsClientPageContent() {
                                 onClick={loadMoreDoctors}
                                 disabled={loadingMoreDoctors}
                               >
-                                {loadingMoreDoctors ? "Loading..." : "Load more doctors"}
+                                {loadingMoreDoctors ? t("common.loading") : t("appointments.loadMoreDoctors")}
                               </Button>
                             </div>
                           )}
@@ -1093,7 +1127,7 @@ function AppointmentsClientPageContent() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleWeekChange("prev")}
-                          aria-label="Previous week"
+                          aria-label={t("common.previousWeek")}
                         >
                           <ChevronLeft className="h-4 w-4" />
                         </Button>
@@ -1101,7 +1135,7 @@ function AppointmentsClientPageContent() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleWeekChange("next")}
-                          aria-label="Next week"
+                          aria-label={t("common.nextWeek")}
                         >
                           <ChevronRight className="h-4 w-4" />
                         </Button>
@@ -1118,6 +1152,16 @@ function AppointmentsClientPageContent() {
                             {selectedDoctor.appointmentTypes.map((type) => {
                               const isSelected = selectedAppointmentTypeId === type.id
                               const formattedPrice = formatCurrencyValue(type.price)
+                              const category = type.category?.toLowerCase() || "person"
+                              
+                              // Get icon based on category
+                              let CategoryIcon = MapPin // Default to in-person
+                              if (category === "virtual") {
+                                CategoryIcon = Video
+                              } else if (category === "phone") {
+                                CategoryIcon = Phone
+                              }
+                              
                               return (
                                 <button
                                   key={type.id}
@@ -1130,9 +1174,12 @@ function AppointmentsClientPageContent() {
                                   }`}
                                 >
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className="font-medium">
-                                      {type.name || t("appointments.appointmentType")}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <CategoryIcon className="h-4 w-4 text-muted-foreground" />
+                                      <span className="font-medium">
+                                        {type.name || t("appointments.appointmentType")}
+                                      </span>
+                                    </div>
                                     {formattedPrice && (
                                       <span className="text-sm text-teal-700 dark:text-teal-200">
                                         {formattedPrice}
@@ -1178,76 +1225,16 @@ function AppointmentsClientPageContent() {
                         )}
                       </div>
 
-                      {/* Consultation Method */}
-                      <div>
-                        <Label className="mb-2 block">
-                          {t("appointments.consultationMethod") ?? "Consultation method"}
-                        </Label>
-                        <RadioGroup
-                          value={selectedType}
-                          onValueChange={(value) => handleAppointmentTypeChange(value as "virtual" | "in-person" | "phone")}
-                          className="flex flex-wrap gap-3"
-                        >
-                          <div
-                            className={`flex items-center gap-2 rounded-md border px-3 py-2 transition-colors cursor-pointer ${
-                              selectedType === "virtual"
-                                ? "border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-100"
-                                : "border-border hover:border-teal-400"
-                            }`}
-                          >
-                            <RadioGroupItem value="virtual" id="virtual-booking" className="sr-only" />
-                            <Label
-                              htmlFor="virtual-booking"
-                              className="flex items-center gap-2 cursor-pointer text-sm font-medium"
-                            >
-                              <Video className="h-4 w-4" />
-                              {t("appointments.type.virtual")}
-                            </Label>
-                          </div>
-                          <div
-                            className={`flex items-center gap-2 rounded-md border px-3 py-2 transition-colors cursor-pointer ${
-                              selectedType === "in-person"
-                                ? "border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-100"
-                                : "border-border hover:border-teal-400"
-                            }`}
-                          >
-                            <RadioGroupItem value="in-person" id="in-person-booking" className="sr-only" />
-                            <Label
-                              htmlFor="in-person-booking"
-                              className="flex items-center gap-2 cursor-pointer text-sm font-medium"
-                            >
-                              <MapPin className="h-4 w-4" />
-                              {t("appointments.type.inPerson")}
-                            </Label>
-                          </div>
-                          <div
-                            className={`flex items-center gap-2 rounded-md border px-3 py-2 transition-colors cursor-pointer ${
-                              selectedType === "phone"
-                                ? "border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-100"
-                                : "border-border hover:border-teal-400"
-                            }`}
-                          >
-                            <RadioGroupItem value="phone" id="phone-booking" className="sr-only" />
-                            <Label
-                              htmlFor="phone-booking"
-                              className="flex items-center gap-2 cursor-pointer text-sm font-medium"
-                            >
-                              <Phone className="h-4 w-4" />
-                              {t("appointments.type.phone")}
-                            </Label>
-                          </div>
-                        </RadioGroup>
-                      </div>
-
-                      {selectedType === "phone" && (
+                      {/* Phone Number Input (only shown for Phone category appointments) */}
+                      {isPhoneCategory && (
                         <div>
-                          <Label htmlFor="appointment-phone">Phone Number</Label>
+                          <Label htmlFor="appointment-phone">{t("common.phoneNumber")}</Label>
                           <Input
                             id="appointment-phone"
                             type="tel"
                             value={appointmentPhone}
                             onChange={(e) => setAppointmentPhone(e.target.value)}
-                            placeholder="+1234567890"
+                            placeholder={t("common.phoneNumberPlaceholder")}
                             className="mt-1"
                           />
                         </div>
@@ -1255,12 +1242,12 @@ function AppointmentsClientPageContent() {
 
                       {/* Note Input */}
                       <div>
-                        <Label htmlFor="appointment-note">Note</Label>
+                        <Label htmlFor="appointment-note">{t("common.note")}</Label>
                         <Input
                           id="appointment-note"
                           value={appointmentNote}
                           onChange={(e) => setAppointmentNote(e.target.value)}
-                          placeholder="Add any notes or special requests"
+                          placeholder={t("common.addNotes")}
                           className="mt-1"
                         />
                       </div>
@@ -1286,15 +1273,15 @@ function AppointmentsClientPageContent() {
               <Button
                 className="bg-teal-600 hover:bg-teal-700 dark:bg-teal-700 dark:hover:bg-teal-800"
                 onClick={handleBookAppointment}
-                disabled={isBooking || !selectedDoctor || !selectedTimeSlot || !selectedType}
+                disabled={isBooking || !selectedDoctor || !selectedTimeSlot || !selectedAppointmentTypeId}
               >
                 {isBooking ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Scheduling...
+                    {t("common.scheduling")}
                   </>
                 ) : (
-                  "Schedule Appointment"
+                  t("appointments.scheduleAppointment")
                 )}
               </Button>
             </DialogFooter>
@@ -1337,9 +1324,11 @@ function AppointmentsClientPageContent() {
                       cost={appointment.cost}
                       confirmation_page={appointment.confirmation_page}
                       duration={appointment.appointmentTypeDuration}
-                      onJoinCall={appointment.virtual_meeting_url ? handleJoinCall : undefined}
                       virtual_meeting_url={appointment.virtual_meeting_url}
                       timezone={appointment.timezone}
+                      phone={appointment.phone}
+                      location={appointment.location}
+                      onPhoneUpdate={loadAppointments}
                     />
                   ))}
                 </div>
@@ -1368,6 +1357,9 @@ function AppointmentsClientPageContent() {
                       confirmation_page={appointment.confirmation_page}
                       duration={appointment.appointmentTypeDuration}
                       timezone={appointment.timezone}
+                      phone={appointment.phone}
+                      location={appointment.location}
+                      onPhoneUpdate={loadAppointments}
                     />
                   ))}
                 </div>
@@ -1396,6 +1388,9 @@ function AppointmentsClientPageContent() {
                       confirmation_page={appointment.confirmation_page}
                       duration={appointment.appointmentTypeDuration}
                       timezone={appointment.timezone}
+                      phone={appointment.phone}
+                      location={appointment.location}
+                      onPhoneUpdate={loadAppointments}
                     />
                   ))}
                 </div>

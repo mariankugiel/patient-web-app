@@ -50,7 +50,7 @@ function ProfileSectionLayoutContent({ children }: { children: React.ReactNode }
           </TabsTrigger>
         </TabsList>
       </div>
-      <TabsContent value={active} className="space-y-4 mt-6">
+      <TabsContent value={active} className="space-y-4 mt-6 px-4 sm:px-6 lg:px-8 py-4">
         {children}
       </TabsContent>
     </Tabs>

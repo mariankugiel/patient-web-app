@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { uploadProfilePicture, getProfilePictureUrl } from "@/lib/profile-utils"
 import { toast } from "react-toastify"
+import { useLanguage } from "@/contexts/language-context"
 
 type ProfilePictureUploadProps = {
   currentImage: string
@@ -12,8 +13,20 @@ type ProfilePictureUploadProps = {
 }
 
 export function ProfilePictureUpload({ currentImage, onImageChange, userId }: ProfilePictureUploadProps) {
+  const { t } = useLanguage()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+
+  // Safe translation helper with fallbacks
+  const safeT = (key: string, fallback: string) => {
+    try {
+      const translation = t(key)
+      return translation && translation !== key ? translation : fallback
+    } catch (error) {
+      console.warn(`Translation error for key: ${key}`, error)
+      return fallback
+    }
+  }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -22,13 +35,13 @@ export function ProfilePictureUpload({ currentImage, onImageChange, userId }: Pr
     // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024 // 5MB
     if (file.size > maxSize) {
-      toast.error("Profile picture must be less than 5MB")
+      toast.error(safeT("profile.profilePictureMustBeLessThan5MB", "Profile picture must be less than 5MB"))
       return
     }
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      toast.error("Please select a valid image file")
+      toast.error(safeT("profile.pleaseSelectValidImageFile", "Please select a valid image file"))
       return
     }
 
@@ -51,10 +64,10 @@ export function ProfilePictureUpload({ currentImage, onImageChange, userId }: Pr
       onImageChange(urlWithCacheBust)
       console.log("✅ Called onImageChange with:", urlWithCacheBust)
       
-      toast.success("Profile picture updated successfully")
+      toast.success(safeT("profile.profilePictureUpdatedSuccessfully", "Profile picture updated successfully"))
     } catch (error: any) {
       console.error("❌ Error uploading profile picture:", error)
-      toast.error(error.message || "Failed to upload profile picture")
+      toast.error(error.message || safeT("profile.failedToUploadProfilePicture", "Failed to upload profile picture"))
       
       // Revert on error - keep the preview shown initially
     } finally {
@@ -99,7 +112,7 @@ export function ProfilePictureUpload({ currentImage, onImageChange, userId }: Pr
         className="bg-transparent"
         disabled={isUploading}
       >
-        {isUploading ? "Uploading..." : "Change photo"}
+        {isUploading ? safeT("profile.uploading", "Uploading...") : safeT("profile.changePhoto", "Change photo")}
       </Button>
     </div>
   )

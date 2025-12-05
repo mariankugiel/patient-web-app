@@ -9,10 +9,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useSelector } from "react-redux"
 import { RootState } from "@/lib/store"
 import { AuthApiService } from "@/lib/api/auth-api"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "react-toastify"
+import { useLanguage } from "@/contexts/language-context"
 
 export default function PrivacyTabPage() {
-  const { toast } = useToast()
+  const { t } = useLanguage()
   const user = useSelector((state: RootState) => state.auth.user)
   const [isLoading, setIsLoading] = useState(false)
   
@@ -46,11 +47,7 @@ export default function PrivacyTabPage() {
 
   const save = async () => {
     if (!user?.id) {
-      toast({
-        title: "Error",
-        description: "You must be logged in to update your privacy settings.",
-        variant: "destructive",
-      })
+      toast.error("You must be logged in to update your privacy settings.")
       return
     }
     
@@ -64,19 +61,10 @@ export default function PrivacyTabPage() {
       
       console.log("💾 Privacy settings saved")
       
-      toast({
-        title: "Settings updated",
-        description: "Your privacy settings have been saved successfully.",
-        duration: 3000,
-      })
+      toast.success(t("preferences.savedSuccessfullyDesc") || "Your privacy settings have been saved successfully.")
     } catch (error: any) {
       console.error("Error saving privacy settings:", error)
-      toast({
-        title: "Error",
-        description: error.message || "An unexpected error occurred.",
-        variant: "destructive",
-        duration: 3000,
-      })
+      toast.error(error.message || "An unexpected error occurred.")
     } finally {
       setIsLoading(false)
     }
@@ -91,8 +79,8 @@ export default function PrivacyTabPage() {
     <Card>
       <CardContent className="pt-6 space-y-6">
         <div>
-          <h3 className="text-lg font-medium mb-2">Privacy & Data</h3>
-          <p className="text-sm text-muted-foreground">Manage how your data is used and request copies of your information</p>
+          <h3 className="text-lg font-medium mb-2">{t("profile.privacyData")}</h3>
+          <p className="text-sm text-muted-foreground">{t("profile.privacyDataDesc")}</p>
         </div>
 
         <Separator />
@@ -104,24 +92,24 @@ export default function PrivacyTabPage() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5" /><path d="M8.5 8.5v.01" /><path d="M16 15.5v.01" /><path d="M12 12v.01" /><path d="M11 17v.01" /><path d="M7 14v.01" /></svg>
               </div>
               <div className="flex-1">
-                <h4 className="font-semibold text-base">Data Sharing Preferences</h4>
-                <p className="text-xs text-muted-foreground mt-0.5">Control how your health data is used to improve our services</p>
+                <h4 className="font-semibold text-base">{t("profile.dataSharingPreferences")}</h4>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("profile.dataSharingPreferencesDesc")}</p>
               </div>
             </div>
 
             <div className="space-y-3">
               <div className="flex items-start justify-between rounded-md border bg-muted/30 p-4">
                 <div className="flex-1 pr-4">
-                  <h5 className="font-medium text-sm mb-1">Share Anonymized Data for Research</h5>
-                  <p className="text-xs text-muted-foreground">Help advance medical research by sharing your anonymized health data with approved research institutions. Your personal information will never be shared.</p>
+                  <h5 className="font-medium text-sm mb-1">{t("profile.shareAnonymizedData")}</h5>
+                  <p className="text-xs text-muted-foreground">{t("profile.shareAnonymizedDataDesc")}</p>
                 </div>
                 <Switch checked={settings.shareAnonymizedData} onCheckedChange={() => toggle("shareAnonymizedData")} />
               </div>
 
               <div className="flex items-start justify-between rounded-md border bg-muted/30 p-4">
                 <div className="flex-1 pr-4">
-                  <h5 className="font-medium text-sm mb-1">Share Usage Analytics</h5>
-                  <p className="text-xs text-muted-foreground">Allow us to collect anonymized usage data to improve app performance and user experience.</p>
+                  <h5 className="font-medium text-sm mb-1">{t("profile.shareUsageAnalytics")}</h5>
+                  <p className="text-xs text-muted-foreground">{t("profile.shareUsageAnalyticsDesc")}</p>
                 </div>
                 <Switch checked={settings.shareAnalytics} onCheckedChange={() => toggle("shareAnalytics")} />
               </div>
@@ -137,8 +125,8 @@ export default function PrivacyTabPage() {
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>
             </div>
             <div className="flex-1">
-              <h4 className="font-semibold text-base">Data Export</h4>
-              <p className="text-xs text-muted-foreground mt-0.5">Request a complete copy of your health data</p>
+              <h4 className="font-semibold text-base">{t("profile.dataExport")}</h4>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("profile.dataExportDesc")}</p>
             </div>
           </div>
 
@@ -146,41 +134,41 @@ export default function PrivacyTabPage() {
             <div className="flex items-start gap-3">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground mt-0.5 flex-shrink-0"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
               <div className="flex-1">
-                <p className="text-sm">You can request a copy of all your health data stored in our system.</p>
+                <p className="text-sm">{t("profile.dataExportInfo")}</p>
                 <ul className="text-xs text-muted-foreground mt-2 space-y-1 ml-4 list-disc">
-                  <li>Personal profile information</li>
-                  <li>Health records and medical history</li>
-                  <li>Appointments and prescriptions</li>
-                  <li>Wearable device data</li>
-                  <li>Emergency contacts and medical information</li>
+                  <li>{t("profile.dataExportIncludes")}</li>
+                  <li>{t("profile.dataExportIncludes2")}</li>
+                  <li>{t("profile.dataExportIncludes3")}</li>
+                  <li>{t("profile.dataExportIncludes4")}</li>
+                  <li>{t("profile.dataExportIncludes5")}</li>
                 </ul>
-                <p className="text-xs text-muted-foreground mt-3">Your data will be compiled and sent to your registered email address within 24 hours.</p>
+                <p className="text-xs text-muted-foreground mt-3">{t("profile.dataExportTimeline")}</p>
               </div>
             </div>
 
             <Dialog open={dataExportOpen} onOpenChange={setDataExportOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-auto bg-transparent">Request Data Export</Button>
+                <Button variant="outline" className="w-full sm:w-auto bg-transparent">{t("profile.requestDataExport")}</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Request Data Export</DialogTitle>
-                  <DialogDescription>We'll send you a copy of all your health data within 24 hours to your registered email address.</DialogDescription>
+                  <DialogTitle>{t("profile.requestDataExport")}</DialogTitle>
+                  <DialogDescription>{t("profile.requestDataExportDesc")}</DialogDescription>
                 </DialogHeader>
                 <div className="rounded-md bg-muted p-4 my-4">
-                  <p className="text-sm"><strong>Email:</strong> john.smith@email.com</p>
-                  <p className="text-xs text-muted-foreground mt-2">The export will be sent to this email address.</p>
+                  <p className="text-sm"><strong>{t("profile.emailAddress")}</strong> john.smith@email.com</p>
+                  <p className="text-xs text-muted-foreground mt-2">{t("profile.exportEmailDesc")}</p>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setDataExportOpen(false)}>Cancel</Button>
-                  <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleDataExport}>Confirm Request</Button>
+                  <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleDataExport}>{t("profile.confirmRequest")}</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
         </div>
 
-        <Button className="bg-teal-600 hover:bg-teal-700" onClick={save} disabled={isLoading}>{isLoading ? "Saving..." : "Save Privacy Settings"}</Button>
+        <Button className="bg-teal-600 hover:bg-teal-700" onClick={save} disabled={isLoading}>{isLoading ? t("profile.saving") : t("profile.savePrivacySettings")}</Button>
       </CardContent>
     </Card>
   )

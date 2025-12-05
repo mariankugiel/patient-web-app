@@ -46,10 +46,10 @@ function HealthRecordsLayoutContent({
   }
 
   return (
-    <div className="py-6">
+    <div className="py-6 px-4 sm:px-6 lg:px-8">
       {/* Navigation Tabs */}
       <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-6">
-        <div className="overflow-x-auto pb-2">
+        <div className="overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
           <TabsList className="w-max min-w-full h-auto flex flex-nowrap gap-1 p-1">
             <TabsTrigger value="summary" className="flex-1 py-2">
               <div className="flex items-center gap-2">

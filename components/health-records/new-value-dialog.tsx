@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
@@ -253,7 +254,7 @@ export function NewValueDialog({
         <div className="grid gap-4 py-4">
           {sections && sections.length > 0 && (
             <div className="grid gap-2">
-              <Label htmlFor="sectionSelect">Select Section *</Label>
+              <Label htmlFor="sectionSelect">Select Section <span className="text-red-500">*</span></Label>
               <Popover open={sectionComboboxOpen} onOpenChange={setSectionComboboxOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -301,7 +302,7 @@ export function NewValueDialog({
           )}
           
           <div className="grid gap-2">
-            <Label htmlFor="metricSelect">Select Metric *</Label>
+            <Label htmlFor="metricSelect">Select Metric <span className="text-red-500">*</span></Label>
             <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -367,7 +368,7 @@ export function NewValueDialog({
           )}
           
           <div className="grid gap-2">
-            <Label htmlFor="recordedDate">Date *</Label>
+            <Label htmlFor="recordedDate">Date <span className="text-red-500">*</span></Label>
             <Input
               id="recordedDate"
               type="date"
@@ -377,12 +378,13 @@ export function NewValueDialog({
           </div>
           
           <div className="grid gap-2">
-            <Label htmlFor="notes">Notes (Optional)</Label>
-            <Input
+            <Label htmlFor="notes">Notes</Label>
+            <Textarea
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Add any notes..."
+              rows={3}
             />
           </div>
         </div>

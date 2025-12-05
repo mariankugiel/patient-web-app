@@ -20,5 +20,7 @@ export interface FrontendAppointment {
   appointmentTypeName?: string | null
   appointmentTypeDuration?: number | null
   appointmentTypePrice?: number | null
+  phone?: string | null
+  location?: string | null
 }
 

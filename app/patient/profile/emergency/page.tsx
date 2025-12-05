@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Pencil, Plus, Save, Smartphone, X } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "react-toastify"
+import { useLanguage } from "@/contexts/language-context"
 import { countryCodes } from "@/lib/country-codes"
 import { useSelector } from "react-redux"
 import { RootState } from "@/lib/store"
@@ -44,7 +45,7 @@ const emergencyInfoSchema = z.object({
 type EmergencyInfoFormValues = z.infer<typeof emergencyInfoSchema>
 
 export default function EmergencyTabPage() {
-  const { toast } = useToast()
+  const { t } = useLanguage()
   const user = useSelector((state: RootState) => state.auth.user)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -160,19 +161,10 @@ export default function EmergencyTabPage() {
         })),
       })
       console.log("✅ Emergency contacts saved successfully")
-      toast({
-        title: "Emergency contacts updated",
-        description: "Your emergency contacts have been saved successfully.",
-        duration: 3000,
-      })
+      toast.success(t("profile.updateSuccessDesc") || "Your emergency contacts have been saved successfully.")
     } catch (error: any) {
       console.error("❌ Error saving emergency:", error)
-      toast({
-        title: "Error",
-        description: error.message || "An unexpected error occurred while saving emergency contacts.",
-        variant: "destructive",
-        duration: 3000,
-      })
+      toast.error(error.message || "An unexpected error occurred while saving emergency contacts.")
     } finally {
       setIsLoading(false)
     }
@@ -196,11 +188,7 @@ export default function EmergencyTabPage() {
 
   const onSubmitEmergencyInfo = async (data: EmergencyInfoFormValues) => {
     if (!user?.id) {
-      toast({
-        title: "Error",
-        description: "You must be logged in to update your emergency information.",
-        variant: "destructive",
-      })
+      toast.error("You must be logged in to update your emergency information.")
       return
     }
     
@@ -217,26 +205,17 @@ export default function EmergencyTabPage() {
       
       console.log("💾 Emergency info saved")
       
-      toast({
-        title: "Emergency information updated",
-        description: "Your emergency information has been saved successfully.",
-        duration: 3000,
-      })
+      toast.success(t("profile.updateSuccessDesc") || "Your emergency information has been saved successfully.")
     } catch (error: any) {
       console.error("Error updating emergency info:", error)
-      toast({
-        title: "Error",
-        description: error.message || "An unexpected error occurred.",
-        variant: "destructive",
-        duration: 3000,
-      })
+      toast.error(error.message || "An unexpected error occurred.")
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleMobileSync = (platform: "ios" | "android") => {
-    toast({ title: "Syncing to mobile", description: `Your emergency information is being synced to your ${platform === "ios" ? "iOS" : "Android"} device.`, duration: 3000 })
+    toast.info(`Your emergency information is being synced to your ${platform === "ios" ? "iOS" : "Android"} device.`)
     setMobileSyncDialogOpen(false)
   }
 
@@ -245,12 +224,12 @@ export default function EmergencyTabPage() {
       <CardContent className="pt-6 space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
-            <h3 className="text-base font-semibold">Emergency Contacts</h3>
-            <p className="text-xs text-muted-foreground">People to contact in case of emergency</p>
+            <h3 className="text-base font-semibold">{t("profile.emergencyContacts")}</h3>
+            <p className="text-xs text-muted-foreground">{t("profile.emergencyContactsDesc")}</p>
           </div>
           <Button className="bg-teal-600 hover:bg-teal-700 w-full sm:w-auto h-9" onClick={handleAddContact}>
             <Plus className="mr-2 h-3.5 w-3.5" />
-            Add Contact
+            {t("profile.addContact")}
           </Button>
         </div>
 
@@ -282,18 +261,18 @@ export default function EmergencyTabPage() {
         <Dialog open={emergencyContactDialogOpen} onOpenChange={setEmergencyContactDialogOpen}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>{editingContactId ? "Edit Emergency Contact" : "Add Emergency Contact"}</DialogTitle>
+              <DialogTitle>{editingContactId ? t("profile.editEmergencyContact") : t("profile.addEmergencyContact")}</DialogTitle>
               <DialogDescription>
-                {editingContactId ? "Update the emergency contact information." : "Add a new emergency contact who can be reached in case of emergency."}
+                {editingContactId ? t("profile.editContactDesc") : t("profile.addContactDesc")}
               </DialogDescription>
             </DialogHeader>
             <Form {...emergencyContactForm}>
               <form onSubmit={emergencyContactForm.handleSubmit(onSubmitEmergencyContact)} className="space-y-4">
                 <FormField control={emergencyContactForm.control} name="name" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name</FormLabel>
+                    <FormLabel>{t("profile.contactName")}</FormLabel>
                     <FormControl>
-                      <Input placeholder="Full name" {...field} />
+                      <Input placeholder={t("profile.placeholderFullName")} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -301,20 +280,20 @@ export default function EmergencyTabPage() {
 
                 <FormField control={emergencyContactForm.control} name="relationship" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Relationship</FormLabel>
+                    <FormLabel>{t("profile.relationship")}</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select relationship" />
+                          <SelectValue placeholder={t("profile.selectRelationship")} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="Spouse/Partner">Spouse/Partner</SelectItem>
-                        <SelectItem value="Parent">Parent</SelectItem>
-                        <SelectItem value="Sibling">Sibling</SelectItem>
-                        <SelectItem value="Child">Child</SelectItem>
-                        <SelectItem value="Friend">Friend</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
+                        <SelectItem value="Spouse/Partner">{t("profile.relationshipSpouse")}</SelectItem>
+                        <SelectItem value="Parent">{t("profile.relationshipParent")}</SelectItem>
+                        <SelectItem value="Sibling">{t("profile.relationshipSibling")}</SelectItem>
+                        <SelectItem value="Child">{t("profile.relationshipChild")}</SelectItem>
+                        <SelectItem value="Friend">{t("profile.relationshipFriend")}</SelectItem>
+                        <SelectItem value="Other">{t("profile.relationshipOther")}</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -322,7 +301,7 @@ export default function EmergencyTabPage() {
                 )} />
 
                 <div>
-                  <Label>Mobile Phone</Label>
+                  <Label>{t("profile.mobilePhone")}</Label>
                   <div className="flex gap-2 mt-2">
                     <FormField control={emergencyContactForm.control} name="countryCode" render={({ field }) => (
                       <FormItem className="w-40">
@@ -351,7 +330,7 @@ export default function EmergencyTabPage() {
                     <FormField control={emergencyContactForm.control} name="phone" render={({ field }) => (
                       <FormItem className="flex-1">
                         <FormControl>
-                          <Input type="tel" placeholder="555 123 4567" {...field} />
+                          <Input type="tel" placeholder={t("profile.placeholderMobile")} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -361,9 +340,9 @@ export default function EmergencyTabPage() {
 
                 <FormField control={emergencyContactForm.control} name="email" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email (Optional)</FormLabel>
+                    <FormLabel>{t("profile.emailOptional")}</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="email@example.com" {...field} />
+                      <Input type="email" placeholder={t("profile.placeholderEmail")} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -374,7 +353,7 @@ export default function EmergencyTabPage() {
                     Cancel
                   </Button>
                   <Button type="submit" className="bg-teal-600 hover:bg-teal-700">
-                    {editingContactId ? "Update Contact" : "Add Contact"}
+                    {editingContactId ? t("profile.updateContact") : t("profile.addContact")}
                   </Button>
                 </DialogFooter>
               </form>
@@ -387,20 +366,20 @@ export default function EmergencyTabPage() {
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
-              <h3 className="text-base font-semibold">Emergency Medical Information</h3>
-              <p className="text-xs text-muted-foreground">Critical health information for emergency responders</p>
+              <h3 className="text-base font-semibold">{t("profile.emergencyMedicalInfo")}</h3>
+              <p className="text-xs text-muted-foreground">{t("profile.emergencyMedicalInfoDesc")}</p>
             </div>
             <Dialog open={mobileSyncDialogOpen} onOpenChange={setMobileSyncDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="w-full sm:w-auto h-9 bg-transparent">
                   <Smartphone className="mr-2 h-3.5 w-3.5" />
-                  Sync to Mobile
+                  {t("profile.syncToMobile")}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Sync to Mobile Device</DialogTitle>
-                  <DialogDescription>Choose your mobile platform to sync your emergency information</DialogDescription>
+                  <DialogTitle>{t("profile.syncToMobileDevice")}</DialogTitle>
+                  <DialogDescription>{t("profile.syncToMobileDesc")}</DialogDescription>
                 </DialogHeader>
                 <div className="grid grid-cols-2 gap-4 py-4">
                   <Button variant="outline" className="h-20 flex items-center justify-center bg-transparent" onClick={() => handleMobileSync("ios")}>
@@ -420,9 +399,9 @@ export default function EmergencyTabPage() {
                 <div className="space-y-3">
                   <FormField control={emergencyInfoForm.control} name="allergies" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-sm font-medium">Allergies</FormLabel>
+                      <FormLabel className="text-sm font-medium">{t("profile.allergies")}</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="List any allergies (medications, food, etc.)" className="resize-none text-sm" rows={3} {...field} />
+                        <Textarea placeholder={t("profile.placeholderAllergies")} className="resize-none text-sm" rows={3} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -430,9 +409,9 @@ export default function EmergencyTabPage() {
 
                   <FormField control={emergencyInfoForm.control} name="medications" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-sm font-medium">Current Medications</FormLabel>
+                      <FormLabel className="text-sm font-medium">{t("profile.currentMedications")}</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="List current medications and dosages" className="resize-none text-sm" rows={3} {...field} />
+                        <Textarea placeholder={t("profile.placeholderMedications")} className="resize-none text-sm" rows={3} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -442,9 +421,9 @@ export default function EmergencyTabPage() {
                 <div className="space-y-3">
                   <FormField control={emergencyInfoForm.control} name="healthProblems" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-sm font-medium">Health Problems</FormLabel>
+                      <FormLabel className="text-sm font-medium">{t("profile.healthProblems")}</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="List chronic conditions or health issues" className="resize-none text-sm" rows={3} {...field} />
+                        <Textarea placeholder={t("profile.placeholderHealthProblems")} className="resize-none text-sm" rows={3} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -453,18 +432,18 @@ export default function EmergencyTabPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <FormField control={emergencyInfoForm.control} name="pregnancy" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm font-medium">Pregnancy Status</FormLabel>
+                        <FormLabel className="text-sm font-medium">{t("profile.pregnancyStatus")}</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger className="h-9 text-sm">
-                              <SelectValue placeholder="Select status" />
+                              <SelectValue placeholder={t("profile.selectStatus")} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="no">Not Pregnant</SelectItem>
-                            <SelectItem value="yes">Pregnant</SelectItem>
-                            <SelectItem value="unknown">Unknown</SelectItem>
-                            <SelectItem value="na">Not Applicable</SelectItem>
+                            <SelectItem value="no">{t("profile.pregnancyNotPregnant")}</SelectItem>
+                            <SelectItem value="yes">{t("profile.pregnancyPregnant")}</SelectItem>
+                            <SelectItem value="unknown">{t("profile.pregnancyUnknown")}</SelectItem>
+                            <SelectItem value="na">{t("profile.pregnancyNotApplicable")}</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -473,9 +452,9 @@ export default function EmergencyTabPage() {
 
                     <FormField control={emergencyInfoForm.control} name="organDonor" render={({ field }) => (
                       <FormItem className="flex flex-col justify-end">
-                        <FormLabel className="text-sm font-medium mb-2">Organ Donor</FormLabel>
+                        <FormLabel className="text-sm font-medium mb-2">{t("profile.organDonor")}</FormLabel>
                         <div className="flex items-center justify-between rounded-md border px-3 h-9">
-                          <span className="text-sm">Willing to donate</span>
+                          <span className="text-sm">{t("profile.willingToDonate")}</span>
                           <FormControl>
                             <Switch checked={field.value} onCheckedChange={field.onChange} />
                           </FormControl>
@@ -488,7 +467,7 @@ export default function EmergencyTabPage() {
 
               <Button type="submit" className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 h-9">
                 <Save className="mr-2 h-3.5 w-3.5" />
-                Save Emergency Information
+                {t("profile.saveEmergencyInfo")}
               </Button>
             </form>
           </Form>

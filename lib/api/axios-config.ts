@@ -28,7 +28,7 @@ export const resetSessionExpiredFlag = () => {
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
   baseURL: (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000') + '/api/v1',
-  timeout: 30000, // 30 seconds default timeout (increased for AI operations)
+  timeout: 120000, // 2 minutes default timeout (increased for AI operations and long-running requests)
   headers: {
     'Content-Type': 'application/json',
   },

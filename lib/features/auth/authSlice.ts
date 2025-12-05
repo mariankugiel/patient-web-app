@@ -25,19 +25,40 @@ interface User {
   created_at?: string
 }
 
+interface UserProfile {
+  email?: string
+  full_name?: string
+  phone_number?: string
+  date_of_birth?: string
+  address?: string
+  gender?: string
+  avatar_url?: string
+  timezone?: string
+  language?: string
+  theme?: string
+  is_new_user?: boolean
+  onboarding_completed?: boolean
+  onboarding_skipped?: boolean
+  [key: string]: any
+}
+
 interface AuthState {
   user: User | null
+  profile: UserProfile | null // Separate profile field for full profile data
   isAuthenticated: boolean
   isLoading: boolean
   isRestoringSession: boolean
+  isLoadingProfile: boolean
   error: string | null
 }
 
 const initialState: AuthState = {
   user: null,
+  profile: null,
   isAuthenticated: false,
   isLoading: false,
   isRestoringSession: true,
+  isLoadingProfile: false,
   error: null,
 }
 
@@ -138,9 +159,41 @@ const authSlice = createSlice({
     sessionRestorationComplete: (state) => {
       state.isRestoringSession = false
     },
+    fetchProfileStart: (state) => {
+      state.isLoadingProfile = true
+    },
+    fetchProfileSuccess: (state, action: PayloadAction<UserProfile>) => {
+      state.isLoadingProfile = false
+      state.profile = action.payload
+      // Also update user_metadata if user exists
+      if (state.user) {
+        state.user.user_metadata = {
+          ...state.user.user_metadata,
+          ...action.payload,
+        }
+      }
+    },
+    fetchProfileFailure: (state) => {
+      state.isLoadingProfile = false
+    },
+    updateProfile: (state, action: PayloadAction<Partial<UserProfile>>) => {
+      if (state.profile) {
+        state.profile = {
+          ...state.profile,
+          ...action.payload,
+        }
+      }
+      // Also update user_metadata if user exists
+      if (state.user) {
+        state.user.user_metadata = {
+          ...state.user.user_metadata,
+          ...action.payload,
+        }
+      }
+    },
   },
 })
 
-export const { loginStart, loginSuccess, loginFailure, loginMfaRequired, signupStart, signupSuccess, signupFailure, logout, updateUser, clearError, sessionRestorationStart, sessionRestorationComplete } = authSlice.actions
+export const { loginStart, loginSuccess, loginFailure, loginMfaRequired, signupStart, signupSuccess, signupFailure, logout, updateUser, clearError, sessionRestorationStart, sessionRestorationComplete, fetchProfileStart, fetchProfileSuccess, fetchProfileFailure, updateProfile } = authSlice.actions
 
 export default authSlice.reducer

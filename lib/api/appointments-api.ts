@@ -11,6 +11,7 @@ export interface Doctor {
   lastName?: string
   specialty?: string | null
   avatar?: string | null
+  address?: string | null
   isOnline?: boolean
   email?: string
   acuityCalendarId?: string | null
@@ -68,6 +69,8 @@ export interface Appointment {
   appointment_type_price?: number | null
   amount_paid?: number | null
   is_paid?: boolean
+  phone?: string | null
+  location?: string | null
 }
 
 export interface AcuityEmbedConfig {
@@ -92,8 +95,6 @@ export interface AppointmentBookRequest {
   last_name: string
   email: string
   phone?: string
-  consultation_type: 'virtual' | 'in-person' | 'phone'
-  location?: string // Required for in-person
   note?: string
   timezone?: string
 }
@@ -108,6 +109,7 @@ export const appointmentsApiService = {
    */
   async getDoctors(params?: {
     search?: string
+    location?: string
     offset?: number
     limit?: number
   }): Promise<Doctor[]> {
@@ -231,6 +233,16 @@ export const appointmentsApiService = {
    */
   async cancelAppointment(appointmentId: string | number): Promise<void> {
     await apiClient.delete(`/appointments/${appointmentId}`)
+  },
+
+  /**
+   * Update phone number for an appointment
+   */
+  async updateAppointmentPhone(appointmentId: string | number, phone: string): Promise<any> {
+    const response = await apiClient.patch(`/appointments/${appointmentId}/phone`, {
+      phone
+    })
+    return response.data
   },
 
   /**

@@ -62,16 +62,16 @@ export function FamilyHistoryStep({ language }: FamilyHistoryStepProps) {
           {familyLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin" />
-              <span className="ml-2">Loading family history...</span>
+              <span className="ml-2">{t("health.loadingFamilyHistory")}</span>
             </div>
           ) : familyError ? (
             <div className="text-center py-8 text-red-600">
-              <p>Error loading family history: {familyError}</p>
+              <p>{t("health.errorLoadingFamilyHistory")}: {familyError}</p>
             </div>
           ) : familyHistory.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <p>No family medical history recorded.</p>
-              <p className="text-sm mt-2">Click "Add" to add your family medical history.</p>
+              <p>{t("health.noFamilyHistory")}</p>
+              <p className="text-sm mt-2">{t("health.noFamilyHistoryDesc")}</p>
             </div>
           ) : (
             <div className="space-y-3">

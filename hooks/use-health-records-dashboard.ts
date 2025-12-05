@@ -9,8 +9,10 @@ import {
   SectionWithMetrics,
   MetricWithData
 } from '@/lib/api/health-records-api'
+import { useLanguage } from '@/contexts/language-context'
 
 export function useHealthRecordsDashboard(healthRecordTypeId: number, patientId?: number | null) {
+  const { language } = useLanguage()
   const [dashboard, setDashboard] = useState<AnalysisDashboardResponse | null>(null)
   const [sections, setSections] = useState<SectionWithMetrics[]>([])
   const [loading, setLoading] = useState(true)
@@ -155,7 +157,7 @@ export function useHealthRecordsDashboard(healthRecordTypeId: number, patientId?
 
   useEffect(() => {
     loadDashboard()
-  }, [healthRecordTypeId, patientId])
+  }, [healthRecordTypeId, patientId, language])
 
   return {
     dashboard,

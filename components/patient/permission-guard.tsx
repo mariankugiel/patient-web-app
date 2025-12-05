@@ -29,8 +29,14 @@ export function PermissionGuard({
   useEffect(() => {
     const checkPermission = async () => {
       // Wait for authentication to be restored before checking permissions
-      if (isRestoringSession || !isAuthenticated) {
+      if (isRestoringSession) {
         setLoading(true)
+        return
+      }
+      
+      // If session restoration is complete and user is not authenticated, redirect to login
+      if (!isAuthenticated) {
+        router.push('/auth/login')
         return
       }
 

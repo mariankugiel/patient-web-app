@@ -38,7 +38,7 @@ export default function VitalsPage() {
     <div className="space-y-6">
       {/* AI Analysis Section */}
       <AIAnalysisSection
-        title="AI Health Analysis"
+        title={t("health.aiHealthAnalysis")}
         analysis={aiAnalysis}
         loading={aiLoading}
         error={null}

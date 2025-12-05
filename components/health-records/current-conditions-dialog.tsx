@@ -26,23 +26,28 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Plus, Trash2, Loader2 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
-import { CurrentCondition, useCurrentMedicalConditions } from "@/hooks/use-medical-conditions"
+import { CurrentCondition } from "@/hooks/use-medical-conditions"
 
 interface CurrentConditionsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onRefresh?: () => Promise<void>
   selectedCondition?: any | null
+  addCondition?: (condition: Omit<CurrentCondition, 'id'>) => Promise<CurrentCondition>
+  updateCondition?: (id: number, condition: Omit<CurrentCondition, 'id'>) => Promise<CurrentCondition>
+  deleteCondition?: (id: number) => Promise<void>
 }
 
 export function CurrentConditionsDialog({ 
   open, 
   onOpenChange, 
   onRefresh, 
-  selectedCondition 
+  selectedCondition,
+  addCondition,
+  updateCondition,
+  deleteCondition
 }: CurrentConditionsDialogProps) {
   const { t } = useLanguage()
-  const { conditions, loading, addCondition, updateCondition, deleteCondition, refresh } = useCurrentMedicalConditions()
   
   const [saving, setSaving] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
@@ -80,7 +85,7 @@ export function CurrentConditionsDialog({
         setEditingCondition(newCondition)
       }
     }
-  }, [open, conditions, selectedCondition])
+  }, [open, selectedCondition])
 
 
   const updateSingleConditionField = (field: keyof CurrentCondition, value: string) => {
@@ -101,11 +106,11 @@ export function CurrentConditionsDialog({
     const errors: {[key: string]: string} = {}
     
     if (!editingCondition?.condition?.trim()) {
-      errors.condition = 'Condition name is required'
+      errors.condition = t('health.dialog.conditionNameRequired')
     }
     
     if (!editingCondition?.diagnosedDate?.trim()) {
-      errors.diagnosedDate = 'Diagnosed date is required'
+      errors.diagnosedDate = t('health.dialog.dateDiagnosedRequired')
     }
     
     setValidationErrors(errors)
@@ -122,18 +127,16 @@ export function CurrentConditionsDialog({
     try {
       if (isEditMode && editingCondition) {
         // Edit single condition
-        if (editingCondition.id) {
+        if (editingCondition.id && updateCondition) {
           await updateCondition(editingCondition.id, editingCondition)
         }
-      } else if (!isEditMode && editingCondition) {
+      } else if (!isEditMode && editingCondition && addCondition) {
         // Add mode - add single new condition
         await addCondition(editingCondition)
       }
       
       if (onRefresh) {
         await onRefresh()
-      } else {
-        await refresh()
       }
       
       onOpenChange(false)
@@ -145,14 +148,12 @@ export function CurrentConditionsDialog({
   }
 
   const handleDelete = async () => {
-    if (!editingCondition?.id) return
+    if (!editingCondition?.id || !deleteCondition) return
     
     try {
       await deleteCondition(editingCondition.id)
       if (onRefresh) {
         await onRefresh()
-      } else {
-        await refresh()
       }
       onOpenChange(false)
     } catch (error) {
@@ -171,7 +172,7 @@ export function CurrentConditionsDialog({
   }
 
   const handleDeleteConfirm = async () => {
-    if (conditionToDelete) {
+    if (conditionToDelete && deleteCondition) {
       try {
         await deleteCondition(conditionToDelete)
         if (onRefresh) {
@@ -197,12 +198,12 @@ export function CurrentConditionsDialog({
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {isEditMode ? 'Edit Current Medical Condition' : 'Add New Current Medical Condition'}
+              {isEditMode ? t('health.dialog.editCurrentCondition') : t('health.dialog.addNewCurrentCondition')}
             </DialogTitle>
             <DialogDescription>
               {isEditMode 
-                ? 'Edit your current medical condition details.'
-                : 'Add a new current medical condition. All fields are optional except Condition Name.'
+                ? t('health.dialog.editCurrentConditionDesc')
+                : t('health.dialog.addNewCurrentConditionDesc')
               }
             </DialogDescription>
           </DialogHeader>
@@ -213,7 +214,7 @@ export function CurrentConditionsDialog({
             {isEditMode && editingCondition && (
               <div className="border rounded-lg p-4 space-y-4">
                 <div className="flex justify-between items-center">
-                  <h4 className="font-medium text-gray-900">Edit Condition</h4>
+                  <h4 className="font-medium text-gray-900">{t('health.dialog.editCondition')}</h4>
                   <Button
                     onClick={confirmDelete}
                     size="sm"
@@ -226,12 +227,12 @@ export function CurrentConditionsDialog({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="condition">Condition Name <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="condition">{t('health.dialog.conditionName')} <span className="text-red-500">*</span></Label>
                     <Input
                       id="condition"
                       value={editingCondition.condition}
                       onChange={(e) => updateSingleConditionField('condition', e.target.value)}
-                      placeholder="Enter condition name"
+                      placeholder={t('health.dialog.enterConditionName')}
                       className={validationErrors.condition ? "border-red-500" : ""}
                     />
                     {validationErrors.condition && (
@@ -239,18 +240,18 @@ export function CurrentConditionsDialog({
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="status">Status</Label>
+                    <Label htmlFor="status">{t('health.dialog.status')}</Label>
                     <Select
                       value={editingCondition.status}
                       onValueChange={(value) => updateSingleConditionField('status', value)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
+                        <SelectValue placeholder={t('health.dialog.selectStatus')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="controlled">Controlled</SelectItem>
-                        <SelectItem value="partiallyControlled">Partially Controlled</SelectItem>
-                        <SelectItem value="uncontrolled">Uncontrolled</SelectItem>
+                        <SelectItem value="controlled">{t('health.dialog.statusControlled')}</SelectItem>
+                        <SelectItem value="partiallyControlled">{t('health.dialog.statusPartiallyControlled')}</SelectItem>
+                        <SelectItem value="uncontrolled">{t('health.dialog.statusUncontrolled')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -258,7 +259,7 @@ export function CurrentConditionsDialog({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="diagnosedDate">Date Diagnosed <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="diagnosedDate">{t('health.dialog.dateDiagnosed')} <span className="text-red-500">*</span></Label>
                     <Input
                       id="diagnosedDate"
                       type="date"
@@ -271,23 +272,23 @@ export function CurrentConditionsDialog({
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="treatedWith">Treatment</Label>
+                    <Label htmlFor="treatedWith">{t('health.dialog.treatment')}</Label>
                     <Input
                       id="treatedWith"
                       value={editingCondition.treatedWith}
                       onChange={(e) => updateSingleConditionField('treatedWith', e.target.value)}
-                      placeholder="Current treatment"
+                      placeholder={t('health.dialog.currentTreatment')}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
+                  <Label htmlFor="notes">{t('health.dialog.notes')}</Label>
                   <Textarea
                     id="notes"
                     value={editingCondition.notes}
                     onChange={(e) => updateSingleConditionField('notes', e.target.value)}
-                    placeholder="Additional notes about the condition"
+                    placeholder={t('health.dialog.additionalNotes')}
                     rows={3}
                   />
                 </div>
@@ -299,12 +300,12 @@ export function CurrentConditionsDialog({
               <div className="border rounded-lg p-4 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="add_condition">Condition Name <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="add_condition">{t('health.dialog.conditionName')} <span className="text-red-500">*</span></Label>
                     <Input
                       id="add_condition"
                       value={editingCondition.condition}
                       onChange={(e) => updateSingleConditionField('condition', e.target.value)}
-                      placeholder="Enter condition name"
+                      placeholder={t('health.dialog.enterConditionName')}
                       className={validationErrors.condition ? "border-red-500" : ""}
                     />
                     {validationErrors.condition && (
@@ -312,18 +313,18 @@ export function CurrentConditionsDialog({
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="add_status">Status</Label>
+                    <Label htmlFor="add_status">{t('health.dialog.status')}</Label>
                     <Select
                       value={editingCondition.status}
                       onValueChange={(value) => updateSingleConditionField('status', value)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
+                        <SelectValue placeholder={t('health.dialog.selectStatus')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="controlled">Controlled</SelectItem>
-                        <SelectItem value="partiallyControlled">Partially Controlled</SelectItem>
-                        <SelectItem value="uncontrolled">Uncontrolled</SelectItem>
+                        <SelectItem value="controlled">{t('health.dialog.statusControlled')}</SelectItem>
+                        <SelectItem value="partiallyControlled">{t('health.dialog.statusPartiallyControlled')}</SelectItem>
+                        <SelectItem value="uncontrolled">{t('health.dialog.statusUncontrolled')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -331,7 +332,7 @@ export function CurrentConditionsDialog({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="add_diagnosedDate">Date Diagnosed <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="add_diagnosedDate">{t('health.dialog.dateDiagnosed')} <span className="text-red-500">*</span></Label>
                     <Input
                       id="add_diagnosedDate"
                       type="date"
@@ -344,23 +345,23 @@ export function CurrentConditionsDialog({
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="add_treatedWith">Treatment</Label>
+                    <Label htmlFor="add_treatedWith">{t('health.dialog.treatment')}</Label>
                     <Input
                       id="add_treatedWith"
                       value={editingCondition.treatedWith}
                       onChange={(e) => updateSingleConditionField('treatedWith', e.target.value)}
-                      placeholder="Current treatment"
+                      placeholder={t('health.dialog.currentTreatment')}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="add_notes">Notes</Label>
+                  <Label htmlFor="add_notes">{t('health.dialog.notes')}</Label>
                   <Textarea
                     id="add_notes"
                     value={editingCondition.notes}
                     onChange={(e) => updateSingleConditionField('notes', e.target.value)}
-                    placeholder="Additional notes about the condition"
+                    placeholder={t('health.dialog.additionalNotes')}
                     rows={3}
                   />
                 </div>
@@ -370,11 +371,11 @@ export function CurrentConditionsDialog({
 
           <DialogFooter>
             <Button variant="outline" onClick={handleCancel} disabled={saving}>
-              Cancel
+              {t('health.dialog.cancel')}
             </Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {isEditMode ? 'Update Condition' : 'Save Changes'}
+              {isEditMode ? t('health.dialog.updateCondition') : t('health.dialog.saveChanges')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -384,15 +385,15 @@ export function CurrentConditionsDialog({
       <AlertDialog open={conditionToDelete !== null} onOpenChange={() => setConditionToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+            <AlertDialogTitle>{t('health.dialog.confirmDeletion')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this medical condition? This action cannot be undone.
+              {t('health.dialog.deleteCurrentConditionConfirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleDeleteCancel}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={handleDeleteCancel}>{t('health.dialog.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteConfirm} className="bg-red-600 hover:bg-red-700">
-              Delete
+              {t('health.dialog.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

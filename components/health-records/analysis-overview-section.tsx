@@ -25,6 +25,7 @@ import { formatMetricValue, formatReferenceRange } from '@/hooks/use-health-reco
 import { toast } from 'react-toastify'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
+import { useLanguage } from '@/contexts/language-context'
 import { SectionWithMetrics, HealthRecordMetric, HealthRecord, MetricWithData, HealthRecordSection } from './types'
 
 interface AnalysisOverviewSectionProps {
@@ -60,6 +61,7 @@ export function AnalysisOverviewSection({
   patientId,
   isViewingOtherPatient
 }: AnalysisOverviewSectionProps) {
+  const { t } = useLanguage()
   const { user } = useSelector((state: RootState) => state.auth)
   
   // Disable create/edit/delete actions when viewing another patient (read-only mode)
@@ -338,7 +340,7 @@ export function AnalysisOverviewSection({
           <div className="flex justify-between items-center mt-1">
             <div className="flex items-center gap-1">
               <Badge variant="outline" className="text-xs">
-                {chartData.length} entries
+                {chartData.length} {t("health.entries")}
               </Badge>
             </div>
           </div>
@@ -365,7 +367,7 @@ export function AnalysisOverviewSection({
               <div className="flex items-center gap-2">
                 <Button onClick={() => setNewSectionDialogOpen(true)} className="flex items-center gap-2">
                   <Plus className="h-4 w-4" />
-                  New Section
+                  {t("health.newSection")}
                 </Button>
                 <Button
                   onClick={() => {
@@ -378,7 +380,7 @@ export function AnalysisOverviewSection({
                   disabled={displaySections.length === 0}
                 >
                   <Plus className="h-4 w-4" />
-                  New Metric
+                  {t("health.newMetric")}
                 </Button>
                 <Button 
                   onClick={() => {
@@ -394,7 +396,7 @@ export function AnalysisOverviewSection({
                   disabled={displaySections.length === 0}
                 >
                   <Plus className="h-4 w-4" />
-                  New Value
+                  {t("health.addValue")}
                 </Button>
               </div>
             )}
@@ -498,6 +500,11 @@ export function AnalysisOverviewSection({
         onOpenChange={setNewSectionDialogOpen}
         onSectionCreated={handleSectionCreated}
         healthRecordTypeId={healthRecordTypeId}
+        existingSections={sections.map(s => ({
+          id: s.id,
+          display_name: s.display_name,
+          section_template_id: s.section_template_id
+        }))}
         createSection={createSection}
       />
 
@@ -516,6 +523,14 @@ export function AnalysisOverviewSection({
         sectionId={selectedSectionForMetric?.id || 0}
         sectionName={selectedSectionForMetric?.display_name || ''}
         sections={sections}
+        existingMetrics={sections.flatMap(section => 
+          (section.metrics || []).map(metric => ({
+            id: metric.id,
+            display_name: metric.display_name,
+            name: metric.name,
+            section_id: section.id
+          }))
+        )}
         healthRecordTypeId={healthRecordTypeId}
         createMetric={createMetric}
       />

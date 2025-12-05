@@ -9,8 +9,10 @@ import { useAIAnalysis } from "@/hooks/use-ai-analysis"
 import { MedicalImageUploadDialog } from "@/components/medical-images/medical-image-upload-dialog"
 import { MedicalImageList } from "@/components/medical-images/medical-image-list"
 import { AIAnalysisSection } from "@/components/health-records/ai-analysis-section"
+import { useLanguage } from "@/contexts/language-context"
 
 export default function ExamsPage() {
+  const { t } = useLanguage()
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
@@ -37,7 +39,7 @@ export default function ExamsPage() {
     <div className="space-y-6">
       {/* AI Analysis Section */}
       <AIAnalysisSection
-        title="AI Medical Exams Analysis"
+        title={t("health.aiMedicalExamsAnalysis")}
         analysis={aiAnalysis}
         loading={aiLoading}
         error={aiError}
@@ -48,13 +50,13 @@ export default function ExamsPage() {
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold flex items-center gap-2">
           <FileImage className="h-6 w-6" />
-          Medical Exams
+          {t("health.medicalExams")}
         </h2>
         <Button 
           onClick={() => setUploadDialogOpen(true)}
         >
           <Plus className="h-4 w-4 mr-2" />
-          Upload Exam
+          {t("health.uploadExam")}
         </Button>
       </div>
 

@@ -1,5 +1,5 @@
 import { createAsyncThunk, AsyncThunkPayloadCreator } from "@reduxjs/toolkit"
-import { loginStart, loginSuccess, loginFailure, loginMfaRequired, signupStart, signupSuccess, signupFailure } from "./authSlice"
+import { loginStart, loginSuccess, loginFailure, loginMfaRequired, signupStart, signupSuccess, signupFailure, fetchProfileStart, fetchProfileSuccess, fetchProfileFailure } from "./authSlice"
 import { AuthApiService, UserRegistrationData, UserLoginData, LoginResponse } from "@/lib/api/auth-api"
 import { resetSessionExpiredFlag } from "@/lib/api/axios-config"
 import { toast } from "react-toastify"
@@ -288,6 +288,8 @@ export const verifyMfaLogin = createAsyncThunk(
 
       // NOW dispatch loginSuccess - this sets isAuthenticated to true
       dispatch(loginSuccess(user))
+      // Also store profile in Redux
+      dispatch(fetchProfileSuccess(userProfile))
       resetSessionExpiredFlag()
       toast.success("Login successful! Welcome back!")
       return user
@@ -304,6 +306,36 @@ export const verifyMfaLogin = createAsyncThunk(
       
       dispatch(loginFailure(message))
       toast.error(message)
+      return rejectWithValue(message)
+    }
+  },
+)
+
+export const fetchUserProfile = createAsyncThunk(
+  "auth/fetchUserProfile",
+  async (_, { dispatch, rejectWithValue }: any) => {
+    try {
+      dispatch(fetchProfileStart())
+      
+      // Get user profile (token automatically added by interceptor)
+      const userProfile = await AuthApiService.getProfile()
+      
+      // Dispatch success with profile data
+      dispatch(fetchProfileSuccess(userProfile))
+      
+      return userProfile
+    } catch (error: any) {
+      let message = "Failed to fetch user profile"
+      
+      if (error.response?.status === 401) {
+        message = "Session expired. Please log in again."
+      } else if (error.response?.data?.detail) {
+        message = error.response.data.detail
+      } else if (error.message) {
+        message = error.message
+      }
+      
+      dispatch(fetchProfileFailure(message))
       return rejectWithValue(message)
     }
   },
@@ -433,6 +465,8 @@ export const signupUser = createAsyncThunk(
       }
       
       dispatch(signupSuccess(user))
+      // Also store profile in Redux
+      dispatch(fetchProfileSuccess(userProfile))
       
       // Reset session expired notification flag after successful signup
       resetSessionExpiredFlag()
