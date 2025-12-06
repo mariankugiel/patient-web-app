@@ -33,6 +33,7 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated, isRestoringSession, profile, user?.id, dispatch])
 
   // Apply theme and language from switched patient info
+  // Note: Language context will handle language updates automatically, so we only need to handle theme here
   useEffect(() => {
     if (isViewingOtherPatient && switchedPatientInfo?.profile) {
       const profile = switchedPatientInfo.profile
@@ -46,17 +47,16 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
         }
       }
       
-      // Apply viewing patient's language preferences
-      if (profile.language) {
-        setLanguage(profile.language as "en" | "es" | "pt")
-      }
+      // Language context will automatically pick up the language from switchedPatientInfo
+      // No need to call setLanguage here to avoid conflicts
     }
-  }, [switchedPatientInfo?.profile, isViewingOtherPatient, setLanguage])
+  }, [switchedPatientInfo?.profile?.theme, isViewingOtherPatient])
 
-  // Reset theme/language when switching back to own account
+  // Reset theme when switching back to own account
+  // Note: Language context will handle language updates automatically
   useEffect(() => {
     if (!isViewingOtherPatient && user?.user_metadata) {
-      // Apply current user's preferences
+      // Apply current user's theme preferences
       if (user.user_metadata.theme) {
         if (user.user_metadata.theme === 'dark') {
           document.documentElement.classList.add('dark')
@@ -64,11 +64,10 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
           document.documentElement.classList.remove('dark')
         }
       }
-      if (user.user_metadata.language) {
-        setLanguage(user.user_metadata.language as "en" | "es" | "pt")
-      }
+      // Language context will automatically pick up language from user_metadata
+      // No need to call setLanguage here to avoid conflicts
     }
-  }, [isViewingOtherPatient, user?.user_metadata, setLanguage])
+  }, [isViewingOtherPatient, user?.user_metadata?.theme])
 
   // Determine which user's information to display in header
   // When viewing another patient, show their info from switchedPatientInfo; otherwise show current user's info

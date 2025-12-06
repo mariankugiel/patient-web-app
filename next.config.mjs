@@ -36,6 +36,17 @@ const nextConfig = {
           },
         },
       }
+      
+      // Fix for module resolution issues in Next.js 15.5.7
+      config.resolve = {
+        ...config.resolve,
+        fallback: {
+          ...config.resolve.fallback,
+          fs: false,
+          net: false,
+          tls: false,
+        },
+      }
     }
     return config
   },

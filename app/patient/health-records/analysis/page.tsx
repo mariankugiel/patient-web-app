@@ -23,14 +23,32 @@ import {
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { useAnalysisDashboard } from "@/hooks/use-health-records"
-import { AnalysisOverviewSection } from "@/components/health-records/analysis-overview-section"
+import dynamic from "next/dynamic"
 import { useAIAnalysis } from "@/hooks/use-ai-analysis"
-import { AIAnalysisSection } from "@/components/health-records/ai-analysis-section"
 import {
   HealthRecordSection,
 } from "@/lib/api/health-records-api"
-import { LabDocumentDialog } from "@/components/lab-documents/lab-document-dialog"
-import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
+
+// Use dynamic imports to prevent webpack chunk loading errors
+const AnalysisOverviewSection = dynamic(
+  () => import("@/components/health-records/analysis-overview-section").then(mod => ({ default: mod.AnalysisOverviewSection })),
+  { ssr: false, loading: () => <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div> }
+)
+
+const AIAnalysisSection = dynamic(
+  () => import("@/components/health-records/ai-analysis-section").then(mod => ({ default: mod.AIAnalysisSection })),
+  { ssr: false, loading: () => <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div> }
+)
+
+const LabDocumentDialog = dynamic(
+  () => import("@/components/lab-documents/lab-document-dialog").then(mod => ({ default: mod.LabDocumentDialog })),
+  { ssr: false }
+)
+
+const DeleteConfirmationDialog = dynamic(
+  () => import("@/components/ui/delete-confirmation-dialog").then(mod => ({ default: mod.DeleteConfirmationDialog })),
+  { ssr: false }
+)
 import { toast } from "react-toastify"
 import { medicalDocumentsApiService, MedicalDocument } from "@/lib/api/medical-documents-api"
 import { useSwitchedPatient } from "@/contexts/patient-context"
