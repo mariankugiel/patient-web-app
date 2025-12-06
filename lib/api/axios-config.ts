@@ -80,31 +80,44 @@ apiClient.interceptors.request.use(
             const supabase = createClient()
             
             // First check if we have a valid Supabase session
-            const { data: { session: currentSession } } = await supabase.auth.getSession()
+            const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
             
-            // Only try to refresh via Supabase if we have a valid Supabase session
+            // Only try to refresh via Supabase if we have a valid Supabase session with matching refresh token
             // If tokens are from backend API (not Supabase), skip Supabase refresh
-            if (currentSession && currentSession.refresh_token) {
-              // Try to refresh the Supabase session
-              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-              
-              if (!refreshError && refreshData?.session) {
-                // Update tokens in localStorage
-                token = refreshData.session.access_token
-                localStorage.setItem('access_token', token)
-                if (refreshData.session.refresh_token) {
-                  localStorage.setItem('refresh_token', refreshData.session.refresh_token)
+            if (currentSession && currentSession.refresh_token && currentSession.refresh_token === refreshToken) {
+              // Verify this is a Supabase token by checking if refresh works
+              // Try to refresh the Supabase session manually (auto-refresh is disabled)
+              try {
+                const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+                
+                if (!refreshError && refreshData?.session) {
+                  // Update tokens in localStorage
+                  token = refreshData.session.access_token
+                  localStorage.setItem('access_token', token)
+                  if (refreshData.session.refresh_token) {
+                    localStorage.setItem('refresh_token', refreshData.session.refresh_token)
+                  }
+                  if (refreshData.session.expires_in) {
+                    localStorage.setItem('expires_in', refreshData.session.expires_in.toString())
+                  }
+                  console.log('✅ Token refreshed via Supabase')
+                } else if (refreshError) {
+                  // Supabase refresh failed - tokens are likely from backend API
+                  // Don't log as error - this is expected for backend tokens
+                  // The response interceptor will handle 401 errors
                 }
-                if (refreshData.session.expires_in) {
-                  localStorage.setItem('expires_in', refreshData.session.expires_in.toString())
+              } catch (refreshException: any) {
+                // Catch any errors during refresh attempt (like 400 errors)
+                // This is expected when using backend tokens, so don't log as error
+                const is400Error = refreshException?.status === 400 || 
+                                   refreshException?.code === 400 ||
+                                   refreshException?.message?.includes('400')
+                if (!is400Error) {
+                  console.warn('Supabase refresh error:', refreshException?.message || refreshException)
                 }
-              } else if (refreshError) {
-                // Supabase refresh failed - might be using backend tokens
-                // Silently fail and let the backend handle token refresh via 401 response
-                console.warn('Supabase token refresh failed (may be using backend tokens):', refreshError.message)
               }
             } else {
-              // No valid Supabase session - tokens are likely from backend API
+              // No valid Supabase session or refresh tokens don't match - tokens are from backend API
               // Don't try to refresh via Supabase, let backend handle it via 401 response
               // The response interceptor will handle 401 errors and redirect to login if needed
             }
@@ -112,7 +125,8 @@ apiClient.interceptors.request.use(
             // Silently handle Supabase refresh errors - these are expected if using backend tokens
             const isRefreshError = error?.message?.includes('refresh_token') || 
                                   error?.message?.includes('400') ||
-                                  error?.status === 400
+                                  error?.status === 400 ||
+                                  error?.code === 400
             if (!isRefreshError) {
               console.error('Token refresh error in interceptor:', error)
             }

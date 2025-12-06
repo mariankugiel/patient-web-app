@@ -28,7 +28,7 @@ function ProfileSectionLayoutContent({ children }: { children: React.ReactNode }
 
   return (
     <Tabs value={active} className="w-full">
-      <div className="overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 px-4 sm:px-6 lg:px-8 pt-4">
         <TabsList className="w-full sm:w-auto inline-flex min-w-full sm:min-w-0">
           <TabsTrigger value="profile" className="flex-1 sm:flex-none sm:min-w-[100px]" onClick={() => go("profile")}>
             {t("tabs.profile")}

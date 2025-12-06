@@ -891,9 +891,6 @@ export function useMessages(patientId?: number | null): UseMessagesReturn {
       dispatch(clearGlobalConversations())
     }
     
-    // Update the ref to the current value
-    previousPatientIdRef.current = currentPatientId
-    
     // Load conversations - use a delay to ensure token is ready, especially on first load after login
     // For initial mount, add a small delay to ensure authentication token is ready
     // For subsequent loads, use minimal delay
@@ -901,35 +898,27 @@ export function useMessages(patientId?: number | null): UseMessagesReturn {
     console.log(`⏳ [useMessages useEffect] Scheduling loadConversations with delay: ${delay}ms (isInitialMount: ${isInitialMount})`)
     const timeoutId = setTimeout(() => {
       // Double-check patientId hasn't changed during the delay
-      const currentPatientIdAtLoad = previousPatientIdRef.current
-      console.log('⏰ [useMessages useEffect] Timeout fired, checking patientId:', {
-        expected: currentPatientId,
-        actual: currentPatientIdAtLoad,
-        match: currentPatientIdAtLoad === currentPatientId
-      })
+      // Use the captured value from closure, not the ref (which might have been updated)
+      console.log('⏰ [useMessages useEffect] Timeout fired, calling loadConversations for patientId:', currentPatientId)
+      console.log('✅ [useMessages useEffect] loadConversations function exists:', typeof loadConversations === 'function')
       
-      if (currentPatientIdAtLoad === currentPatientId) {
-        console.log('✅ [useMessages useEffect] Calling loadConversations for patientId:', current, 'isInitialMount:', isInitialMount)
-        console.log('✅ [useMessages useEffect] loadConversations function exists:', typeof loadConversations === 'function')
-        console.log('✅ [useMessages useEffect] About to invoke loadConversations()')
+      // Wrap in try-catch to catch any synchronous errors
+      try {
+        // loadConversations will use the current patientId from its closure
+        const result = loadConversations()
+        console.log('✅ [useMessages useEffect] loadConversations() called, result:', result)
         
-        // Wrap in try-catch to catch any synchronous errors
-        try {
-          // loadConversations will use the current patientId from its closure
-          const result = loadConversations()
-          console.log('✅ [useMessages useEffect] loadConversations() called, result:', result)
-          
-          // If it's a promise, catch errors
-          if (result && typeof result.then === 'function') {
-            result.catch((err: any) => {
-              console.error('❌ [useMessages useEffect] Error in loadConversations promise:', err)
-            })
-          }
-        } catch (err) {
-          console.error('❌ [useMessages useEffect] Synchronous error calling loadConversations:', err)
+        // Update the ref AFTER calling loadConversations to track that we've loaded for this patientId
+        previousPatientIdRef.current = currentPatientId
+        
+        // If it's a promise, catch errors
+        if (result && typeof result.then === 'function') {
+          result.catch((err: any) => {
+            console.error('❌ [useMessages useEffect] Error in loadConversations promise:', err)
+          })
         }
-      } else {
-        console.log('⚠️ PatientId changed during delay, skipping load')
+      } catch (err) {
+        console.error('❌ [useMessages useEffect] Synchronous error calling loadConversations:', err)
       }
     }, delay)
     

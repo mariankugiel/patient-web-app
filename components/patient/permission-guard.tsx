@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSelector } from 'react-redux'
-import { RootState } from '@/lib/store'
+import { RootState, store } from '@/lib/store'
 import { useSwitchedPatient } from '@/contexts/patient-context'
 import { AuthAPI, AccessiblePatient } from '@/lib/api/auth-api'
 import { getFirstAccessiblePage } from '@/lib/utils/patient-navigation'
@@ -22,6 +22,7 @@ export function PermissionGuard({
   const router = useRouter()
   const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated)
   const isRestoringSession = useSelector((s: RootState) => s.auth.isRestoringSession)
+  const user = useSelector((s: RootState) => s.auth.user)
   const { patientId, patientToken, isViewingOtherPatient } = useSwitchedPatient()
   const [hasPermission, setHasPermission] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
@@ -34,10 +35,28 @@ export function PermissionGuard({
         return
       }
       
-      // If session restoration is complete and user is not authenticated, redirect to login
-      if (!isAuthenticated) {
-        router.push('/auth/login')
-        return
+      // If session restoration is complete and user is not authenticated, check once more with delay
+      // This helps handle timing issues in production where session restoration might complete
+      // slightly after isRestoringSession becomes false
+      if (!isAuthenticated && !user) {
+        // Add a small delay to allow session restoration to complete in production
+        // Sometimes in production, session restoration completes but state hasn't updated yet
+        const timeoutId = setTimeout(() => {
+          const currentState = store.getState()
+          const currentAuth = currentState.auth.isAuthenticated
+          const currentUser = currentState.auth.user
+          
+          // Only redirect if still not authenticated after the delay
+          if (!currentAuth && !currentUser) {
+            console.log('No authentication found after session restoration, redirecting to login')
+            router.push('/auth/login')
+          }
+        }, 1000) // Wait 1 second for session restoration to fully complete
+        
+        // Cleanup timeout if component unmounts or dependencies change
+        return () => {
+          clearTimeout(timeoutId)
+        }
       }
 
       // If not viewing another patient, allow access (viewing own data)
@@ -94,7 +113,7 @@ export function PermissionGuard({
     }
 
     checkPermission()
-  }, [patientId, patientToken, isViewingOtherPatient, requiredPermission, router, fallbackRoute, isAuthenticated, isRestoringSession])
+  }, [patientId, patientToken, isViewingOtherPatient, requiredPermission, router, fallbackRoute, isAuthenticated, isRestoringSession, user])
 
   if (loading) {
     return (

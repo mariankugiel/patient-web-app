@@ -57,36 +57,30 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     // Only update language after hydration to prevent mismatch
     if (!isHydrated) return
     
-    // Priority: 1. Profile language, 2. User metadata language, 3. localStorage, 4. Default "en"
+    // Priority: 1. localStorage (most recent manual update), 2. Profile language, 3. User metadata language, 4. Default "en"
     const profileLanguage = profile?.language as Language
     const userMetadataLanguage = user?.user_metadata?.language as Language
-    
-    // Determine the new language to use
-    const newLanguage = profileLanguage && ["en", "es", "pt"].includes(profileLanguage)
-      ? profileLanguage
-      : userMetadataLanguage && ["en", "es", "pt"].includes(userMetadataLanguage)
-      ? userMetadataLanguage
-      : typeof window !== 'undefined'
+    const localStorageLanguage = typeof window !== 'undefined' 
       ? (localStorage.getItem("language") as Language)
       : null
     
-    // Only update if the language actually changed to avoid unnecessary updates
-    // Also check localStorage to see if there's a more recent manual update
-    if (typeof window !== 'undefined') {
-      const localStorageLanguage = localStorage.getItem("language") as Language
-      // If localStorage has a different language than what we're about to set,
-      // and it's different from current, prefer localStorage (manual update takes precedence)
-      if (localStorageLanguage && ["en", "es", "pt"].includes(localStorageLanguage) && localStorageLanguage !== language) {
-        setLanguage(localStorageLanguage)
-        return
-      }
-    }
+    // Determine the new language to use - prefer localStorage first (manual updates take precedence)
+    const newLanguage = localStorageLanguage && ["en", "es", "pt"].includes(localStorageLanguage)
+      ? localStorageLanguage
+      : profileLanguage && ["en", "es", "pt"].includes(profileLanguage)
+      ? profileLanguage
+      : userMetadataLanguage && ["en", "es", "pt"].includes(userMetadataLanguage)
+      ? userMetadataLanguage
+      : null
     
+    // Only update if the language actually changed to avoid unnecessary updates and infinite loops
     if (newLanguage && ["en", "es", "pt"].includes(newLanguage) && newLanguage !== language) {
-      setLanguage(newLanguage)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem("language", newLanguage)
-      }
+      // Use a small delay to batch updates and prevent rapid re-renders
+      const timeoutId = setTimeout(() => {
+        setLanguage(newLanguage)
+      }, 0)
+      
+      return () => clearTimeout(timeoutId)
     }
   }, [profile?.language, user?.user_metadata?.language, isHydrated, language])
 

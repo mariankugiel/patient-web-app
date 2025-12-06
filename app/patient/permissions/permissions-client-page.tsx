@@ -150,6 +150,7 @@ export default function PermissionsClientPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [contactFilter, setContactFilter] = useState<"all" | "professional" | "personal">("all")
+  const [expiresDateError, setExpiresDateError] = useState<string>("")
   
   // Contact picker state for adding contacts from messages
   const [availableContacts, setAvailableContacts] = useState<MessageContact[]>([])
@@ -337,6 +338,27 @@ export default function PermissionsClientPage() {
   }
 
   const handleAddContact = () => {
+    // Validate expires date (mandatory field)
+    if (!newContact.expires || newContact.expires.trim() === "") {
+      setExpiresDateError("Expires date is required")
+      toast.error("Please select an expiration date")
+      return
+    }
+
+    // Validate that the date is in the future
+    const expiresDate = new Date(newContact.expires)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0) // Reset time to compare dates only
+    
+    if (expiresDate < today) {
+      setExpiresDateError("Expiration date must be in the future")
+      toast.error("Expiration date must be in the future")
+      return
+    }
+
+    // Clear any previous errors
+    setExpiresDateError("")
+
     // Here you would typically send the data to your backend
     console.log("Adding new contact:", newContact)
 
@@ -363,9 +385,7 @@ export default function PermissionsClientPage() {
       accessLevel: "Limited",
       status: "Active",
       lastAccessed: "Never",
-      expires: newContact.expires 
-        ? new Date(newContact.expires).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-        : "Never",
+      expires: new Date(newContact.expires).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       email: newContact.email,
       relationship: newContact.relationship,
       permissions: newContact.permissions,
@@ -392,6 +412,8 @@ export default function PermissionsClientPage() {
         messages: { view: false, edit: false },
       },
     })
+    // Clear validation error
+    setExpiresDateError("")
     
     // Reset contact picker
     setSelectedMessageContact(null)
@@ -789,7 +811,7 @@ export default function PermissionsClientPage() {
       )}
 
       <Tabs defaultValue="shared-access">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-4 mt-6">
           <TabsTrigger value="shared-access">
             <UserIcon className="h-4 w-4 mr-2" />
             {t("permissions.sharedAccess")}
@@ -808,13 +830,16 @@ export default function PermissionsClientPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="shared-access" className="space-y-4">
+        <TabsContent value="shared-access" className="space-y-4 mt-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">{t("permissions.peopleWithAccess")}</h2>
-            <Button onClick={() => setIsGrantAccessDialogOpen(true)}>
-              <UserPlusIcon className="h-4 w-4 mr-2" />
-              {t("permissions.grantNewAccess")}
-            </Button>
+            {/* Only show the button if there are contacts, otherwise show it in the empty state */}
+            {filteredContacts.length > 0 && (
+              <Button onClick={() => setIsGrantAccessDialogOpen(true)}>
+                <UserPlusIcon className="h-4 w-4 mr-2" />
+                {t("permissions.grantNewAccess")}
+              </Button>
+            )}
           </div>
 
           <div className="flex justify-between mb-4">
@@ -838,6 +863,29 @@ export default function PermissionsClientPage() {
               </Select>
             </div>
           </div>
+
+          {/* Empty State - No Permissions */}
+          {filteredContacts.length === 0 && (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <div className="rounded-full bg-muted p-4">
+                    <UserPlusIcon className="h-10 w-10 text-muted-foreground" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-semibold">No Access Permissions Yet</h3>
+                    <p className="text-muted-foreground max-w-md">
+                      You haven't granted access to anyone yet. Start by granting access to healthcare providers or family members who need to view your health information.
+                    </p>
+                  </div>
+                  <Button onClick={() => setIsGrantAccessDialogOpen(true)} className="mt-4">
+                    <UserPlusIcon className="h-4 w-4 mr-2" />
+                    {t("permissions.grantNewAccess")}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Health Professionals Section */}
           {(contactFilter === "all" || contactFilter === "professional") &&
@@ -1528,13 +1576,27 @@ export default function PermissionsClientPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="expires">{t("permissions.expires")}</Label>
+              <Label htmlFor="expires">
+                {t("permissions.expires")} <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="expires"
                 type="date"
+                required
                 value={newContact.expires}
-                onChange={(e) => setNewContact({ ...newContact, expires: e.target.value })}
+                onChange={(e) => {
+                  setNewContact({ ...newContact, expires: e.target.value })
+                  // Clear error when user starts typing
+                  if (expiresDateError) {
+                    setExpiresDateError("")
+                  }
+                }}
+                className={expiresDateError ? "border-destructive" : ""}
+                min={new Date().toISOString().split('T')[0]} // Set minimum date to today
               />
+              {expiresDateError && (
+                <p className="text-sm text-destructive">{expiresDateError}</p>
+              )}
             </div>
           </div>
 

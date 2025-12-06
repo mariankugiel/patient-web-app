@@ -30,9 +30,11 @@ export const createClient = () => {
     
     // Create the singleton instance
     // The Supabase client automatically adds the apikey header to all requests
+    // Disable autoRefreshToken to prevent 400 errors when using backend tokens
+    // Token refresh will be handled manually in axios interceptor when needed
     supabaseInstance = createSupabaseClient(supabaseUrl, currentAnonKey, {
       auth: {
-        autoRefreshToken: true,
+        autoRefreshToken: false, // Disabled - we handle refresh manually
         persistSession: true,
         detectSessionInUrl: true,
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,

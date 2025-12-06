@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useRef } from "react"
 import * as z from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -21,7 +21,7 @@ import { timezones } from "@/lib/timezones"
 import { Save } from "lucide-react"
 import { useSelector, useDispatch } from "react-redux"
 import { RootState } from "@/lib/store"
-import { updateUser, fetchProfileSuccess, updateProfile } from "@/lib/features/auth/authSlice"
+import { updateUser, fetchProfileSuccess, updateProfile, fetchProfileStart } from "@/lib/features/auth/authSlice"
 import { AuthApiService, AuthAPI } from "@/lib/api/auth-api"
 import { getProfilePictureUrl } from "@/lib/profile-utils"
 import { useSwitchedPatient } from "@/contexts/patient-context"
@@ -71,11 +71,27 @@ export default function ProfileTabPage() {
   const { t, language, setLanguage } = useLanguage()
   const { patientToken, isViewingOtherPatient, switchedPatientInfo } = useSwitchedPatient()
   const [selectedLanguage, setSelectedLanguage] = useState(language)
-  const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">("light")
+  // Initialize theme from localStorage or current document state to prevent flash
+  const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">(() => {
+    if (typeof window !== 'undefined') {
+      // Check localStorage first
+      const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null
+      if (savedTheme) return savedTheme
+      // Check current document state (in case theme was applied by ThemeProviderClient)
+      const isDark = document.documentElement.classList.contains("dark")
+      return isDark ? "dark" : "light"
+    }
+    return "light"
+  })
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isProfileLoading, setIsProfileLoading] = useState(true)
+  const [hasLoadedProfile, setHasLoadedProfile] = useState(false)
+  const isUpdatingProfileRef = useRef(false)
+  const lastLoadedUserIdRef = useRef<string | number | null>(null)
   const { user } = useSelector((state: RootState) => state.auth)
+  // Memoize user ID to prevent unnecessary re-renders when user object reference changes
+  const userId = user?.id
   const profileFormSchema = useMemo(() => createProfileFormSchema(t), [t])
   const form = useForm<ProfileFormValues>({ resolver: zodResolver(profileFormSchema), defaultValues })
 
@@ -108,21 +124,49 @@ export default function ProfileTabPage() {
     else document.documentElement.classList.remove("dark")
   }, [selectedTheme])
 
+  // Apply theme immediately on mount based on current document state
+  // This prevents flash if theme was already applied by ThemeProviderClient
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null
-    if (savedTheme) {
-      setSelectedTheme(savedTheme)
-      console.log("🎨 Loaded theme from localStorage:", savedTheme)
+    if (typeof window !== 'undefined') {
+      // Check if dark class is already on document (applied by ThemeProviderClient)
+      const isCurrentlyDark = document.documentElement.classList.contains("dark")
+      const currentTheme = isCurrentlyDark ? "dark" : "light"
+      
+      // Sync state with actual document state if different
+      if (currentTheme !== selectedTheme) {
+        setSelectedTheme(currentTheme)
+      }
+      
+      // Also check localStorage as fallback
+      const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null
+      if (savedTheme && savedTheme !== selectedTheme) {
+        setSelectedTheme(savedTheme)
+        console.log("🎨 Synced theme from localStorage:", savedTheme)
+      }
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run once on mount
 
   // Load user profile data (only for current user, not when viewing another patient)
-  // Always fetch fresh profile data on this page
+  // Only fetch fresh profile data on initial load, not after updates
   useEffect(() => {
     const loadProfile = async () => {
       // Don't load profile if viewing another patient (should have been redirected)
       if (isViewingOtherPatient) {
         setIsProfileLoading(false)
+        return
+      }
+      
+      // Skip if we're currently updating the profile (prevents reload during update)
+      if (isUpdatingProfileRef.current) {
+        console.log("⏭️ Skipping profile load - update in progress")
+        return
+      }
+      
+      // Skip if we've already loaded the profile (prevents reload after updates)
+      // Only reload if user ID actually changes (new login)
+      if (hasLoadedProfile) {
+        console.log("⏭️ Skipping profile load - already loaded")
         return
       }
       
@@ -179,7 +223,8 @@ export default function ProfileTabPage() {
           })
           
           // Load theme and language from profile data
-          if (profileData.theme) {
+          // Only update theme if it's different from current to prevent flash
+          if (profileData.theme && profileData.theme !== selectedTheme) {
             setSelectedTheme(profileData.theme as "light" | "dark")
             console.log("🎨 Loaded theme from profile:", profileData.theme)
           }
@@ -217,6 +262,7 @@ export default function ProfileTabPage() {
           }
           
           console.log("✅ Profile form populated successfully")
+          setHasLoadedProfile(true)
         } else {
           console.log("⚠️ No profile data returned from API")
         }
@@ -245,9 +291,23 @@ export default function ProfileTabPage() {
       }
     }
     
-    loadProfile()
+    // Only load profile if user ID exists, we haven't loaded yet, and the user ID hasn't changed
+    // Use a ref to track the last loaded user ID to prevent reloading when user object reference changes
+    if (userId && !isUpdatingProfileRef.current) {
+      // Check if this is a new user ID (user logged in or switched)
+      if (lastLoadedUserIdRef.current !== userId) {
+        // Reset loaded flag for new user
+        setHasLoadedProfile(false)
+        lastLoadedUserIdRef.current = userId
+      }
+      
+      // Only load if we haven't loaded for this user yet
+      if (!hasLoadedProfile) {
+        loadProfile()
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id])
+  }, [userId])
 
   async function onSubmit(data: ProfileFormValues) {
     if (!user?.id) {
@@ -256,6 +316,7 @@ export default function ProfileTabPage() {
     }
     
     setIsLoading(true)
+    isUpdatingProfileRef.current = true
     
     try {
       // Prepare update data matching the API schema
@@ -286,18 +347,22 @@ export default function ProfileTabPage() {
       console.log("💾 Saving profile data to Supabase:", updateData)
       
       // Save via backend API
-      await AuthApiService.updateProfile(updateData)
+      const updatedProfile = await AuthApiService.updateProfile(updateData)
       
-      // Update language context if changed
-      if (selectedLanguage !== language) setLanguage(selectedLanguage as "en" | "es" | "pt")
+      // Save preferences to localStorage immediately (before Redux updates)
+      if (selectedLanguage && typeof window !== 'undefined') {
+        localStorage.setItem("language", selectedLanguage)
+      }
+      if (selectedTheme && typeof window !== 'undefined') {
+        localStorage.setItem("theme", selectedTheme)
+      }
       
-      // Update Redux state with new profile data (including theme)
-      dispatch(updateUser({
-        user_metadata: {
-          ...user?.user_metadata,
-          ...updateData
-        }
-      }))
+      // Update profile in Redux using fetchProfileSuccess
+      // This will update both profile and user_metadata, which the language context will pick up
+      // Don't call setLanguage directly - let the language context react to the profile change
+      if (updatedProfile) {
+        dispatch(fetchProfileSuccess(updatedProfile))
+      }
       
       console.log("💾 Saved all profile data including preferences")
       
@@ -307,6 +372,10 @@ export default function ProfileTabPage() {
       toast.error(error.message || t("common.failedToLoadProfile") || "Failed to update profile")
     } finally {
       setIsLoading(false)
+      // Clear the updating flag after a short delay to allow state updates to complete
+      setTimeout(() => {
+        isUpdatingProfileRef.current = false
+      }, 100)
     }
   }
 

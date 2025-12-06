@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { 
   Pin, 
@@ -102,35 +102,28 @@ export function ConversationList({
 }: ConversationListProps) {
   // Store loaded avatars for conversations
   const [loadedAvatars, setLoadedAvatars] = useState<Record<string, string>>({})
+  // Track which conversations we've already processed to prevent infinite loops
+  const processedConversationsRef = useRef<Set<string>>(new Set())
 
   // Load profile pictures for conversations
   useEffect(() => {
     conversations.forEach(conversation => {
-      // Only load if we don't have it cached
-      if (conversation.id && !loadedAvatars[conversation.id]) {
-        // Use backend provided avatar URL if available (from avatar_url in user_profiles)
-        console.log(`🔍 [WEB CONSOLE] Processing avatar for conversation ${conversation.id}:`, {
-          contact_avatar: conversation.contact_avatar,
-          contact_avatar_type: typeof conversation.contact_avatar,
-          contact_avatar_is_null: conversation.contact_avatar === null,
-          contact_avatar_is_undefined: conversation.contact_avatar === undefined,
-          contact_avatar_trimmed: conversation.contact_avatar?.trim(),
-          contact_supabase_user_id: conversation.contact_supabase_user_id,
-          contact_id: conversation.contact_id
-        })
+      // Only load if we don't have it cached and haven't processed it yet
+      if (conversation.id && !loadedAvatars[conversation.id] && !processedConversationsRef.current.has(conversation.id)) {
+        // Mark as processed immediately to prevent duplicate processing
+        processedConversationsRef.current.add(conversation.id)
         
+        // Use backend provided avatar URL if available (from avatar_url in user_profiles)
         if (conversation.contact_avatar && 
             conversation.contact_avatar.trim() !== "" && 
             conversation.contact_avatar !== "null") {
           // Backend provided avatar URL from avatar_url - use it directly
-          console.log(`✅ [WEB CONSOLE] Using backend avatar (avatar_url) for conversation ${conversation.id}:`, conversation.contact_avatar)
           setLoadedAvatars(prev => ({
             ...prev,
             [conversation.id]: conversation.contact_avatar!
           }))
         } else if (conversation.contact_supabase_user_id) {
           // Fallback: If no backend avatar URL, try loading from Supabase Storage
-          console.log(`🔄 Fallback: Loading avatar from Supabase Storage for conversation ${conversation.id}`)
           getProfilePictureUrl(conversation.contact_supabase_user_id)
             .then(url => {
               if (url && url !== '/placeholder-user.jpg') {
@@ -142,13 +135,21 @@ export function ConversationList({
             })
             .catch(error => {
               console.error(`❌ Error loading avatar from Supabase Storage for conversation ${conversation.id}:`, error)
+              // Remove from processed set on error so it can be retried
+              processedConversationsRef.current.delete(conversation.id)
             })
-        } else {
-          console.log(`⚠️ No avatar URL or Supabase UUID for conversation ${conversation.id}, contact_id:`, conversation.contact_id)
         }
       }
     })
-  }, [conversations, loadedAvatars])
+    
+    // Clean up processed set for conversations that no longer exist
+    const currentConversationIds = new Set(conversations.map(c => c.id))
+    processedConversationsRef.current.forEach(id => {
+      if (!currentConversationIds.has(id)) {
+        processedConversationsRef.current.delete(id)
+      }
+    })
+  }, [conversations]) // Removed loadedAvatars from dependencies to prevent infinite loop
 
   const handleConversationClick = (conversationId: string) => {
     onSelectConversation(conversationId)
@@ -412,3 +413,4 @@ export function ConversationList({
     </div>
   )
 }
+
