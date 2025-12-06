@@ -55,7 +55,7 @@
     "i18next": "latest",
     "input-otp": "latest",
     "lucide-react": "^0.454.0",
-    "next": "15.2.4",
+    "next": "15.5.7",
     "next-themes": "latest",
     "otpauth": "^9.4.1",
     "qrcode": "^1.5.4",
@@ -75,7 +75,7 @@
     "vaul": "latest",
     "zod": "^4.1.11",
     "eslint": "^9.36.0",
-    "eslint-config-next": "15.5.4"
+    "eslint-config-next": "15.5.7"
   },
   "devDependencies": {
     "@types/node": "^22",
