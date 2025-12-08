@@ -75,7 +75,7 @@ export function SurgeriesHospitalizationsSection() {
       <CardContent>
         {loading ? (
           <div className="text-center py-4">
-            <div className="text-muted-foreground">Loading...</div>
+            <div className="text-muted-foreground">{t('health.loading')}</div>
           </div>
         ) : surgeries.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'react-toastify'
 import { 
   HealthRecordsApiService, 
@@ -18,7 +18,7 @@ export function useHealthRecordsDashboard(healthRecordTypeId: number, patientId?
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -42,7 +42,7 @@ export function useHealthRecordsDashboard(healthRecordTypeId: number, patientId?
     } finally {
       setLoading(false)
     }
-  }
+  }, [healthRecordTypeId, patientId, language])
 
   const refresh = async () => {
     await loadDashboard()
@@ -157,7 +157,7 @@ export function useHealthRecordsDashboard(healthRecordTypeId: number, patientId?
 
   useEffect(() => {
     loadDashboard()
-  }, [healthRecordTypeId, patientId, language])
+  }, [loadDashboard])
 
   return {
     dashboard,

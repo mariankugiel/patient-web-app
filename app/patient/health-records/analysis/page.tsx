@@ -296,7 +296,7 @@ export default function AnalysisPage() {
                   </div>
                 ) : !canViewLabDocuments ? (
                   <div className="text-center py-4 text-sm text-gray-600">
-                    You do not have permission to view lab documents for this patient.
+                    {t('health.noPermissionViewLabDocuments')}
                   </div>
                 ) : medicalDocuments.length > 0 ? (
                   <div className="space-y-2">
@@ -305,8 +305,8 @@ export default function AnalysisPage() {
                         <div className="flex-1 min-w-0 pr-2">
                           <p className="text-sm font-semibold text-gray-900 leading-tight flex items-center gap-2">
                             <Calendar className="h-3 w-3 text-gray-500 flex-shrink-0" />
-                            {doc.lab_test_date ? new Date(doc.lab_test_date).toLocaleDateString() : 'No date'}
-                            <span className="text-gray-600 font-normal"> • {doc.provider || 'No Provider'}</span>
+                            {doc.lab_test_date ? new Date(doc.lab_test_date).toLocaleDateString() : t('health.noDate')}
+                            <span className="text-gray-600 font-normal"> • {doc.provider || t('health.noProvider')}</span>
                           </p>
                           {doc.lab_doc_type && (
                             <p className="text-xs text-gray-700 mt-1 font-medium">{doc.lab_doc_type}</p>
@@ -342,8 +342,8 @@ export default function AnalysisPage() {
                             disabled={!canDownloadLabDocuments}
                             title={
                               canDownloadLabDocuments
-                                ? 'Download document'
-                                : 'Download permission not granted'
+                                ? t('health.downloadDocument')
+                                : t('health.downloadPermissionNotGranted')
                             }
                           >
                             <Download className="h-3 w-3" />
@@ -355,7 +355,7 @@ export default function AnalysisPage() {
                 ) : (
                   <div className="text-center py-4">
                     <FileText className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                    <p className="text-sm text-gray-500">No lab documents yet</p>
+                    <p className="text-sm text-gray-500">{t('health.noLabDocumentsYet')}</p>
                 </div>
                 )}
 
@@ -367,7 +367,7 @@ export default function AnalysisPage() {
                     onClick={handleSeeAllDocuments}
                     disabled={!canViewLabDocuments}
                   >
-                    See All Documents
+                    {t('health.seeAllDocuments')}
               </Button>
                 )}
             </div>
@@ -398,9 +398,9 @@ export default function AnalysisPage() {
       <Dialog open={allDocumentsOpen} onOpenChange={setAllDocumentsOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
             <DialogHeader>
-            <DialogTitle>All Lab Documents</DialogTitle>
+            <DialogTitle>{t('health.allLabDocuments')}</DialogTitle>
             <DialogDescription>
-              View and download all your lab documents
+              {t('health.viewDownloadAllLabDocuments')}
             </DialogDescription>
             </DialogHeader>
           
@@ -408,7 +408,7 @@ export default function AnalysisPage() {
             {allDocumentsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin" />
-                <span className="ml-2">Loading documents...</span>
+                <span className="ml-2">{t('health.loadingDocuments')}</span>
               </div>
             ) : allDocuments.length > 0 ? (
               <div className="space-y-3">

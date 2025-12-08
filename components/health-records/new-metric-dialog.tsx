@@ -16,6 +16,7 @@ import { HealthRecordsApiService } from '@/lib/api/health-records-api'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
 import { MetricAutocomplete, type MetricTemplate } from '@/components/ui/metric-autocomplete'
+import { useLanguage } from '@/contexts/language-context'
 
 export interface HealthRecordMetric {
   id: number
@@ -71,6 +72,7 @@ export function NewMetricDialog({
   healthRecordTypeId,
   createMetric
 }: NewMetricDialogProps) {
+  const { t } = useLanguage()
   const { user } = useSelector((state: RootState) => state.auth)
   const [metricName, setMetricName] = useState('')
   const [metricDisplayName, setMetricDisplayName] = useState('')
@@ -244,12 +246,12 @@ export function NewMetricDialog({
   const handleCreateMetric = async () => {
     // Validate section selection if sections are provided
     if (sections && sections.length > 0 && !selectedSectionId) {
-      toast.error('Please select a section')
+      toast.error(t('health.dialogs.newMetric.pleaseSelectSection'))
       return
     }
 
     if (!metricName.trim()) {
-      toast.error('Please enter a metric name')
+      toast.error(t('health.dialogs.newMetric.pleaseEnterMetricName'))
       return
     }
 
@@ -263,13 +265,13 @@ export function NewMetricDialog({
 
     // Validate that provided values are valid numbers
     if ((minValue !== null && isNaN(minValue)) || (maxValue !== null && isNaN(maxValue))) {
-      toast.error('Please enter valid numbers for reference range')
+      toast.error(t('health.dialogs.newMetric.pleaseEnterValidNumbers'))
       return
     }
 
     // Validate that min is less than max when both are provided
     if (minValue !== null && maxValue !== null && minValue >= maxValue) {
-      toast.error('Minimum value must be less than maximum value')
+      toast.error(t('health.dialogs.newMetric.minMustBeLessThanMax'))
       return
     }
 
@@ -323,7 +325,7 @@ export function NewMetricDialog({
       onMetricCreated(newMetric)
     } catch (error) {
       console.error('Failed to create metric:', error)
-      toast.error('Failed to create metric')
+      toast.error(t('health.dialogs.newMetric.failedToCreateMetric'))
     } finally {
       setLoading(false)
     }
@@ -345,14 +347,14 @@ export function NewMetricDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New Metric</DialogTitle>
+          <DialogTitle>{t('health.dialogs.newMetric.title')}</DialogTitle>
         </DialogHeader>
         
         <div className="grid gap-4 py-4">
           {/* Section Selection */}
           {sections && sections.length > 0 && (
             <div className="grid gap-2">
-              <Label htmlFor="sectionSelect">Select Section <span className="text-red-500">*</span></Label>
+              <Label htmlFor="sectionSelect">{t('health.dialogs.newMetric.selectSection')} <span className="text-red-500">*</span></Label>
               <Popover open={sectionDropdownOpen} onOpenChange={setSectionDropdownOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -361,15 +363,15 @@ export function NewMetricDialog({
                     aria-expanded={sectionDropdownOpen}
                     className="w-full justify-between"
                   >
-                    {selectedSectionName || "Select a section..."}
+                    {selectedSectionName || t('health.dialogs.newMetric.selectSectionPlaceholder')}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0">
                   <Command>
-                    <CommandInput placeholder="Search sections..." />
+                    <CommandInput placeholder={t('health.dialogs.newMetric.searchSections')} />
                     <CommandList>
-                      <CommandEmpty>No sections found.</CommandEmpty>
+                      <CommandEmpty>{t('health.dialogs.newMetric.noSectionsFound')}</CommandEmpty>
                       <CommandGroup>
                         {sections.map((section) => (
                           <CommandItem
@@ -408,12 +410,12 @@ export function NewMetricDialog({
           )}
           
           <div className="grid gap-2">
-            <Label htmlFor="metricName">Enter Metric Name <span className="text-red-500">*</span></Label>
+            <Label htmlFor="metricName">{t('health.dialogs.newMetric.enterMetricName')} <span className="text-red-500">*</span></Label>
             <MetricAutocomplete
               value={metricName}
               onChange={handleAutocompleteChange}
               templates={availableTemplates}
-              placeholder="Search or type a metric name..."
+              placeholder={t('health.dialogs.newMetric.searchMetricPlaceholder')}
               isLoading={templatesLoading}
               disabled={!selectedSectionId}
               onNewMetric={handleNewMetricFromAutocomplete}
@@ -421,28 +423,28 @@ export function NewMetricDialog({
           </div>
           
           <div className="grid gap-2">
-            <Label htmlFor="metricDisplayName">Display Name</Label>
+            <Label htmlFor="metricDisplayName">{t('health.dialogs.newMetric.displayName')}</Label>
             <Input
               id="metricDisplayName"
               value={metricDisplayName}
               onChange={(e) => setMetricDisplayName(e.target.value)}
-              placeholder="e.g., Blood Glucose"
+              placeholder={t('health.dialogs.newMetric.displayNamePlaceholder')}
             />
           </div>
           
           <div className="grid gap-2">
-            <Label htmlFor="metricUnit">Unit</Label>
+            <Label htmlFor="metricUnit">{t('health.dialogs.newMetric.unit')}</Label>
             <Input
               id="metricUnit"
               value={metricUnit}
               onChange={(e) => setMetricUnit(e.target.value)}
-              placeholder="e.g., mg/dL, mmol/L, %"
+              placeholder={t('health.dialogs.newMetric.unitPlaceholder')}
             />
           </div>
           
           <div className="grid gap-4">
             <div className="flex items-center gap-2">
-              <Label>Reference Range Min/Max</Label>
+              <Label>{t('health.dialogs.newMetric.referenceRangeMinMax')}</Label>
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -460,12 +462,12 @@ export function NewMetricDialog({
                     align="start"
                   >
                     <div className="space-y-2">
-                      <h4 className="font-medium text-sm">Reference Range Guide</h4>
+                      <h4 className="font-medium text-sm">{t('health.dialogs.newMetric.referenceRangeGuide')}</h4>
                       <div className="text-sm text-muted-foreground space-y-1">
-                        <p>• Both empty: no reference range (optional)</p>
-                        <p>• Min only: means &quot;greater than&quot; (e.g., &gt; 70)</p>
-                        <p>• Max only: means &quot;less than&quot; (e.g., &lt; 100)</p>
-                        <p>• Both: means &quot;range&quot; (e.g., 70-100)</p>
+                        <p>• {t('health.dialogs.newMetric.referenceRangeEmpty')}</p>
+                        <p>• {t('health.dialogs.newMetric.referenceRangeMinOnly')}</p>
+                        <p>• {t('health.dialogs.newMetric.referenceRangeMaxOnly')}</p>
+                        <p>• {t('health.dialogs.newMetric.referenceRangeBoth')}</p>
                       </div>
                     </div>
                   </TooltipContent>
@@ -474,37 +476,37 @@ export function NewMetricDialog({
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="normalRangeMin">Min</Label>
+                <Label htmlFor="normalRangeMin">{t('health.dialogs.newMetric.min')}</Label>
                 <Input
                   id="normalRangeMin"
                   type="number"
                   step="0.1"
                   value={normalRangeMin}
                   onChange={(e) => setNormalRangeMin(e.target.value)}
-                  placeholder="e.g., 70 (means > 70)"
+                  placeholder={t('health.dialogs.newMetric.minPlaceholder')}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="normalRangeMax">Max</Label>
+                <Label htmlFor="normalRangeMax">{t('health.dialogs.newMetric.max')}</Label>
                 <Input
                   id="normalRangeMax"
                   type="number"
                   step="0.1"
                   value={normalRangeMax}
                   onChange={(e) => setNormalRangeMax(e.target.value)}
-                  placeholder="e.g., 100 (means < 100)"
+                  placeholder={t('health.dialogs.newMetric.maxPlaceholder')}
                 />
               </div>
             </div>
           </div>
           
           <div className="grid gap-2">
-            <Label htmlFor="metricDescription">Description</Label>
+            <Label htmlFor="metricDescription">{t('health.dialogs.newMetric.description')}</Label>
             <Textarea
               id="metricDescription"
               value={metricDescription}
               onChange={(e) => setMetricDescription(e.target.value)}
-              placeholder="Enter metric description..."
+              placeholder={t('health.dialogs.newMetric.descriptionPlaceholder')}
               rows={3}
             />
           </div>
@@ -512,10 +514,10 @@ export function NewMetricDialog({
         
         <DialogFooter>
           <Button variant="outline" onClick={handleCancel}>
-            Cancel
+            {t('health.dialogs.newMetric.cancel')}
           </Button>
           <Button onClick={handleCreateMetric} disabled={loading}>
-            {loading ? 'Creating...' : 'Create Metric'}
+            {loading ? t('health.dialogs.newMetric.creating') : t('health.dialogs.newMetric.createMetric')}
           </Button>
         </DialogFooter>
       </DialogContent>

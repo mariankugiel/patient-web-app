@@ -11,6 +11,7 @@ import { Upload, FileText, Loader2, AlertCircle } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { medicalImagesApiService, ExtractedImageInfo, SaveImageRequest } from '@/lib/api/medical-images-api'
 import { DuplicateFileDialog } from '@/components/ui/duplicate-file-dialog'
+import { useLanguage } from '@/contexts/language-context'
 
 interface MedicalImageUploadDialogProps {
   open: boolean
@@ -19,6 +20,7 @@ interface MedicalImageUploadDialogProps {
 }
 
 export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: MedicalImageUploadDialogProps) {
+  const { t } = useLanguage()
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [extractedInfo, setExtractedInfo] = useState<ExtractedImageInfo | null>(null)
@@ -112,7 +114,7 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
 
     // Validate file type
     if (!file.name.toLowerCase().endsWith('.pdf')) {
-      toast.error('Only PDF files are supported for medical images')
+      toast.error(t('health.dialogs.medicalImage.onlyPdfSupported'))
       return
     }
 
@@ -160,12 +162,12 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
           doctor_name: response.extracted_info.doctor_name || '',
           doctor_number: response.extracted_info.doctor_number || '',
           s3_key: response.s3_key,
-          findings: response.extracted_info.findings || 'No Findings' // AI-determined findings
+          findings: response.extracted_info.findings || t('health.dialogs.medicalImage.noFindings') // AI-determined findings
         }))
-        toast.success('File uploaded and analyzed successfully!')
+        toast.success(t('health.dialogs.medicalImage.fileUploadedAnalyzed'))
       } else {
         console.log('Upload failed, response:', response)
-        toast.error('Failed to upload and analyze file')
+        toast.error(t('health.dialogs.medicalImage.failedToUploadAnalyze'))
       }
     } catch (error: any) {
       console.error('Upload error:', error)
@@ -185,7 +187,7 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
         return
       }
       
-      toast.error('Failed to upload file')
+      toast.error(t('health.dialogs.medicalImage.failedToUpload'))
     } finally {
       setUploading(false)
     }
@@ -228,21 +230,21 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
           doctor_name: response.extracted_info.doctor_name || '',
           doctor_number: response.extracted_info.doctor_number || '',
           s3_key: response.s3_key,
-          findings: response.extracted_info.findings || 'No Findings'
+          findings: response.extracted_info.findings || t('health.dialogs.medicalImage.noFindings')
         }))
-        toast.success('File uploaded and analyzed successfully!')
+        toast.success(t('health.dialogs.medicalImage.fileUploadedAnalyzed'))
         setShowDuplicateDialog(false)
         setDuplicateInfo(null)
         setPendingFile(null)
       } else {
-        toast.error('Failed to upload and analyze file')
+        toast.error(t('health.dialogs.medicalImage.failedToUploadAnalyze'))
       }
     } catch (error: any) {
       console.error('Upload error:', error)
       if (error.response?.status === 409 || error.response?.data?.duplicate_found) {
         setShowDuplicateDialog(true)
       } else {
-        toast.error('Failed to upload file')
+        toast.error(t('health.dialogs.medicalImage.failedToUpload'))
       }
     } finally {
       setUploading(false)
@@ -257,13 +259,13 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
     }
 
     if (!formData.image_type || !formData.image_date) {
-      toast.error('Please fill in all required fields')
+      toast.error(t('health.dialogs.medicalImage.pleaseFillRequiredFields'))
       return
     }
 
     // If no file was uploaded, we need to create a minimal file entry
     if (!formData.s3_key) {
-      toast.error('Please upload a PDF file first')
+      toast.error(t('health.dialogs.medicalImage.pleaseUploadPdfFirst'))
       return
     }
 
@@ -286,15 +288,15 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
       console.log('Save response:', response)
       
       if (response.success) {
-        toast.success('Medical image saved successfully!')
+        toast.success(t('health.dialogs.medicalImage.medicalImageSavedSuccess'))
         onImageSaved()
         handleClose()
       } else {
-        toast.error(response.message || 'Failed to save medical image')
+        toast.error(response.message || t('health.dialogs.medicalImage.failedToSaveMedicalImage'))
       }
     } catch (error) {
       console.error('Save error:', error)
-      toast.error('Failed to save medical image')
+      toast.error(t('health.dialogs.medicalImage.failedToSaveMedicalImage'))
     } finally {
       setSaving(false)
     }
@@ -314,7 +316,7 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
       file_size_bytes: 0,
       content_type: '',
       s3_key: '',
-      findings: 'No Findings'
+      findings: t('health.dialogs.medicalImage.noFindings')
     })
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -345,16 +347,16 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
     
     const files = e.dataTransfer.files
     if (files.length > 0) {
-      const file = files[0]
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        // Create a fake event to reuse the existing handler
-        const fakeEvent = {
-          target: { files: [file] }
-        } as unknown as React.ChangeEvent<HTMLInputElement>
-        handleFileUpload(fakeEvent)
-      } else {
-        toast.error('Only PDF files are supported')
-      }
+        const file = files[0]
+        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+          // Create a fake event to reuse the existing handler
+          const fakeEvent = {
+            target: { files: [file] }
+          } as unknown as React.ChangeEvent<HTMLInputElement>
+          handleFileUpload(fakeEvent)
+        } else {
+          toast.error(t('health.dialogs.medicalImage.onlyPdfFilesSupported'))
+        }
     }
   }
 
@@ -363,16 +365,16 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Upload Medical Image</DialogTitle>
+          <DialogTitle>{t('health.dialogs.medicalImage.title')}</DialogTitle>
           <DialogDescription>
-            Upload and analyze medical image documents (X-Ray, Ultrasound, MRI, CT Scan, etc.)
+            {t('health.dialogs.medicalImage.description')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {/* File Upload Section */}
           <div className="space-y-2">
-            <Label htmlFor="file-upload">Upload PDF File</Label>
+            <Label htmlFor="file-upload">{t('health.dialogs.medicalImage.uploadPdfFile')}</Label>
             <div 
               className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
                 isDragOver 
@@ -393,16 +395,16 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
                     {formData.original_filename}
                   </p>
                   <p className="text-xs text-green-600">
-                    Click to select a different file
+                    {t('health.dialogs.medicalImage.clickToSelectDifferent')}
                   </p>
                 </>
               ) : (
                 <>
                   <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                   <p className="text-sm text-gray-600">
-                    {isDragOver ? 'Drop your PDF file here' : 'Drag and drop your PDF file here, or click to browse'}
+                    {isDragOver ? t('health.dialogs.medicalImage.dropPdfHere') : t('health.dialogs.medicalImage.dragDropPdf')}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">Supported formats: PDF only</p>
+                  <p className="text-xs text-gray-500 mt-1">{t('health.dialogs.medicalImage.supportedFormats')}</p>
                 </>
               )}
               <Input
@@ -420,7 +422,7 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
           {uploading && (
             <div className="flex items-center gap-2 text-blue-600">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Uploading and analyzing file...</span>
+              <span>{t('health.dialogs.medicalImage.uploadingAnalyzing')}</span>
             </div>
           )}
 
@@ -428,36 +430,36 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="image_type">Image Type *</Label>
+                <Label htmlFor="image_type">{t('health.dialogs.medicalImage.imageType')} *</Label>
                 <Select value={formData.image_type} onValueChange={(value) => handleInputChange('image_type', value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select image type" />
+                    <SelectValue placeholder={t('health.dialogs.medicalImage.selectImageType')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="X-Ray">X-Ray</SelectItem>
-                    <SelectItem value="Ultrasound">Ultrasound</SelectItem>
-                    <SelectItem value="MRI">MRI</SelectItem>
-                    <SelectItem value="CT Scan">CT Scan</SelectItem>
-                    <SelectItem value="ECG">ECG</SelectItem>
-                    <SelectItem value="Others">Others</SelectItem>
+                    <SelectItem value="X-Ray">{t('health.dialogs.medicalImage.xRay')}</SelectItem>
+                    <SelectItem value="Ultrasound">{t('health.dialogs.medicalImage.ultrasound')}</SelectItem>
+                    <SelectItem value="MRI">{t('health.dialogs.medicalImage.mri')}</SelectItem>
+                    <SelectItem value="CT Scan">{t('health.dialogs.medicalImage.ctScan')}</SelectItem>
+                    <SelectItem value="ECG">{t('health.dialogs.medicalImage.ecg')}</SelectItem>
+                    <SelectItem value="Others">{t('health.dialogs.medicalImage.others')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
-                <Label htmlFor="body_part">Body Part</Label>
+                <Label htmlFor="body_part">{t('health.dialogs.medicalImage.bodyPart')}</Label>
                 <Input
                   id="body_part"
                   value={formData.body_part}
                   onChange={(e) => handleInputChange('body_part', e.target.value)}
-                  placeholder="e.g., Chest, Upper abdomen"
+                  placeholder={t('health.dialogs.medicalImage.bodyPartPlaceholder')}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="image_date">Image Date *</Label>
+                <Label htmlFor="image_date">{t('health.dialogs.medicalImage.imageDate')} *</Label>
                 <Input
                   id="image_date"
                   type="date"
@@ -466,60 +468,60 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
                 />
               </div>
               <div>
-                <Label htmlFor="findings">Findings</Label>
-                <Select value={formData.findings || 'No Findings'} onValueChange={(value) => handleInputChange('findings', value)}>
+                <Label htmlFor="findings">{t('health.dialogs.medicalImage.findings')}</Label>
+                <Select value={formData.findings || t('health.dialogs.medicalImage.noFindings')} onValueChange={(value) => handleInputChange('findings', value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select findings" />
+                    <SelectValue placeholder={t('health.dialogs.medicalImage.selectFindings')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="No Findings">No Findings</SelectItem>
-                    <SelectItem value="Low Risk Findings">Low Risk Findings</SelectItem>
-                    <SelectItem value="Relevant Findings">Relevant Findings</SelectItem>
+                    <SelectItem value="No Findings">{t('health.dialogs.medicalImage.noFindings')}</SelectItem>
+                    <SelectItem value="Low Risk Findings">{t('health.dialogs.medicalImage.lowRiskFindings')}</SelectItem>
+                    <SelectItem value="Relevant Findings">{t('health.dialogs.medicalImage.relevantFindings')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div>
-              <Label htmlFor="interpretation">Interpretation</Label>
+              <Label htmlFor="interpretation">{t('health.dialogs.medicalImage.interpretation')}</Label>
               <Textarea
                 id="interpretation"
                 value={formData.interpretation}
                 onChange={(e) => handleInputChange('interpretation', e.target.value)}
-                placeholder="Medical interpretation of the image..."
+                placeholder={t('health.dialogs.medicalImage.interpretationPlaceholder')}
                 rows={4}
               />
             </div>
 
             <div>
-              <Label htmlFor="conclusions">Conclusions</Label>
+              <Label htmlFor="conclusions">{t('health.dialogs.medicalImage.conclusions')}</Label>
               <Textarea
                 id="conclusions"
                 value={formData.conclusions}
                 onChange={(e) => handleInputChange('conclusions', e.target.value)}
-                placeholder="Conclusions and findings..."
+                placeholder={t('health.dialogs.medicalImage.conclusionsPlaceholder')}
                 rows={3}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="doctor_name">Doctor Name</Label>
+                <Label htmlFor="doctor_name">{t('health.dialogs.medicalImage.doctorName')}</Label>
                 <Input
                   id="doctor_name"
                   value={formData.doctor_name}
                   onChange={(e) => handleInputChange('doctor_name', e.target.value)}
-                  placeholder="Doctor's name"
+                  placeholder={t('health.dialogs.medicalImage.doctorNamePlaceholder')}
                 />
               </div>
 
               <div>
-                <Label htmlFor="doctor_number">Doctor Number</Label>
+                <Label htmlFor="doctor_number">{t('health.dialogs.medicalImage.doctorNumber')}</Label>
                 <Input
                   id="doctor_number"
                   value={formData.doctor_number}
                   onChange={(e) => handleInputChange('doctor_number', e.target.value)}
-                  placeholder="Doctor's license number"
+                  placeholder={t('health.dialogs.medicalImage.doctorNumberPlaceholder')}
                 />
               </div>
             </div>
@@ -528,7 +530,7 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button variant="outline" onClick={handleClose} disabled={saving}>
-              Cancel
+              {t('health.dialogs.medicalImage.cancel')}
             </Button>
             <Button 
               onClick={handleSave} 
@@ -538,10 +540,10 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Saving...
+                  {t('health.dialogs.medicalImage.saving')}
                 </>
               ) : (
-                'Save Image'
+                t('health.dialogs.medicalImage.saveImage')
               )}
             </Button>
           </div>

@@ -198,7 +198,7 @@ export default function AddHealthTaskDialog({
                   {isLoadingGoals ? (
                     <div className="flex items-center">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Loading goals...
+                      {t('health.loadingGoals')}
                     </div>
                   ) : (
                     <SelectValue placeholder={t("healthPlan.selectHealthGoalsOptional")} />
@@ -209,7 +209,7 @@ export default function AddHealthTaskDialog({
                     <SelectItem value="loading" disabled>
                       <div className="flex items-center">
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Loading goals...
+                        {t('health.loadingGoals')}
                       </div>
                     </SelectItem>
                   ) : (
@@ -275,10 +275,10 @@ export default function AddHealthTaskDialog({
                 {isLoadingMetrics ? (
                   <div className="flex items-center">
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Loading metrics...
+                    {t('health.loadingMetrics')}
                   </div>
                 ) : (
-                  <SelectValue placeholder="Select metric (optional)" />
+                  <SelectValue placeholder={t('health.selectMetricOptional')} />
                 )}
               </SelectTrigger>
               <SelectContent>
@@ -286,12 +286,12 @@ export default function AddHealthTaskDialog({
                   <SelectItem value="loading" disabled>
                     <div className="flex items-center">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Loading metrics...
+                      {t('health.loadingMetrics')}
                     </div>
                   </SelectItem>
                 ) : (
                   <>
-                    <SelectItem value="none">No metric</SelectItem>
+                    <SelectItem value="none">{t('health.noMetric')}</SelectItem>
                     {availableMetrics.map((metric) => (
                       <SelectItem key={metric.id} value={metric.id.toString()}>
                         {metric.display_name}

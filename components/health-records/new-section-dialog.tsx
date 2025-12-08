@@ -9,6 +9,7 @@ import { AlertCircle } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { HealthRecordsApiService } from '@/lib/api/health-records-api'
 import { SectionAutocomplete, type SectionTemplate } from '@/components/ui/section-autocomplete'
+import { useLanguage } from '@/contexts/language-context'
 
 export interface HealthRecordSection {
   id: number
@@ -51,6 +52,7 @@ export function NewSectionDialog({
   existingSections = [],
   createSection
 }: NewSectionDialogProps) {
+  const { t } = useLanguage()
   const [sectionName, setSectionName] = useState('')
   const [sectionDescription, setSectionDescription] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState<SectionTemplate | null>(null)
@@ -134,7 +136,7 @@ export function NewSectionDialog({
   const handleCreateSection = async () => {
     // If no template is selected, require a section name
     if (!selectedTemplate && !sectionName.trim()) {
-      toast.error('Please enter a section name or select a template')
+      toast.error(t('health.dialogs.newSection.pleaseEnterSectionName'))
       return
     }
 
@@ -184,15 +186,15 @@ export function NewSectionDialog({
       if (error && typeof error === 'object' && 'response' in error) {
         const errorResponse = error as { response?: { status?: number; data?: { detail?: string } } }
         if (errorResponse.response?.status === 409) {
-          toast.error('A section with this name already exists. Please choose a different name.')
+          toast.error(t('health.dialogs.newSection.sectionAlreadyExists'))
           setSectionExistsAlert(true)
         } else if (errorResponse.response?.status === 404) {
-          toast.error('Template not found. Please try again.')
+          toast.error(t('health.dialogs.newSection.templateNotFound'))
         } else {
-          toast.error(`Failed to create section: ${errorResponse.response?.data?.detail || 'Unknown error'}`)
+          toast.error(`${t('health.dialogs.newSection.failedToCreateSection')}: ${errorResponse.response?.data?.detail || 'Unknown error'}`)
         }
       } else {
-        toast.error('Failed to create section')
+        toast.error(t('health.dialogs.newSection.failedToCreateSection'))
       }
     } finally {
       setLoading(false)
@@ -211,36 +213,36 @@ export function NewSectionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New Section</DialogTitle>
+          <DialogTitle>{t('health.dialogs.newSection.title')}</DialogTitle>
         </DialogHeader>
         
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="sectionName">Section Name</Label>
+            <Label htmlFor="sectionName">{t('health.dialogs.newSection.sectionName')}</Label>
             <SectionAutocomplete
               value={sectionName}
               onChange={handleAutocompleteChange}
               templates={availableTemplates}
-              placeholder="Search or type a section name..."
+              placeholder={t('health.dialogs.newSection.sectionNamePlaceholder')}
               isLoading={templatesLoading}
               onNewSection={handleNewSectionFromAutocomplete}
-              error={sectionExistsAlert ? "This section already exists. Please choose a different name." : undefined}
+              error={sectionExistsAlert ? t('health.dialogs.newSection.sectionExistsError') : undefined}
             />
             {sectionExistsAlert && (
               <p className="text-sm text-red-500 flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" />
-                This section already exists. Please choose a different name.
+                {t('health.dialogs.newSection.sectionExistsError')}
               </p>
             )}
           </div>
           
           <div className="grid gap-2">
-            <Label htmlFor="sectionDescription">Description (Optional)</Label>
+            <Label htmlFor="sectionDescription">{t('health.dialogs.newSection.description')}</Label>
             <Textarea
               id="sectionDescription"
               value={sectionDescription}
               onChange={(e) => setSectionDescription(e.target.value)}
-              placeholder="Enter section description..."
+              placeholder={t('health.dialogs.newSection.descriptionPlaceholder')}
               rows={3}
             />
           </div>
@@ -248,10 +250,10 @@ export function NewSectionDialog({
         
         <DialogFooter>
           <Button variant="outline" onClick={handleCancel}>
-            Cancel
+            {t('health.dialogs.newSection.cancel')}
           </Button>
           <Button onClick={handleCreateSection} disabled={loading}>
-            {loading ? 'Creating...' : 'Create Section'}
+            {loading ? t('health.dialogs.newSection.creating') : t('health.dialogs.newSection.createSection')}
           </Button>
         </DialogFooter>
       </DialogContent>

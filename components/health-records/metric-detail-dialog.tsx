@@ -17,6 +17,7 @@ import { EditMetricDialog } from "./edit-metric-dialog"
 import { formatReferenceRange } from "@/hooks/use-health-records"
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
+import { useLanguage } from '@/contexts/language-context'
 
 interface MetricDetailDialogProps {
   open: boolean
@@ -68,6 +69,7 @@ export function MetricDetailDialog({
   patientId,
   isReadOnly = false
 }: MetricDetailDialogProps) {
+  const { t } = useLanguage()
   const { user } = useSelector((state: RootState) => state.auth)
   const [records, setRecords] = useState<EditableRecord[]>([])
   const [currentPage, setCurrentPage] = useState(1)
@@ -77,7 +79,7 @@ export function MetricDetailDialog({
 
   // Helper function to get gender-specific reference range
   const getGenderSpecificReferenceRange = () => {
-    if (!metric.reference_data) return 'Reference range not specified'
+    if (!metric.reference_data) return t('health.dialogs.metricDetail.referenceRangeNotSpecified')
     
     const userGender = user?.user_metadata?.gender?.toLowerCase()
     const gender = userGender === 'female' ? 'female' : 'male'
@@ -160,7 +162,7 @@ export function MetricDetailDialog({
       const numericValue = typeof parsedValue === 'number' ? parsedValue : Number(parsedValue)
       
       if (isNaN(numericValue)) {
-        toast.error('Please enter a valid number')
+        toast.error(t('health.dialogs.metricDetail.pleaseEnterValidNumber'))
         return
       }
 
@@ -190,29 +192,29 @@ export function MetricDetailDialog({
           : r
       ))
 
-      toast.success('Record updated successfully')
+      toast.success(t('health.dialogs.metricDetail.recordUpdatedSuccess'))
       onDataUpdated()
     } catch (error) {
       console.error('Error updating record:', error)
-      toast.error('Failed to update record')
+      toast.error(t('health.dialogs.metricDetail.failedToUpdateRecord'))
     } finally {
       setLoading(false)
     }
   }
 
   const handleDelete = async (recordId: number) => {
-    if (!confirm('Are you sure you want to delete this record?')) return
+    if (!confirm(t('health.dialogs.metricDetail.deleteRecordConfirm'))) return
 
     setLoading(true)
     try {
       await HealthRecordsApiService.deleteHealthRecord(recordId)
       
       setRecords(prev => prev.filter(r => r.id !== recordId))
-      toast.success('Record deleted successfully')
+      toast.success(t('health.dialogs.metricDetail.recordDeletedSuccess'))
       onDataUpdated()
     } catch (error) {
       console.error('Error deleting record:', error)
-      toast.error('Failed to delete record')
+      toast.error(t('health.dialogs.metricDetail.failedToDeleteRecord'))
     } finally {
       setLoading(false)
     }
@@ -246,7 +248,7 @@ export function MetricDetailDialog({
 
   const handleEditMetric = () => {
     if (!updateMetric) {
-      toast.error('Edit functionality is not available')
+      toast.error(t('health.dialogs.metricDetail.editFunctionalityNotAvailable'))
       return
     }
     setEditMetricDialogOpen(true)
@@ -262,7 +264,7 @@ export function MetricDetailDialog({
       onDeleteMetric()
     } else {
       console.log('Delete metric:', metric)
-      toast.info('Metric deletion will be implemented')
+      toast.info(t('health.dialogs.metricDetail.metricDeletionWillBeImplemented'))
     }
   }
 
@@ -273,9 +275,9 @@ export function MetricDetailDialog({
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5" />
-              {metric.display_name} - Detailed Records
+              {metric.display_name} - {t('health.dialogs.metricDetail.title')}
               <Badge variant="outline" className="ml-2">
-                {records.length} records
+                {records.length} {t('health.dialogs.metricDetail.records')}
               </Badge>
             </DialogTitle>
             {/* Only show edit/delete buttons if not in read-only mode */}
@@ -286,7 +288,7 @@ export function MetricDetailDialog({
                   variant="ghost"
                   onClick={() => handleEditMetric()}
                   className="h-8 w-8 p-0 hover:bg-gray-100"
-                  title="Edit Metric"
+                  title={t('health.dialogs.metricDetail.editMetric')}
                   disabled={!updateMetric}
                 >
                   <Edit className="h-4 w-4" />
@@ -296,7 +298,7 @@ export function MetricDetailDialog({
                   variant="ghost"
                   onClick={() => handleDeleteMetric()}
                   className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                  title="Delete Metric"
+                  title={t('health.dialogs.metricDetail.deleteMetric')}
                   disabled={!onDeleteMetric}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -310,15 +312,15 @@ export function MetricDetailDialog({
           {/* Metric Info */}
           <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg mb-4">
             <div>
-              <Label className="text-sm font-medium text-muted-foreground">Unit</Label>
+              <Label className="text-sm font-medium text-muted-foreground">{t('health.dialogs.metricDetail.unit')}</Label>
               <p className="text-sm">{metric.unit || metric.default_unit || 'N/A'}</p>
             </div>
             <div>
-              <Label className="text-sm font-medium text-muted-foreground">Data Type</Label>
+              <Label className="text-sm font-medium text-muted-foreground">{t('health.dialogs.metricDetail.dataType')}</Label>
               <p className="text-sm capitalize">{metric.data_type}</p>
             </div>
             <div>
-              <Label className="text-sm font-medium text-muted-foreground">Reference Range</Label>
+              <Label className="text-sm font-medium text-muted-foreground">{t('health.dialogs.metricDetail.referenceRange')}</Label>
               <p className="text-sm">
                 {getGenderSpecificReferenceRange()}
               </p>
@@ -330,11 +332,11 @@ export function MetricDetailDialog({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[120px]">Date</TableHead>
-                  <TableHead className="w-[150px]">Value</TableHead>
-                  <TableHead className="w-[100px]">Status</TableHead>
-                  <TableHead className="w-[100px]">Source</TableHead>
-                  <TableHead className="w-[120px]">Actions</TableHead>
+                  <TableHead className="w-[120px]">{t('health.dialogs.metricDetail.date')}</TableHead>
+                  <TableHead className="w-[150px]">{t('health.dialogs.metricDetail.value')}</TableHead>
+                  <TableHead className="w-[100px]">{t('health.dialogs.metricDetail.status')}</TableHead>
+                  <TableHead className="w-[100px]">{t('health.dialogs.metricDetail.source')}</TableHead>
+                  <TableHead className="w-[120px]">{t('health.dialogs.metricDetail.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -385,7 +387,7 @@ export function MetricDetailDialog({
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
-                        {record.source || 'Manual'}
+                        {record.source || t('health.dialogs.metricDetail.manual')}
                       </Badge>
                     </TableCell>
                     <TableCell>

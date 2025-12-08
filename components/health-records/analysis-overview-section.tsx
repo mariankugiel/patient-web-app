@@ -413,8 +413,8 @@ export function AnalysisOverviewSection({
             <div className="flex flex-col items-center justify-center py-12">
               <div className="text-center">
                 <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
-                <h3 className="text-lg font-medium mb-2">Loading your health data...</h3>
-                <p className="text-gray-600">Please wait while we fetch your health records.</p>
+                <h3 className="text-lg font-medium mb-2">{t('health.loadingHealthData')}</h3>
+                <p className="text-gray-600">{t('health.pleaseWaitFetchingRecords')}</p>
               </div>
             </div>
           ) : displaySections.length === 0 ? (

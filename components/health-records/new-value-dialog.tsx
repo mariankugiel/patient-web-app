@@ -18,6 +18,7 @@ import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
 import { HealthRecord } from './types'
 import apiClient from '@/lib/api/axios-config'
+import { useLanguage } from '@/contexts/language-context'
 
 export interface HealthRecordMetric {
   id: number
@@ -65,6 +66,7 @@ export function NewValueDialog({
   sections,
   createRecord
 }: NewValueDialogProps) {
+  const { t } = useLanguage()
   const { user } = useSelector((state: RootState) => state.auth)
   const [selectedSectionId, setSelectedSectionId] = useState<number>(sectionId || 0)
   const [selectedSectionName, setSelectedSectionName] = useState<string>(sectionName || '')
@@ -227,10 +229,10 @@ export function NewValueDialog({
       onOpenChange(false)
       onValueCreated(newRecord)
       
-      toast.success('Value added successfully!')
+      toast.success(t('health.dialogs.newValue.valueAddedSuccess'))
     } catch (error) {
       console.error('Failed to create record:', error)
-      toast.error('Failed to add value')
+      toast.error(t('health.dialogs.newValue.failedToAddValue'))
     } finally {
       setLoading(false)
     }
@@ -248,13 +250,13 @@ export function NewValueDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New Value{selectedSectionName ? ` to ${selectedSectionName}` : ''}</DialogTitle>
+          <DialogTitle>{selectedSectionName ? t('health.dialogs.newValue.title') + ' to ' + selectedSectionName : t('health.dialogs.newValue.title')}</DialogTitle>
         </DialogHeader>
         
         <div className="grid gap-4 py-4">
           {sections && sections.length > 0 && (
             <div className="grid gap-2">
-              <Label htmlFor="sectionSelect">Select Section <span className="text-red-500">*</span></Label>
+              <Label htmlFor="sectionSelect">{t('health.dialogs.newValue.selectSection')} <span className="text-red-500">*</span></Label>
               <Popover open={sectionComboboxOpen} onOpenChange={setSectionComboboxOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -263,15 +265,15 @@ export function NewValueDialog({
                     aria-expanded={sectionComboboxOpen}
                     className="w-full justify-between"
                   >
-                    {selectedSectionName || "Select a section..."}
+                    {selectedSectionName || t('health.dialogs.newValue.selectSectionPlaceholder')}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0">
                   <Command>
-                    <CommandInput placeholder="Search sections..." />
+                    <CommandInput placeholder={t('health.dialogs.newValue.searchSections')} />
                     <CommandList>
-                      <CommandEmpty>No sections found.</CommandEmpty>
+                      <CommandEmpty>{t('health.dialogs.newValue.noSectionsFound')}</CommandEmpty>
                       <CommandGroup>
                         {sections.map((section) => (
                           <CommandItem
@@ -302,7 +304,7 @@ export function NewValueDialog({
           )}
           
           <div className="grid gap-2">
-            <Label htmlFor="metricSelect">Select Metric <span className="text-red-500">*</span></Label>
+            <Label htmlFor="metricSelect">{t('health.dialogs.newValue.selectMetric')} <span className="text-red-500">*</span></Label>
             <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -311,15 +313,15 @@ export function NewValueDialog({
                   aria-expanded={comboboxOpen}
                   className="w-full justify-between"
                 >
-                  {selectedMetric ? selectedMetric.display_name : "Select metric..."}
+                  {selectedMetric ? selectedMetric.display_name : t('health.dialogs.newValue.selectMetricPlaceholder')}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-full p-0">
                 <Command>
-                  <CommandInput placeholder="Search metrics..." />
+                  <CommandInput placeholder={t('health.dialogs.newValue.searchMetrics')} />
                   <CommandList>
-                    <CommandEmpty>No metrics found.</CommandEmpty>
+                    <CommandEmpty>{t('health.dialogs.newValue.noMetricsFound')}</CommandEmpty>
                     <CommandGroup>
                       {availableMetricsList.map((metric) => (
                         <CommandItem
@@ -358,7 +360,7 @@ export function NewValueDialog({
               
               {selectedMetric.reference_data && (
                 <div className="grid gap-2">
-                  <Label>Reference Range</Label>
+                  <Label>{t('health.dialogs.newValue.referenceRange')}</Label>
                   <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
                     {getGenderSpecificReferenceRange(selectedMetric)} {selectedMetric.default_unit}
                   </div>
@@ -368,7 +370,7 @@ export function NewValueDialog({
           )}
           
           <div className="grid gap-2">
-            <Label htmlFor="recordedDate">Date <span className="text-red-500">*</span></Label>
+            <Label htmlFor="recordedDate">{t('health.dialogs.newValue.date')} <span className="text-red-500">*</span></Label>
             <Input
               id="recordedDate"
               type="date"
@@ -378,12 +380,12 @@ export function NewValueDialog({
           </div>
           
           <div className="grid gap-2">
-            <Label htmlFor="notes">Notes</Label>
+            <Label htmlFor="notes">{t('health.dialogs.newValue.notes')}</Label>
             <Textarea
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add any notes..."
+              placeholder={t('health.dialogs.newValue.notesPlaceholder')}
               rows={3}
             />
           </div>
@@ -391,10 +393,10 @@ export function NewValueDialog({
         
         <DialogFooter>
           <Button variant="outline" onClick={handleCancel}>
-            Cancel
+            {t('health.dialogs.newValue.cancel')}
           </Button>
           <Button onClick={handleCreateValue} disabled={loading || !selectedMetric}>
-            {loading ? 'Adding...' : 'Add Value'}
+            {loading ? t('health.dialogs.newValue.adding') : t('health.dialogs.newValue.addValue')}
           </Button>
         </DialogFooter>
       </DialogContent>
