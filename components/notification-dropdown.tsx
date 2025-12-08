@@ -85,7 +85,7 @@ export function NotificationDropdown() {
               {unreadCount}
             </span>
           )}
-          <span className="sr-only">{t("notifications.title")}</span>
+          <span className="sr-only" suppressHydrationWarning>{t("notifications.title")}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">

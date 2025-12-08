@@ -347,16 +347,16 @@ export function MedicalImageUploadDialog({ open, onOpenChange, onImageSaved }: M
     
     const files = e.dataTransfer.files
     if (files.length > 0) {
-        const file = files[0]
-        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-          // Create a fake event to reuse the existing handler
-          const fakeEvent = {
-            target: { files: [file] }
-          } as unknown as React.ChangeEvent<HTMLInputElement>
-          handleFileUpload(fakeEvent)
-        } else {
+      const file = files[0]
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        // Create a fake event to reuse the existing handler
+        const fakeEvent = {
+          target: { files: [file] }
+        } as unknown as React.ChangeEvent<HTMLInputElement>
+        handleFileUpload(fakeEvent)
+      } else {
           toast.error(t('health.dialogs.medicalImage.onlyPdfFilesSupported'))
-        }
+      }
     }
   }
 

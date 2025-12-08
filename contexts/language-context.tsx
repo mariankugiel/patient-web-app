@@ -30,9 +30,9 @@ const LanguageContext = createContext<LanguageContextType>({
 })
 
 // Helper function to get initial language
+// Always return "en" for initial state to match server-side rendering
+// The language will be updated from localStorage in useEffect after hydration
 function getInitialLanguage(): Language {
-  // Always return "en" for initial state to match server-side rendering
-  // The language will be updated from Redux/profile in useEffect after hydration
   return "en"
 }
 
@@ -42,18 +42,39 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const profile = useSelector((state: RootState) => state.auth.profile)
   const user = useSelector((state: RootState) => state.auth.user)
   
-  // Initialize with default "en" to match server-side rendering
-  // We'll update it from Redux state or localStorage in useEffect after hydration
-  const [language, setLanguage] = useState<Language>(getInitialLanguage)
+  // Initialize with "en" to match server-side rendering
+  // We'll update it from localStorage immediately after hydration
+  const [language, setLanguageState] = useState<Language>(getInitialLanguage)
   const [isHydrated, setIsHydrated] = useState(false)
   const hasInitializedLanguage = useRef(false)
   const isUpdatingLanguageRef = useRef(false)
   const lastProfileLanguage = useRef<Language | null>(null)
   const lastUserMetadataLanguage = useRef<Language | null>(null)
+  
+  // Wrapper for setLanguage that always saves to localStorage
+  // This ensures user's manual language changes are always saved
+  const setLanguage = (newLanguage: Language) => {
+    setLanguageState(newLanguage)
+    // Always save to localStorage when user explicitly changes language
+    if (typeof window !== 'undefined') {
+      localStorage.setItem("language", newLanguage)
+    }
+  }
 
-  // Mark as hydrated after first render
+  // Mark as hydrated and immediately update language from localStorage
   useEffect(() => {
     setIsHydrated(true)
+    
+    // Immediately update language from localStorage after hydration
+    // This ensures the correct language is set as soon as possible
+    // Always update from localStorage to ensure consistency (even if it's "en")
+    if (typeof window !== 'undefined') {
+      const storedLanguage = localStorage.getItem("language") as Language
+      if (storedLanguage && ["en", "es", "pt"].includes(storedLanguage)) {
+        // Update language from localStorage (this will be handled by the main useEffect)
+        // We just mark as hydrated here, the main useEffect will handle the language update
+      }
+    }
   }, [])
 
   // Load language from user profile when it becomes available
@@ -89,7 +110,17 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         lastProfileLanguage.current = profileLanguage || null
         lastUserMetadataLanguage.current = userMetadataLanguage || null
         isUpdatingLanguageRef.current = true
-        setLanguage(newLanguage)
+        // Use setLanguageState (not setLanguage) to avoid overwriting localStorage
+        // Only save to localStorage if it's empty (first time setup)
+        setLanguageState(newLanguage)
+    if (typeof window !== 'undefined') {
+          const currentStored = localStorage.getItem("language") as Language
+          // Only update localStorage if it's empty (first time setup)
+          // This preserves user's manual preference if they set it before profile loads
+          if (!currentStored) {
+            localStorage.setItem("language", newLanguage)
+          }
+        }
         // Reset the flag after a short delay
         setTimeout(() => {
           isUpdatingLanguageRef.current = false
@@ -107,28 +138,44 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         userMetadataLanguage !== lastUserMetadataLanguage.current
       
       // Only update if the source language (profile/user) actually changed
+      // BUT: localStorage takes precedence - don't overwrite user's manual preference
       if ((profileLanguageChanged || userMetadataLanguageChanged) && !isUpdatingLanguageRef.current) {
-        const sourceLanguage = profileLanguageChanged 
-          ? profileLanguage 
-          : userMetadataLanguageChanged 
-          ? userMetadataLanguage 
+        // Check localStorage first - if user has manually set a language, respect it
+        const currentLocalStorageLanguage = typeof window !== 'undefined' 
+          ? (localStorage.getItem("language") as Language)
           : null
         
-        if (sourceLanguage) {
-          // Update refs to track what we've seen
-          lastProfileLanguage.current = profileLanguage || null
-          lastUserMetadataLanguage.current = userMetadataLanguage || null
+        // Only update if localStorage doesn't have a value, or if it matches the profile language
+        // This prevents overwriting user's manual language preference
+        if (!currentLocalStorageLanguage || currentLocalStorageLanguage === profileLanguage || currentLocalStorageLanguage === userMetadataLanguage) {
+          const sourceLanguage = profileLanguageChanged 
+            ? profileLanguage 
+            : userMetadataLanguageChanged 
+            ? userMetadataLanguage 
+            : null
           
-          isUpdatingLanguageRef.current = true
-          setLanguage(sourceLanguage)
-          // Also update localStorage to match
-          if (typeof window !== 'undefined') {
-            localStorage.setItem("language", sourceLanguage)
+          if (sourceLanguage) {
+            // Update refs to track what we've seen
+            lastProfileLanguage.current = profileLanguage || null
+            lastUserMetadataLanguage.current = userMetadataLanguage || null
+            
+            isUpdatingLanguageRef.current = true
+            // Use setLanguageState (not setLanguage) to avoid overwriting localStorage
+            // Only save to localStorage if it's empty (first time setup)
+            setLanguageState(sourceLanguage)
+            if (typeof window !== 'undefined' && !currentLocalStorageLanguage) {
+              localStorage.setItem("language", sourceLanguage)
+      }
+            // Reset the flag after a short delay
+            setTimeout(() => {
+              isUpdatingLanguageRef.current = false
+            }, 100)
           }
-          // Reset the flag after a short delay
-          setTimeout(() => {
-            isUpdatingLanguageRef.current = false
-          }, 100)
+        } else {
+          // localStorage has a different value - user's manual preference takes precedence
+          // Just update refs to track what we've seen, but don't change language
+          if (profileLanguage) lastProfileLanguage.current = profileLanguage
+          if (userMetadataLanguage) lastUserMetadataLanguage.current = userMetadataLanguage
         }
       } else {
         // Update refs even if we don't change language, to track what we've seen
@@ -140,12 +187,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.language, user?.user_metadata?.language, isHydrated])
 
-  // Save language to localStorage when it changes
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-    localStorage.setItem("language", language)
-    }
-  }, [language])
+  // Note: We no longer need a separate useEffect to save to localStorage
+  // because setLanguage wrapper now handles saving when user explicitly changes language
+  // Internal state updates (from profile loading) use setLanguageState directly
+  // which doesn't save to localStorage, preserving user's manual preference
 
   // Translation function using nested structure
   const t = (key: string): string => {

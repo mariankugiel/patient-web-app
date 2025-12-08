@@ -72,6 +72,17 @@ apiClient.interceptors.request.use(
       let token = localStorage.getItem('access_token')
       const refreshToken = localStorage.getItem('refresh_token')
       
+      // Add Accept-Language header based on user's language preference
+      const language = localStorage.getItem('language') || 'en'
+      // Language is stored as 'en', 'es', or 'pt' in localStorage
+      // Ensure it's a valid language code
+      const languageCode = ['en', 'es', 'pt'].includes(language) ? language : 'en'
+      config.headers['Accept-Language'] = languageCode
+      // Log for debugging
+      if (config.url?.includes('/health-records')) {
+        console.log(`🌐 [API] Setting Accept-Language header: ${languageCode} (from localStorage: ${language})`)
+      }
+      
       // Check if token is expired or about to expire
       if (token && isTokenExpiredOrExpiringSoon(token)) {
         // Token is expired or expiring soon, try to refresh it
@@ -88,20 +99,20 @@ apiClient.interceptors.request.use(
               // Verify this is a Supabase token by checking if refresh works
               // Try to refresh the Supabase session manually (auto-refresh is disabled)
               try {
-                const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-                
-                if (!refreshError && refreshData?.session) {
-                  // Update tokens in localStorage
-                  token = refreshData.session.access_token
-                  localStorage.setItem('access_token', token)
-                  if (refreshData.session.refresh_token) {
-                    localStorage.setItem('refresh_token', refreshData.session.refresh_token)
-                  }
-                  if (refreshData.session.expires_in) {
-                    localStorage.setItem('expires_in', refreshData.session.expires_in.toString())
-                  }
+              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+              
+              if (!refreshError && refreshData?.session) {
+                // Update tokens in localStorage
+                token = refreshData.session.access_token
+                localStorage.setItem('access_token', token)
+                if (refreshData.session.refresh_token) {
+                  localStorage.setItem('refresh_token', refreshData.session.refresh_token)
+                }
+                if (refreshData.session.expires_in) {
+                  localStorage.setItem('expires_in', refreshData.session.expires_in.toString())
+                }
                   console.log('✅ Token refreshed via Supabase')
-                } else if (refreshError) {
+              } else if (refreshError) {
                   // Supabase refresh failed - tokens are likely from backend API
                   // Don't log as error - this is expected for backend tokens
                   // The response interceptor will handle 401 errors

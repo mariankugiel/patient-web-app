@@ -284,7 +284,7 @@ export default function AnalysisPage() {
                   disabled={!canManageLabDocuments}
                 >
                   <Plus className="h-3 w-3" />
-                  Add
+                  <span suppressHydrationWarning>{t("action.add")}</span>
                 </Button>
                 </div>
           </CardHeader>

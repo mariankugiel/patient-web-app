@@ -835,10 +835,10 @@ export default function PermissionsClientPage() {
             <h2 className="text-xl font-semibold">{t("permissions.peopleWithAccess")}</h2>
             {/* Only show the button if there are contacts, otherwise show it in the empty state */}
             {filteredContacts.length > 0 && (
-              <Button onClick={() => setIsGrantAccessDialogOpen(true)}>
-                <UserPlusIcon className="h-4 w-4 mr-2" />
-                {t("permissions.grantNewAccess")}
-              </Button>
+            <Button onClick={() => setIsGrantAccessDialogOpen(true)}>
+              <UserPlusIcon className="h-4 w-4 mr-2" />
+              {t("permissions.grantNewAccess")}
+            </Button>
             )}
           </div>
 

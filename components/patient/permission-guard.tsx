@@ -49,7 +49,7 @@ export function PermissionGuard({
           // Only redirect if still not authenticated after the delay
           if (!currentAuth && !currentUser) {
             console.log('No authentication found after session restoration, redirecting to login')
-            router.push('/auth/login')
+        router.push('/auth/login')
           }
         }, 1000) // Wait 1 second for session restoration to fully complete
         

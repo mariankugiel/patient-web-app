@@ -138,9 +138,9 @@ export default function ProfileTabPage() {
       }
       
       // Also check localStorage as fallback
-      const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null
+    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null
       if (savedTheme && savedTheme !== selectedTheme) {
-        setSelectedTheme(savedTheme)
+      setSelectedTheme(savedTheme)
         console.log("🎨 Synced theme from localStorage:", savedTheme)
       }
     }
@@ -303,7 +303,7 @@ export default function ProfileTabPage() {
       
       // Only load if we haven't loaded for this user yet
       if (!hasLoadedProfile) {
-        loadProfile()
+    loadProfile()
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

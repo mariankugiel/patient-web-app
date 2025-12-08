@@ -154,7 +154,7 @@ export function AddDropdown() {
             className="relative rounded-full border-primary text-primary hover:bg-primary/10 hover:text-primary"
           >
             <Plus className="h-5 w-5" />
-            <span className="sr-only">{t("action.add")}</span>
+            <span className="sr-only" suppressHydrationWarning>{t("action.add")}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
