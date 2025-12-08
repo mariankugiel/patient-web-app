@@ -1151,7 +1151,13 @@ export const translations = {
       loadMore: "Load more",
       scheduling: "Scheduling...",
       previousWeek: "Previous week",
-      nextWeek: "Next week"
+      nextWeek: "Next week",
+      user: "User",
+      loadingUser: "Loading...",
+      select: "Select",
+      selectTimezone: "Select timezone",
+      selectLanguage: "Select language",
+      selectTheme: "Select theme"
     },
     // Actions
     action: {
