@@ -131,11 +131,24 @@ export interface UserNotifications {
 
 export interface UserIntegrations {
   google_fit?: boolean
+  apple_health?: boolean
+  // Thryve integrations
   fitbit?: boolean
   garmin?: boolean
-  apple_health?: boolean
+  polar?: boolean
   withings?: boolean
+  strava?: boolean
+  omron_connect?: boolean
+  suunto?: boolean
   oura?: boolean
+  beurer?: boolean
+  huawei_health?: boolean
+  thryve_access_token?: string
+  thryve_connections?: Record<string, {
+    connected: boolean
+    connected_at?: string | null
+    disconnected_at?: string | null
+  }>
 }
 
 export interface UserPrivacy {

@@ -195,6 +195,10 @@ export const translations = {
       ouraRing: "Oura Ring",
       sync: "Sync",
       saveSettings: "Save Settings",
+      connecting: "Connecting...",
+      disconnecting: "Disconnecting...",
+      connecting: "Connecting...",
+      disconnecting: "Disconnecting...",
       // Privacy
       privacyData: "Privacy & Data",
       privacyDataDesc: "Manage how your data is used and request copies of your information",
@@ -1649,6 +1653,8 @@ export const translations = {
       ouraRing: "Oura Ring",
       sync: "Sincronizar",
       saveSettings: "Guardar Configuración",
+      connecting: "Conectando...",
+      disconnecting: "Desconectando...",
       // Privacy
       privacyData: "Privacidad y Datos",
       privacyDataDesc: "Gestione cómo se usan sus datos y solicite copias de su información",
@@ -3094,6 +3100,8 @@ export const translations = {
       ouraRing: "Oura Ring",
       sync: "Sincronizar",
       saveSettings: "Guardar Configuração",
+      connecting: "A conectar...",
+      disconnecting: "A desconectar...",
       // Privacy
       privacyData: "Privacidade e Dados",
       privacyDataDesc: "Gerir como os seus dados são usados e solicitar cópias da sua informação",
