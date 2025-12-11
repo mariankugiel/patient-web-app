@@ -409,6 +409,7 @@ function MessagesClientPageContent() {
     handleAppointmentAction,
     handleLabResultAction,
     refreshConversations,
+    sendTypingIndicator, // Add sendTypingIndicator for typing indicators
     conversations: conversationsFromHook  // Get conversations directly from hook
   } = useMessages(patientId)
   
@@ -544,10 +545,51 @@ function MessagesClientPageContent() {
     sendRealtimeMessage,
     sendVoiceMessage,
     sendFileMessage,
-    handleTyping,
     typingUsersForCurrentConversation,
     isUserOnline
   } = useRealtimeMessages()
+  
+  // Create debounced typing handler using sendTypingIndicator from useMessages
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isTypingRef = useRef(false)
+  
+  const handleTyping = useCallback(() => {
+    if (!selectedConversation || !isConnected) return
+    
+    // Send typing start if not already typing
+    if (!isTypingRef.current) {
+      isTypingRef.current = true
+      sendTypingIndicator(true)
+    }
+    
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current)
+    }
+    
+    // Set timeout to stop typing after 2 seconds of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      if (isTypingRef.current) {
+        isTypingRef.current = false
+        sendTypingIndicator(false)
+      }
+    }, 2000)
+  }, [selectedConversation, isConnected, sendTypingIndicator])
+  
+  // Cleanup typing indicator when conversation changes or component unmounts
+  useEffect(() => {
+    return () => {
+      // Stop typing when component unmounts or conversation changes
+      if (isTypingRef.current) {
+        sendTypingIndicator(false)
+        isTypingRef.current = false
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+        typingTimeoutRef.current = null
+      }
+    }
+  }, [selectedConversation?.id, sendTypingIndicator])
 
   // Toggle filter
   const toggleFilter = (filter: string) => {
@@ -1453,13 +1495,35 @@ function MessagesClientPageContent() {
               </ScrollArea>
 
               {/* Typing Indicator */}
-              {typingUsersForCurrentConversation.length > 0 && (
-                <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    {typingUsersForCurrentConversation.map(u => u.userName).join(', ')} {typingUsersForCurrentConversation.length === 1 ? 'is' : 'are'} typing...
+              {(() => {
+                // Get typing user names from selected conversation
+                const typingUserNames: string[] = []
+                if (selectedConversation && typingUsers.size > 0) {
+                  typingUsers.forEach((userId) => {
+                    // Check if it's the contact typing
+                    if (selectedConversation.contact_id === userId) {
+                      typingUserNames.push(selectedConversation.contact_name || 'Someone')
+                    }
+                    // Check if it's the current user typing (shouldn't happen, but handle it)
+                    else if (selectedConversation.user_id === userId) {
+                      typingUserNames.push(selectedConversation.current_user_name || 'You')
+                    }
+                  })
+                }
+                
+                return typingUserNames.length > 0 ? (
+                  <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                    <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                      <div className="flex space-x-1">
+                        <div className="w-1 h-1 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-1 h-1 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-1 h-1 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      </div>
+                      <span>{typingUserNames.join(', ')} {typingUserNames.length === 1 ? 'is' : 'are'} typing...</span>
+                    </div>
                   </div>
-                </div>
-              )}
+                ) : null
+              })()}
 
               {/* Enhanced Message Input */}
               <EnhancedMessageInput
@@ -1467,6 +1531,7 @@ function MessagesClientPageContent() {
                 onChange={(value) => {
                   setNewMessage(value)
                 }}
+                onTyping={handleTyping}
                 onSend={handleSendMessage}
                 onFileUpload={handleFileUpload}
                 onVoiceRecord={handleVoiceMessage}

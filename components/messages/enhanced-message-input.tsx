@@ -22,6 +22,7 @@ interface EnhancedMessageInputProps {
   onSend: () => void
   onFileUpload: (files: FileList) => void
   onVoiceRecord: (audioBlob: Blob) => void
+  onTyping?: () => void  // Callback for typing indicator
   placeholder?: string
   disabled?: boolean
   loading?: boolean
@@ -51,6 +52,7 @@ export function EnhancedMessageInput({
   onSend,
   onFileUpload,
   onVoiceRecord,
+  onTyping,
   placeholder = "Type a message...",
   disabled = false,
   loading = false,
@@ -216,7 +218,13 @@ export function EnhancedMessageInput({
           <Textarea
             ref={textareaRef}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => {
+              onChange(e.target.value)
+              // Trigger typing indicator when user types
+              if (onTyping && e.target.value.trim().length > 0) {
+                onTyping()
+              }
+            }}
             onKeyPress={handleKeyPress}
             placeholder={placeholder}
             disabled={disabled}
