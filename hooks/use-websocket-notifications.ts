@@ -16,7 +16,21 @@ export function useWebSocketNotifications(userId: number | null) {
   
   // Get token from localStorage
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-  const websocketUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/api/v1/ws'
+  
+  // Derive websocket URL from API URL if not explicitly set
+  // Convert http:// to ws:// and https:// to wss://
+  const getWebSocketUrl = () => {
+    if (process.env.NEXT_PUBLIC_WS_URL) {
+      return process.env.NEXT_PUBLIC_WS_URL
+    }
+    
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    // Convert http:// to ws:// and https:// to wss://
+    const wsUrl = apiUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
+    return `${wsUrl}/api/v1/ws`
+  }
+  
+  const websocketUrl = getWebSocketUrl()
 
   // Define callback functions first (before they're used in dependencies)
   const markAsTaken = useCallback(async (medicationId: number) => {

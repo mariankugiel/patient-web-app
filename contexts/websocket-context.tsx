@@ -26,7 +26,21 @@ export function WebSocketProvider({ children, userId }: { children: React.ReactN
   
   // Get token from localStorage
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-  const websocketUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/api/v1/ws'
+  
+  // Derive websocket URL from API URL if not explicitly set
+  // Convert http:// to ws:// and https:// to wss://
+  const getWebSocketUrl = () => {
+    if (process.env.NEXT_PUBLIC_WS_URL) {
+      return process.env.NEXT_PUBLIC_WS_URL
+    }
+    
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    // Convert http:// to ws:// and https:// to wss://
+    const wsUrl = apiUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
+    return `${wsUrl}/api/v1/ws`
+  }
+  
+  const websocketUrl = getWebSocketUrl()
 
   // Memoize callback functions to prevent infinite re-renders
   const markAsTaken = useCallback(async (medicationId: number) => {
