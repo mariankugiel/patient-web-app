@@ -141,14 +141,13 @@ export function WebSocketProvider({ children, userId }: { children: React.ReactN
     const removeDisconnectHandler = globalWebSocketManager.addDisconnectHandler(handleWebSocketDisconnect)
     
     // Add error handler for authentication errors
+    // IMPORTANT: Only clear tokens on actual auth errors, not connection errors
     const handleWebSocketError = (error: Event) => {
-      console.error('🔐 WebSocket authentication error:', error)
-      // Check if it's an authentication error and redirect to login
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        window.location.href = '/auth/login'
-      }
+      console.error('🔌 WebSocket error event:', error)
+      // Don't automatically clear tokens on WebSocket errors
+      // Many errors are connection-related, not auth-related
+      // Only the onclose handler with specific error codes should clear tokens
+      // This prevents race conditions where WebSocket errors clear tokens before axios requests
     }
     const removeErrorHandler = globalWebSocketManager.addErrorHandler(handleWebSocketError)
 

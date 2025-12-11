@@ -131,15 +131,24 @@ class GlobalWebSocketManager {
         this.connectionId = null
         
         // Check for authentication errors
-        if (event.code === 1008 || event.code === 1002 || event.reason?.includes('unauthorized') || event.reason?.includes('expired')) {
-          console.log('🔐 Authentication error detected, redirecting to login')
-          // Clear token and redirect to login
+        // IMPORTANT: Only clear tokens if we're certain it's an auth error, not a connection issue
+        // Don't clear tokens on connection errors (code 1006) or network issues
+        const isAuthError = (event.code === 1008 || event.code === 1002) && 
+                           (event.reason?.includes('unauthorized') || event.reason?.includes('expired') || event.reason?.includes('token'))
+        
+        if (isAuthError) {
+          console.log('🔐 WebSocket authentication error detected:', event.code, event.reason)
+          // Only clear token and redirect if it's a clear auth error
+          // Don't clear on connection issues (1006) or other errors
           if (typeof window !== 'undefined') {
+            console.log('🔐 Clearing tokens due to WebSocket auth error')
             localStorage.removeItem('access_token')
             localStorage.removeItem('refresh_token')
             window.location.href = '/auth/login'
             return
           }
+        } else {
+          console.log('🔌 WebSocket closed (not auth error):', event.code, event.reason)
         }
         
         // Notify all disconnect handlers

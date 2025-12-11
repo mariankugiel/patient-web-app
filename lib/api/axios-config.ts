@@ -72,6 +72,16 @@ apiClient.interceptors.request.use(
       let token = localStorage.getItem('access_token')
       const refreshToken = localStorage.getItem('refresh_token')
       
+      // Log token status for messages endpoints to debug missing Authorization header
+      if (config.url?.includes('/messages') || config.url?.includes('/conversations')) {
+        console.log('🌐 [AXIOS REQUEST] Token check:', {
+          tokenExists: !!token,
+          tokenLength: token?.length || 0,
+          refreshTokenExists: !!refreshToken,
+          localStorageAvailable: typeof window !== 'undefined'
+        })
+      }
+      
       // Add Accept-Language header based on user's language preference
       const language = localStorage.getItem('language') || 'en'
       // Language is stored as 'en', 'es', or 'pt' in localStorage
@@ -153,12 +163,24 @@ apiClient.interceptors.request.use(
         if (config.url?.includes('/messages') || config.url?.includes('/conversations')) {
           console.log('🌐 [AXIOS REQUEST] Token added:', token ? 'Yes (length: ' + token.length + ')' : 'No token')
         }
+      } else {
+        // Log warning if token is missing for messages endpoints
+        if (config.url?.includes('/messages') || config.url?.includes('/conversations')) {
+          console.warn('⚠️ [AXIOS REQUEST] WARNING: No access_token found in localStorage!')
+          console.warn('⚠️ [AXIOS REQUEST] This will cause a 401 Unauthorized error')
+          console.warn('⚠️ [AXIOS REQUEST] localStorage keys:', Object.keys(localStorage))
+        }
+      }
+    } else {
+      // Log warning if window is undefined (SSR)
+      if (config.url?.includes('/messages') || config.url?.includes('/conversations')) {
+        console.warn('⚠️ [AXIOS REQUEST] WARNING: window is undefined (SSR context)')
       }
     }
     
     if (config.url?.includes('/messages') || config.url?.includes('/conversations')) {
       console.log('🌐 [AXIOS REQUEST] Final config headers:', {
-        Authorization: config.headers.Authorization ? 'Present' : 'Missing',
+        Authorization: config.headers.Authorization ? 'Present (' + (config.headers.Authorization as string).substring(0, 20) + '...)' : 'Missing',
         'Content-Type': config.headers['Content-Type']
       })
       console.log('🌐 [AXIOS REQUEST] About to send request to:', config.baseURL + config.url)
