@@ -11,8 +11,8 @@ import { AIAnalysisSection } from '@/components/health-records/ai-analysis-secti
 
 export default function VitalsPage() {
   const { t } = useLanguage()
-  const { analysis: aiAnalysis, loading: aiLoading, generateAnalysis, checkForUpdates } = useAIAnalysis(4) // Vitals type ID
-  const { sections, loading, createSection, updateSection, createMetric, updateMetric, createRecord, refresh } = useAnalysisDashboard(4) // Vitals type ID
+  const { analysis: aiAnalysis, loading: aiLoading, generateAnalysis, checkForUpdates } = useAIAnalysis(2) // Vitals type ID
+  const { sections, loading, createSection, updateSection, createMetric, updateMetric, createRecord, refresh } = useAnalysisDashboard(2) // Vitals type ID
   
   // Track if we've already attempted to load AI analysis
   const aiAnalysisAttempted = useRef(false)
@@ -58,7 +58,7 @@ export default function VitalsPage() {
         createRecord={createRecord}
         refresh={refresh}
         onDataUpdated={handleGenerateAIAnalysis}
-        healthRecordTypeId={4}
+        healthRecordTypeId={2}
       />
     </div>
   )

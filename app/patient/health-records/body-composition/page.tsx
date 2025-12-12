@@ -11,8 +11,8 @@ import { AIAnalysisSection } from '@/components/health-records/ai-analysis-secti
 
 export default function BodyCompositionPage() {
   const { t } = useLanguage()
-  const { analysis: aiAnalysis, loading: aiLoading, generateAnalysis, checkForUpdates } = useAIAnalysis(2) // Body composition type ID
-  const { sections, loading, createSection, updateSection, createMetric, updateMetric, createRecord, refresh } = useAnalysisDashboard(2) // Body composition type ID
+  const { analysis: aiAnalysis, loading: aiLoading, generateAnalysis, checkForUpdates } = useAIAnalysis(3) // Body composition type ID
+  const { sections, loading, createSection, updateSection, createMetric, updateMetric, createRecord, refresh } = useAnalysisDashboard(3) // Body composition type ID
   
   // Track if we've already attempted to load AI analysis
   const aiAnalysisAttempted = useRef(false)
@@ -58,7 +58,7 @@ export default function BodyCompositionPage() {
         createRecord={createRecord}
         refresh={refresh}
         onDataUpdated={handleGenerateAIAnalysis}
-        healthRecordTypeId={2}
+        healthRecordTypeId={3}
       />
     </div>
   )

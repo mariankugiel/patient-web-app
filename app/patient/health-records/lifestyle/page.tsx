@@ -11,8 +11,8 @@ import { AIAnalysisSection } from '@/components/health-records/ai-analysis-secti
 
 export default function LifestylePage() {
   const { t } = useLanguage()
-  const { analysis: aiAnalysis, loading: aiLoading, generateAnalysis, checkForUpdates } = useAIAnalysis(3) // Lifestyle type ID
-  const { sections, loading, createSection, updateSection, createMetric, updateMetric, createRecord, refresh } = useAnalysisDashboard(3) // Lifestyle type ID
+  const { analysis: aiAnalysis, loading: aiLoading, generateAnalysis, checkForUpdates } = useAIAnalysis(4) // Lifestyle type ID
+  const { sections, loading, createSection, updateSection, createMetric, updateMetric, createRecord, refresh } = useAnalysisDashboard(4) // Lifestyle type ID
   
   // Track if we've already attempted to load AI analysis
   const aiAnalysisAttempted = useRef(false)
@@ -58,7 +58,7 @@ export default function LifestylePage() {
         createRecord={createRecord}
         refresh={refresh}
         onDataUpdated={handleGenerateAIAnalysis}
-        healthRecordTypeId={3}
+        healthRecordTypeId={4}
       />
     </div>
   )
