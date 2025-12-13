@@ -277,21 +277,30 @@ export function AnalysisOverviewSection({
 
   // Render metric box
   const renderMetricBox = (metric: MetricWithData) => {
-    // Get the latest data point
-    const latestDataPoint = metric.data_points && metric.data_points.length > 0 ? metric.data_points[metric.data_points.length - 1] : null
+    // Filter to show only daily data (exclude epoch data)
+    const dailyDataPoints = metric.data_points ? metric.data_points.filter((item: HealthRecord) => 
+      !item.data_type || item.data_type === 'daily'
+    ) : []
+    
+    // Get the latest data point (from filtered daily data)
+    const latestDataPoint = dailyDataPoints && dailyDataPoints.length > 0 ? dailyDataPoints[dailyDataPoints.length - 1] : null
     const referenceRange = getGenderSpecificReferenceRange(metric)
     const calculatedStatus = latestDataPoint ? getStatusFromValue(latestDataPoint.value, referenceRange) : 'normal'
     
     const currentValue = latestDataPoint ? formatMetricValue(latestDataPoint.value) : "N/A"
     const unit = metric.default_unit || metric.unit
 
-    // Prepare chart data
-    const chartData = metric.data_points ? metric.data_points.map((item: HealthRecord, index: number) => ({
-      date: new Date(item.recorded_at),
-      value: Number(item.value) || 0,
-      id: `${metric.id}-${index}`,
-      originalValue: item.value
-    })) : []
+    // Prepare chart data (only daily data)
+    const chartData = dailyDataPoints.map((item: HealthRecord, index: number) => {
+      // Use start_timestamp if available (for daily data), otherwise fall back to recorded_at
+      const dateValue = item.start_timestamp || item.recorded_at
+      return {
+        date: new Date(dateValue),
+        value: Number(item.value) || 0,
+        id: `${metric.id}-${index}`,
+        originalValue: item.value
+      }
+    })
 
     return (
       <div key={metric.id} className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleMetricClick(metric)}>

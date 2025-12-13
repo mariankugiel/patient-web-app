@@ -228,10 +228,21 @@ export class HealthRecordsApiService {
   }
 
   // Health Records (Data Points)
-  static async getHealthRecords(metricId: number, patientId?: number): Promise<HealthRecord[]> {
+  static async getHealthRecords(
+    metricId: number, 
+    patientId?: number,
+    startDate?: string,
+    endDate?: string
+  ): Promise<HealthRecord[]> {
     const params: any = {}
     if (patientId) {
       params.patient_id = patientId
+    }
+    if (startDate) {
+      params.start_date = startDate
+    }
+    if (endDate) {
+      params.end_date = endDate
     }
     const response = await apiClient.get(`/health-records/metrics/${metricId}/records`, { params })
     return response.data

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { ProfessionalPagination } from "@/components/ui/professional-pagination"
 import { Edit, Trash2, Save, X, Calendar, Activity } from "lucide-react"
-import { format } from "date-fns"
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths } from "date-fns"
 import { toast } from "react-toastify"
 import { HealthRecordsApiService, HealthRecord, HealthRecordMetric } from "@/lib/api/health-records-api"
 import { MetricValueEditor } from "./metric-value-editor"
@@ -18,6 +18,7 @@ import { formatReferenceRange } from "@/hooks/use-health-records"
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
 import { useLanguage } from '@/contexts/language-context'
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 interface MetricDetailDialogProps {
   open: boolean
@@ -76,6 +77,14 @@ export function MetricDetailDialog({
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [loading, setLoading] = useState(false)
   const [editMetricDialogOpen, setEditMetricDialogOpen] = useState(false)
+  
+  // Time period filter state
+  type TimePeriod = 'daily' | 'weekly' | 'monthly' | '3months' | 'custom'
+  const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('monthly') // Default to monthly
+  const [customStartDate, setCustomStartDate] = useState<Date | null>(null)
+  const [customEndDate, setCustomEndDate] = useState<Date | null>(null)
+  const [customDateRangeOpen, setCustomDateRangeOpen] = useState(false)
+  const [fetchingRecords, setFetchingRecords] = useState(false)
 
   // Helper function to get gender-specific reference range
   const getGenderSpecificReferenceRange = () => {
@@ -110,22 +119,112 @@ export function MetricDetailDialog({
     return 'normal'
   }
 
-  useEffect(() => {
-    if (open && dataPoints) {
-      setRecords(dataPoints.map(dp => ({
-        ...dp,
-        isEditing: false,
-        tempValue: typeof dp.value === 'object' ? JSON.stringify(dp.value) : String(dp.value),
-        tempStatus: dp.status,
-        tempDate: dp.recorded_at ? format(new Date(dp.recorded_at), 'yyyy-MM-dd') : ''
-      })))
+  // Calculate date range based on selected period
+  const getDateRange = useMemo(() => {
+    const now = new Date()
+    let startDate: Date | null = null
+    let endDate: Date | null = null
+    
+    switch (selectedPeriod) {
+      case 'daily':
+        startDate = startOfDay(now)
+        endDate = endOfDay(now)
+        break
+      case 'weekly':
+        startDate = startOfWeek(now, { weekStartsOn: 1 }) // Monday
+        endDate = endOfWeek(now, { weekStartsOn: 1 })
+        break
+      case 'monthly':
+        startDate = startOfMonth(now)
+        endDate = endOfMonth(now)
+        break
+      case '3months':
+        startDate = startOfMonth(subMonths(now, 2))
+        endDate = endOfMonth(now)
+        break
+      case 'custom':
+        if (customStartDate && customEndDate) {
+          startDate = startOfDay(customStartDate)
+          endDate = endOfDay(customEndDate)
+        }
+        break
     }
-  }, [open, dataPoints])
+    
+    return { startDate, endDate }
+  }, [selectedPeriod, customStartDate, customEndDate])
 
-  const totalPages = Math.ceil(records.length / itemsPerPage)
+  // Fetch records from backend when dialog opens or time period changes
+  useEffect(() => {
+    if (!open || !metric.id) return
+
+    const fetchRecords = async () => {
+      setFetchingRecords(true)
+      try {
+        const { startDate, endDate } = getDateRange
+        
+        // Format dates for API (ISO string format)
+        // Only send dates if they are set (for custom period, both must be set)
+        const startDateStr = startDate ? startDate.toISOString() : undefined
+        const endDateStr = endDate ? endDate.toISOString() : undefined
+        
+        // For custom period, both dates must be set
+        if (selectedPeriod === 'custom' && (!startDate || !endDate)) {
+          // Don't fetch if custom dates not set
+          setFetchingRecords(false)
+          return
+        }
+        
+        // Fetch records from backend with date filtering
+        const fetchedRecords = await HealthRecordsApiService.getHealthRecords(
+          metric.id,
+          patientId || undefined,
+          startDateStr,
+          endDateStr
+        )
+        
+        setRecords(fetchedRecords.map(dp => ({
+          ...dp,
+          isEditing: false,
+          tempValue: typeof dp.value === 'object' ? JSON.stringify(dp.value) : String(dp.value),
+          tempStatus: dp.status,
+          tempDate: dp.recorded_at ? format(new Date(dp.recorded_at), 'yyyy-MM-dd') : ''
+        })))
+        
+        // Reset to first page when data changes
+        setCurrentPage(1)
+      } catch (error) {
+        console.error('Error fetching records:', error)
+        toast.error('Failed to fetch records')
+        // Fallback to original dataPoints if fetch fails
+        if (dataPoints) {
+          setRecords(dataPoints.map(dp => ({
+            ...dp,
+            isEditing: false,
+            tempValue: typeof dp.value === 'object' ? JSON.stringify(dp.value) : String(dp.value),
+            tempStatus: dp.status,
+            tempDate: dp.recorded_at ? format(new Date(dp.recorded_at), 'yyyy-MM-dd') : ''
+          })))
+        }
+      } finally {
+        setFetchingRecords(false)
+      }
+    }
+
+    fetchRecords()
+  }, [open, metric.id, selectedPeriod, customStartDate, customEndDate, patientId])
+
+  // Use records directly (no client-side filtering needed since we fetch filtered data)
+  const filteredRecords = records
+
+  const totalPages = Math.ceil(filteredRecords.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const currentRecords = records.slice(startIndex, endIndex)
+  const currentRecords = filteredRecords.slice(startIndex, endIndex)
+  
+  // Reset to first page when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedPeriod, customStartDate, customEndDate])
 
   const handleEdit = (recordId: number) => {
     setRecords(prev => prev.map(record => 
@@ -309,6 +408,127 @@ export function MetricDetailDialog({
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col">
+          {/* Time Period Filter */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Label className="text-sm font-medium text-muted-foreground mr-2">Time Period:</Label>
+              <Button
+                variant={selectedPeriod === 'daily' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedPeriod('daily')}
+                disabled={fetchingRecords}
+              >
+                Daily
+              </Button>
+              <Button
+                variant={selectedPeriod === 'weekly' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedPeriod('weekly')}
+                disabled={fetchingRecords}
+              >
+                Weekly
+              </Button>
+              <Button
+                variant={selectedPeriod === 'monthly' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedPeriod('monthly')}
+                disabled={fetchingRecords}
+              >
+                Monthly
+              </Button>
+              <Button
+                variant={selectedPeriod === '3months' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedPeriod('3months')}
+                disabled={fetchingRecords}
+              >
+                3 Months
+              </Button>
+              <Popover open={customDateRangeOpen} onOpenChange={setCustomDateRangeOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={selectedPeriod === 'custom' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setSelectedPeriod('custom')
+                      setCustomDateRangeOpen(true)
+                    }}
+                    disabled={fetchingRecords}
+                  >
+                    Custom
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-4" align="start">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Start Date</Label>
+                      <Input
+                        type="date"
+                        value={customStartDate ? format(customStartDate, 'yyyy-MM-dd') : ''}
+                        onChange={(e) => {
+                          const date = e.target.value ? new Date(e.target.value) : null
+                          setCustomStartDate(date)
+                          if (date && customEndDate && date > customEndDate) {
+                            setCustomEndDate(null)
+                          }
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">End Date</Label>
+                      <Input
+                        type="date"
+                        value={customEndDate ? format(customEndDate, 'yyyy-MM-dd') : ''}
+                        onChange={(e) => {
+                          const date = e.target.value ? new Date(e.target.value) : null
+                          setCustomEndDate(date)
+                          if (date && customStartDate && date < customStartDate) {
+                            toast.error('End date must be after start date')
+                            return
+                          }
+                        }}
+                        min={customStartDate ? format(customStartDate, 'yyyy-MM-dd') : undefined}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setCustomStartDate(null)
+                          setCustomEndDate(null)
+                          setSelectedPeriod('monthly')
+                          setCustomDateRangeOpen(false)
+                        }}
+                      >
+                        Clear
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          if (customStartDate && customEndDate) {
+                            setCustomDateRangeOpen(false)
+                          } else {
+                            toast.error('Please select both start and end dates')
+                          }
+                        }}
+                      >
+                        Apply
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {selectedPeriod === 'custom' && customStartDate && customEndDate && (
+                <span className="text-sm text-muted-foreground ml-2">
+                  {format(customStartDate, 'MMM dd, yyyy')} - {format(customEndDate, 'MMM dd, yyyy')}
+                </span>
+              )}
+            </div>
+          </div>
+
           {/* Metric Info */}
           <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg mb-4">
             <div>
@@ -326,6 +546,13 @@ export function MetricDetailDialog({
               </p>
             </div>
           </div>
+
+          {/* Loading indicator */}
+          {fetchingRecords && (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-sm text-muted-foreground">Loading records...</div>
+            </div>
+          )}
 
           {/* Table */}
           <div className="flex-1 overflow-auto border rounded-lg">
@@ -444,7 +671,7 @@ export function MetricDetailDialog({
           <ProfessionalPagination
             currentPage={currentPage}
             totalPages={totalPages}
-            totalItems={records.length}
+            totalItems={filteredRecords.length}
             itemsPerPage={itemsPerPage}
             onPageChange={setCurrentPage}
             onItemsPerPageChange={(newItemsPerPage) => {

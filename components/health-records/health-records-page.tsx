@@ -73,7 +73,12 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
     const isAbnormal = metric.latest_status === "abnormal" || metric.latest_status === "critical"
     const trendIcon = renderTrendIcon(metric.trend || "stable")
 
-    // Format current value - use latest_value from backend
+    // Filter to show only daily data (exclude epoch data)
+    const dailyDataPoints = metric.data_points ? metric.data_points.filter((item: HealthRecord) => 
+      !item.data_type || item.data_type === 'daily'
+    ) : []
+    
+    // Format current value - use latest_value from backend (should already be filtered to daily)
     const currentValue = metric.latest_value
       ? formatMetricValue(
           typeof metric.latest_value === 'object' && metric.latest_value !== null 
@@ -97,10 +102,15 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
     const referenceRange = getGenderSpecificReferenceRange(metric)
 
     // Convert data points to chart format
-    const chartData = (metric.data_points || []).map((dp: HealthRecord) => ({
-      date: new Date(dp.recorded_at),
-      value: typeof dp.value === 'object' && dp.value !== null ? dp.value.value : dp.value,
-    }))
+    // Use filtered daily data points for chart
+    const chartData = dailyDataPoints.map((dp: HealthRecord) => {
+      // Use start_timestamp if available (for daily data), otherwise fall back to recorded_at
+      const dateValue = dp.start_timestamp || dp.recorded_at
+      return {
+        date: new Date(dateValue),
+        value: typeof dp.value === 'object' && dp.value !== null ? dp.value.value : dp.value,
+      }
+    })
     
 
     return (
