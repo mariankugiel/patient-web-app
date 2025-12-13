@@ -617,19 +617,19 @@ export function MetricDetailDialog({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[120px]">{t('health.dialogs.metricDetail.date')}</TableHead>
-                  <TableHead className="w-[150px]">{t('health.dialogs.metricDetail.startTime')}</TableHead>
-                  <TableHead className="w-[150px]">{t('health.dialogs.metricDetail.endTime')}</TableHead>
-                  <TableHead className="w-[150px]">{t('health.dialogs.metricDetail.value')}</TableHead>
-                  <TableHead className="w-[100px]">{t('health.dialogs.metricDetail.status')}</TableHead>
-                  <TableHead className="w-[100px]">{t('health.dialogs.metricDetail.source')}</TableHead>
-                  <TableHead className="w-[120px]">{t('health.dialogs.metricDetail.actions')}</TableHead>
+                  <TableHead className="w-[150px] text-center">{t('health.dialogs.metricDetail.recordedTime')}</TableHead>
+                  <TableHead className="w-[150px] text-center">{t('health.dialogs.metricDetail.startTime')}</TableHead>
+                  <TableHead className="w-[150px] text-center">{t('health.dialogs.metricDetail.endTime')}</TableHead>
+                  <TableHead className="w-[150px] text-center">{t('health.dialogs.metricDetail.value')}</TableHead>
+                  <TableHead className="w-[100px] text-center">{t('health.dialogs.metricDetail.status')}</TableHead>
+                  <TableHead className="w-[100px] text-center">{t('health.dialogs.metricDetail.source')}</TableHead>
+                  <TableHead className="w-[120px] text-center">{t('health.dialogs.metricDetail.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {currentRecords.map((record) => (
                   <TableRow key={record.id}>
-                    <TableCell>
+                    <TableCell className="text-center">
                       {record.isEditing ? (
                         <Input
                           type="date"
@@ -640,21 +640,24 @@ export function MetricDetailDialog({
                           className="h-8"
                         />
                       ) : (
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          {record.recorded_at ? format(new Date(record.recorded_at), 'MMM dd, yyyy') : 'N/A'}
+                        <div className="flex justify-center">
+                          {record.recorded_at ? formatTimestamp(record.recorded_at) : <span className="text-sm text-muted-foreground">-</span>}
                         </div>
                       )}
                     </TableCell>
-                    <TableCell>
-                      {record.start_timestamp ? formatTimestamp(record.start_timestamp) : <span className="text-sm text-muted-foreground">-</span>}
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        {record.start_timestamp ? formatTimestamp(record.start_timestamp) : <span className="text-sm text-muted-foreground">-</span>}
+                      </div>
                     </TableCell>
-                    <TableCell>
-                      {record.data_type !== 'daily' && record.end_timestamp ? formatTimestamp(record.end_timestamp) : <span className="text-sm text-muted-foreground">-</span>}
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        {record.data_type !== 'daily' && record.end_timestamp ? formatTimestamp(record.end_timestamp) : <span className="text-sm text-muted-foreground">-</span>}
+                      </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
                       {record.isEditing ? (
-                        <div className="min-w-[200px]">
+                        <div className="min-w-[200px] flex justify-center">
                           <MetricValueEditor
                             metricName={metric.display_name}
                             dataType={metric.data_type}
@@ -668,24 +671,30 @@ export function MetricDetailDialog({
                           />
                         </div>
                       ) : (
-                        <span className="font-mono text-sm">
-                          {formatValue(record.value)}
-                        </span>
+                        <div className="flex justify-center">
+                          <span className="font-mono text-sm">
+                            {formatValue(record.value)}
+                          </span>
+                        </div>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(record.status || 'normal')}>
-                        {record.status || 'normal'}
-                      </Badge>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        <Badge className={getStatusColor(record.status || 'normal')}>
+                          {record.status || 'normal'}
+                        </Badge>
+                      </div>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {normalizeSourceName(record.source)}
-                      </Badge>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        <Badge variant="outline" className="text-xs">
+                          {normalizeSourceName(record.source)}
+                        </Badge>
+                      </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
                       {record.isEditing && !isReadOnly ? (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center justify-center gap-1">
                           <Button
                             size="sm"
                             variant="ghost"
@@ -706,7 +715,7 @@ export function MetricDetailDialog({
                         </div>
                       ) : (
                         !isReadOnly && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center justify-center gap-1">
                             <Button
                               size="sm"
                               variant="ghost"
