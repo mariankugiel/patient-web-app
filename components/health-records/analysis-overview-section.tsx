@@ -296,9 +296,9 @@ export function AnalysisOverviewSection({
       const dateValue = item.start_timestamp || item.recorded_at
       return {
         date: new Date(dateValue),
-        value: Number(item.value) || 0,
-        id: `${metric.id}-${index}`,
-        originalValue: item.value
+      value: Number(item.value) || 0,
+      id: `${metric.id}-${index}`,
+      originalValue: item.value
       }
     })
 

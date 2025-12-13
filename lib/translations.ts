@@ -197,8 +197,6 @@ export const translations = {
       saveSettings: "Save Settings",
       connecting: "Connecting...",
       disconnecting: "Disconnecting...",
-      connecting: "Connecting...",
-      disconnecting: "Disconnecting...",
       // Privacy
       privacyData: "Privacy & Data",
       privacyDataDesc: "Manage how your data is used and request copies of your information",
@@ -1243,6 +1241,8 @@ export const translations = {
           pleaseEnterValidNumber: "Please enter a valid number",
           editFunctionalityNotAvailable: "Edit functionality is not available",
           metricDeletionWillBeImplemented: "Metric deletion will be implemented",
+          noRecordsFound: "No health records found for this time period",
+          noRecordsDescription: "Try selecting a different time period or add a new record manually.",
         },
         // Medical Image Upload Dialog
         medicalImage: {
@@ -2681,6 +2681,8 @@ export const translations = {
           pleaseEnterValidNumber: "Por favor ingresa un número válido",
           editFunctionalityNotAvailable: "La funcionalidad de edición no está disponible",
           metricDeletionWillBeImplemented: "La eliminación de métricas se implementará",
+          noRecordsFound: "No se encontraron registros de salud para este período",
+          noRecordsDescription: "Intenta seleccionar un período diferente o agrega un nuevo registro manualmente.",
         },
         // Medical Image Upload Dialog
         medicalImage: {
@@ -4140,6 +4142,8 @@ export const translations = {
           pleaseEnterValidNumber: "Por favor introduz um número válido",
           editFunctionalityNotAvailable: "A funcionalidade de edição não está disponível",
           metricDeletionWillBeImplemented: "A eliminação de métricas será implementada",
+          noRecordsFound: "Nenhum registo de saúde encontrado para este período",
+          noRecordsDescription: "Tenta selecionar um período diferente ou adiciona um novo registo manualmente.",
         },
         // Medical Image Upload Dialog
         medicalImage: {

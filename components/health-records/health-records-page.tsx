@@ -108,7 +108,7 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
       const dateValue = dp.start_timestamp || dp.recorded_at
       return {
         date: new Date(dateValue),
-        value: typeof dp.value === 'object' && dp.value !== null ? dp.value.value : dp.value,
+      value: typeof dp.value === 'object' && dp.value !== null ? dp.value.value : dp.value,
       }
     })
     

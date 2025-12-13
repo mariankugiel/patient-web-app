@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { ProfessionalPagination } from "@/components/ui/professional-pagination"
-import { Edit, Trash2, Save, X, Calendar, Activity } from "lucide-react"
+import { Edit, Trash2, Save, X, Calendar, Activity, Inbox } from "lucide-react"
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths } from "date-fns"
+import { formatInTimeZone } from "date-fns-tz"
 import { toast } from "react-toastify"
 import { HealthRecordsApiService, HealthRecord, HealthRecordMetric } from "@/lib/api/health-records-api"
 import { MetricValueEditor } from "./metric-value-editor"
@@ -85,6 +86,49 @@ export function MetricDetailDialog({
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null)
   const [customDateRangeOpen, setCustomDateRangeOpen] = useState(false)
   const [fetchingRecords, setFetchingRecords] = useState(false)
+
+  // Get user timezone from profile, fallback to browser timezone
+  const userTimezone = useMemo(() => {
+    if (user?.timezone) return user.timezone
+    if (user?.user_metadata?.timezone) return user.user_metadata.timezone
+    // Fallback to browser timezone
+    if (typeof window !== 'undefined') {
+      try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone
+      } catch {
+        return 'UTC'
+      }
+    }
+    return 'UTC'
+  }, [user])
+  
+  // Helper function to format timestamp with timezone
+  const formatTimestamp = (timestamp: string | undefined) => {
+    if (!timestamp) return null
+    
+    try {
+      const date = new Date(timestamp)
+      const dateStr = formatInTimeZone(date, userTimezone, 'MMM dd, yyyy')
+      const timeStr = formatInTimeZone(date, userTimezone, 'HH:mm:ss')
+      
+      return (
+        <div className="flex flex-col">
+          <div className="text-sm">{dateStr}</div>
+          <div className="text-xs text-muted-foreground">{timeStr}</div>
+        </div>
+      )
+    } catch (error) {
+      console.error('Error formatting timestamp:', error)
+      return <span className="text-sm">N/A</span>
+    }
+  }
+  
+  // Helper function to normalize source name (Nokia -> Withings)
+  const normalizeSourceName = (source: string | undefined): string => {
+    if (!source) return t('health.dialogs.metricDetail.manual')
+    if (source.toLowerCase() === 'nokia') return 'Withings'
+    return source
+  }
 
   // Helper function to get gender-specific reference range
   const getGenderSpecificReferenceRange = () => {
@@ -197,14 +241,14 @@ export function MetricDetailDialog({
         toast.error('Failed to fetch records')
         // Fallback to original dataPoints if fetch fails
         if (dataPoints) {
-          setRecords(dataPoints.map(dp => ({
-            ...dp,
-            isEditing: false,
-            tempValue: typeof dp.value === 'object' ? JSON.stringify(dp.value) : String(dp.value),
-            tempStatus: dp.status,
-            tempDate: dp.recorded_at ? format(new Date(dp.recorded_at), 'yyyy-MM-dd') : ''
-          })))
-        }
+      setRecords(dataPoints.map(dp => ({
+        ...dp,
+        isEditing: false,
+        tempValue: typeof dp.value === 'object' ? JSON.stringify(dp.value) : String(dp.value),
+        tempStatus: dp.status,
+        tempDate: dp.recorded_at ? format(new Date(dp.recorded_at), 'yyyy-MM-dd') : ''
+      })))
+    }
       } finally {
         setFetchingRecords(false)
       }
@@ -554,7 +598,21 @@ export function MetricDetailDialog({
             </div>
           )}
 
+          {/* Empty state */}
+          {!fetchingRecords && records.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 px-4 border rounded-lg bg-muted/30">
+              <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-sm font-medium text-foreground mb-2">
+                {t('health.dialogs.metricDetail.noRecordsFound')}
+              </p>
+              <p className="text-xs text-muted-foreground text-center max-w-md">
+                {t('health.dialogs.metricDetail.noRecordsDescription')}
+              </p>
+            </div>
+          )}
+
           {/* Table */}
+          {!fetchingRecords && records.length > 0 && (
           <div className="flex-1 overflow-auto border rounded-lg">
             <Table>
               <TableHeader>
@@ -580,9 +638,26 @@ export function MetricDetailDialog({
                           className="h-8"
                         />
                       ) : (
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          {record.recorded_at ? format(new Date(record.recorded_at), 'MMM dd, yyyy') : 'N/A'}
+                        <div className="flex flex-col gap-2">
+                          {record.start_timestamp ? (
+                            <>
+                              <div className="flex flex-col">
+                                <div className="text-xs text-muted-foreground mb-0.5">Start:</div>
+                                {formatTimestamp(record.start_timestamp)}
+                              </div>
+                              {record.data_type !== 'daily' && record.end_timestamp && (
+                                <div className="flex flex-col">
+                                  <div className="text-xs text-muted-foreground mb-0.5">End:</div>
+                                  {formatTimestamp(record.end_timestamp)}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3 text-muted-foreground" />
+                              {record.recorded_at ? format(new Date(record.recorded_at), 'MMM dd, yyyy') : 'N/A'}
+                            </div>
+                          )}
                         </div>
                       )}
                     </TableCell>
@@ -614,7 +689,7 @@ export function MetricDetailDialog({
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
-                        {record.source || t('health.dialogs.metricDetail.manual')}
+                        {normalizeSourceName(record.source)}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -666,12 +741,14 @@ export function MetricDetailDialog({
               </TableBody>
             </Table>
           </div>
+          )}
 
           {/* Pagination */}
+          {!fetchingRecords && records.length > 0 && (
           <ProfessionalPagination
             currentPage={currentPage}
             totalPages={totalPages}
-            totalItems={filteredRecords.length}
+              totalItems={filteredRecords.length}
             itemsPerPage={itemsPerPage}
             onPageChange={setCurrentPage}
             onItemsPerPageChange={(newItemsPerPage) => {
@@ -679,6 +756,7 @@ export function MetricDetailDialog({
               setCurrentPage(1) // Reset to first page when changing items per page
             }}
           />
+          )}
         </div>
       </DialogContent>
 
