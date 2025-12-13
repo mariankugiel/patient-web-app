@@ -72,7 +72,7 @@ export function MetricDetailDialog({
   isReadOnly = false
 }: MetricDetailDialogProps) {
   const { t } = useLanguage()
-  const { user } = useSelector((state: RootState) => state.auth)
+  const { user, profile } = useSelector((state: RootState) => state.auth)
   const [records, setRecords] = useState<EditableRecord[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
@@ -89,7 +89,7 @@ export function MetricDetailDialog({
 
   // Get user timezone from profile, fallback to browser timezone
   const userTimezone = useMemo(() => {
-    if (user?.timezone) return user.timezone
+    if (profile?.timezone) return profile.timezone
     if (user?.user_metadata?.timezone) return user.user_metadata.timezone
     // Fallback to browser timezone
     if (typeof window !== 'undefined') {
@@ -100,7 +100,7 @@ export function MetricDetailDialog({
       }
     }
     return 'UTC'
-  }, [user])
+  }, [user, profile])
   
   // Helper function to format timestamp with timezone
   const formatTimestamp = (timestamp: string | undefined) => {
@@ -618,6 +618,8 @@ export function MetricDetailDialog({
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[120px]">{t('health.dialogs.metricDetail.date')}</TableHead>
+                  <TableHead className="w-[150px]">{t('health.dialogs.metricDetail.startTime')}</TableHead>
+                  <TableHead className="w-[150px]">{t('health.dialogs.metricDetail.endTime')}</TableHead>
                   <TableHead className="w-[150px]">{t('health.dialogs.metricDetail.value')}</TableHead>
                   <TableHead className="w-[100px]">{t('health.dialogs.metricDetail.status')}</TableHead>
                   <TableHead className="w-[100px]">{t('health.dialogs.metricDetail.source')}</TableHead>
@@ -638,28 +640,17 @@ export function MetricDetailDialog({
                           className="h-8"
                         />
                       ) : (
-                        <div className="flex flex-col gap-2">
-                          {record.start_timestamp ? (
-                            <>
-                              <div className="flex flex-col">
-                                <div className="text-xs text-muted-foreground mb-0.5">Start:</div>
-                                {formatTimestamp(record.start_timestamp)}
-                              </div>
-                              {record.data_type !== 'daily' && record.end_timestamp && (
-                                <div className="flex flex-col">
-                                  <div className="text-xs text-muted-foreground mb-0.5">End:</div>
-                                  {formatTimestamp(record.end_timestamp)}
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3 text-muted-foreground" />
-                              {record.recorded_at ? format(new Date(record.recorded_at), 'MMM dd, yyyy') : 'N/A'}
-                            </div>
-                          )}
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3 text-muted-foreground" />
+                          {record.recorded_at ? format(new Date(record.recorded_at), 'MMM dd, yyyy') : 'N/A'}
                         </div>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      {record.start_timestamp ? formatTimestamp(record.start_timestamp) : <span className="text-sm text-muted-foreground">-</span>}
+                    </TableCell>
+                    <TableCell>
+                      {record.data_type !== 'daily' && record.end_timestamp ? formatTimestamp(record.end_timestamp) : <span className="text-sm text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell>
                       {record.isEditing ? (

@@ -77,6 +77,9 @@ export interface HealthRecord {
   status?: string
   source?: string
   recorded_at: string // Changed from recorded_date to match backend schema
+  start_timestamp?: string // Start time for epoch data, day start for daily data
+  end_timestamp?: string // End time for epoch data, null for daily data
+  data_type?: string // "epoch" or "daily" to distinguish data types
   device_id?: number
   device_info?: any // JSON field for device information
   accuracy?: string
