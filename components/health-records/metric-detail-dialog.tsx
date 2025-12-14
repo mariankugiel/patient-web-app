@@ -123,6 +123,45 @@ export function MetricDetailDialog({
     }
   }
   
+  // Helper function to format measured time (start - end)
+  const formatMeasuredTime = (startTimestamp: string | undefined, endTimestamp: string | undefined, dataType: string | undefined) => {
+    if (!startTimestamp) return <span className="text-sm text-muted-foreground">-</span>
+    
+    try {
+      const startDate = new Date(startTimestamp)
+      const startDateStr = formatInTimeZone(startDate, userTimezone, 'MMM dd, yyyy')
+      const startTimeStr = formatInTimeZone(startDate, userTimezone, 'HH:mm:ss')
+      
+      // For daily data, don't show end time
+      if (dataType === 'daily' || !endTimestamp) {
+        return (
+          <div className="flex flex-col">
+            <div className="text-sm">{startDateStr}</div>
+            <div className="text-xs text-muted-foreground">{startTimeStr}</div>
+          </div>
+        )
+      }
+      
+      // For epoch data, show start - end
+      const endDate = new Date(endTimestamp)
+      const endDateStr = formatInTimeZone(endDate, userTimezone, 'MMM dd, yyyy')
+      const endTimeStr = formatInTimeZone(endDate, userTimezone, 'HH:mm:ss')
+      
+      return (
+        <div className="flex flex-col">
+          <div className="text-sm">{startDateStr}</div>
+          <div className="text-xs text-muted-foreground">{startTimeStr}</div>
+          <div className="text-xs text-muted-foreground mt-1">-</div>
+          <div className="text-sm mt-1">{endDateStr}</div>
+          <div className="text-xs text-muted-foreground">{endTimeStr}</div>
+        </div>
+      )
+    } catch (error) {
+      console.error('Error formatting measured time:', error)
+      return <span className="text-sm">N/A</span>
+    }
+  }
+  
   // Helper function to normalize source name (Nokia -> Withings)
   const normalizeSourceName = (source: string | undefined): string => {
     if (!source) return t('health.dialogs.metricDetail.manual')
@@ -618,8 +657,7 @@ export function MetricDetailDialog({
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[150px] text-center">{t('health.dialogs.metricDetail.recordedTime')}</TableHead>
-                  <TableHead className="w-[150px] text-center">{t('health.dialogs.metricDetail.startTime')}</TableHead>
-                  <TableHead className="w-[150px] text-center">{t('health.dialogs.metricDetail.endTime')}</TableHead>
+                  <TableHead className="w-[200px] text-center">{t('health.dialogs.metricDetail.measuredTime')}</TableHead>
                   <TableHead className="w-[150px] text-center">{t('health.dialogs.metricDetail.value')}</TableHead>
                   <TableHead className="w-[100px] text-center">{t('health.dialogs.metricDetail.status')}</TableHead>
                   <TableHead className="w-[100px] text-center">{t('health.dialogs.metricDetail.source')}</TableHead>
@@ -641,18 +679,13 @@ export function MetricDetailDialog({
                         />
                       ) : (
                         <div className="flex justify-center">
-                          {record.recorded_at ? formatTimestamp(record.recorded_at) : <span className="text-sm text-muted-foreground">-</span>}
+                          {record.created_at ? formatTimestamp(record.created_at) : <span className="text-sm text-muted-foreground">-</span>}
                         </div>
                       )}
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center">
-                        {record.start_timestamp ? formatTimestamp(record.start_timestamp) : <span className="text-sm text-muted-foreground">-</span>}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex justify-center">
-                        {record.data_type !== 'daily' && record.end_timestamp ? formatTimestamp(record.end_timestamp) : <span className="text-sm text-muted-foreground">-</span>}
+                        {formatMeasuredTime(record.measure_start_time, record.measure_end_time, record.data_type)}
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
@@ -672,24 +705,24 @@ export function MetricDetailDialog({
                         </div>
                       ) : (
                         <div className="flex justify-center">
-                          <span className="font-mono text-sm">
-                            {formatValue(record.value)}
-                          </span>
+                        <span className="font-mono text-sm">
+                          {formatValue(record.value)}
+                        </span>
                         </div>
                       )}
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center">
-                        <Badge className={getStatusColor(record.status || 'normal')}>
-                          {record.status || 'normal'}
-                        </Badge>
+                      <Badge className={getStatusColor(record.status || 'normal')}>
+                        {record.status || 'normal'}
+                      </Badge>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center">
-                        <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-xs">
                           {normalizeSourceName(record.source)}
-                        </Badge>
+                      </Badge>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
