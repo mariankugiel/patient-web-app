@@ -291,24 +291,16 @@ export function AnalysisOverviewSection({
     const unit = metric.default_unit || metric.unit
 
     // Prepare chart data (only daily data)
-    const chartData = dailyDataPoints
-      .map((item: HealthRecord, index: number) => {
-        // Use measure_start_time if available (for daily data), otherwise fall back to created_at
-        const dateValue = item.measure_start_time || item.created_at
-        if (!dateValue) return null
-        
-        const date = new Date(dateValue)
-        // Filter out invalid dates
-        if (isNaN(date.getTime())) return null
-        
-        return {
-          date: date,
-          value: Number(item.value) || 0,
-          id: `${metric.id}-${index}`,
-          originalValue: item.value
-        }
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null)
+    const chartData = dailyDataPoints.map((item: HealthRecord, index: number) => {
+      // Use start_timestamp if available (for daily data), otherwise fall back to recorded_at
+      const dateValue = item.start_timestamp || item.recorded_at
+      return {
+        date: new Date(dateValue),
+      value: Number(item.value) || 0,
+      id: `${metric.id}-${index}`,
+      originalValue: item.value
+      }
+    })
 
     return (
       <div key={metric.id} className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleMetricClick(metric)}>
