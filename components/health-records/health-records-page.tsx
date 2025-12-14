@@ -104,14 +104,28 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
 
     // Convert data points to chart format
     // Use filtered daily data points for chart
-    const chartData = dailyDataPoints.map((dp: HealthRecord) => {
-      // Use measure_start_time if available (for daily data), otherwise fall back to created_at
-      const dateValue = dp.measure_start_time || dp.created_at
-      return {
-        date: new Date(dateValue),
-      value: typeof dp.value === 'object' && dp.value !== null ? dp.value.value : dp.value,
-      }
-    })
+    const chartData = dailyDataPoints
+      .map((dp: HealthRecord) => {
+        // Use measure_start_time if available, otherwise recorded_at, otherwise created_at
+        const dateValue = dp.measure_start_time || dp.recorded_at || dp.created_at
+        if (!dateValue) return null
+        
+        try {
+          const date = new Date(dateValue)
+          // Filter out invalid dates
+          if (isNaN(date.getTime())) return null
+          
+          return {
+            date: date,
+            value: typeof dp.value === 'object' && dp.value !== null ? dp.value.value : dp.value,
+            id: `${metric.id}-${dailyDataPoints.indexOf(dp)}`,
+            originalValue: dp.value
+          }
+        } catch (e) {
+          return null
+        }
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
     
 
     return (

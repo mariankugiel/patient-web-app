@@ -25,14 +25,41 @@ interface HealthMetricsChartProps {
 export function HealthMetricsChart({ data, metricName, options = {} }: HealthMetricsChartProps) {
   const { fontSize = 12, tickCount = 5, roundValues = false, userTimezone = 'UTC' } = options
 
-  // Format the data for the chart
+  // Format the data for the chart - use timestamp for proper X-axis alignment
   const formattedData = data.map((item, index) => ({
     date: format(item.date, "MM/dd/yy"),
+    timestamp: item.date.getTime(), // Use timestamp for X-axis alignment
     originalDate: item.date, // Keep original date object for tooltip
     value: item.value,
+    index: index, // Keep index for reference
     id: item.id || index, // Use unique ID for each point
     originalValue: item.originalValue, // Keep original value
   }))
+  
+  // Calculate domain for X-axis to ensure first and last dates are visible
+  const minTimestamp = formattedData.length > 0 ? formattedData[0].timestamp : 0
+  const maxTimestamp = formattedData.length > 0 ? formattedData[formattedData.length - 1].timestamp : 0
+  
+  // Calculate custom ticks to ensure first and last dates are always shown
+  const calculateDateTicks = () => {
+    if (formattedData.length === 0) return []
+    if (formattedData.length === 1) return [formattedData[0].timestamp]
+    if (formattedData.length <= 5) {
+      // Show all dates if 5 or fewer
+      return formattedData.map(d => d.timestamp)
+    }
+    // Show first, last, and evenly distributed middle dates
+    const ticks = [formattedData[0].timestamp] // First
+    const tickCount = 5
+    const step = Math.floor((formattedData.length - 1) / (tickCount - 1))
+    for (let i = step; i < formattedData.length - 1; i += step) {
+      ticks.push(formattedData[i].timestamp)
+    }
+    ticks.push(formattedData[formattedData.length - 1].timestamp) // Last
+    return ticks
+  }
+  
+  const dateTicks = calculateDateTicks()
 
   // Find min and max values for better tick calculation
   const values = data.map((item) => item.value).filter(val => val != null && !isNaN(val))
@@ -81,16 +108,33 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={formattedData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+      <LineChart data={formattedData} margin={{ top: 5, right: 5, bottom: 30, left: 5 }}>
         <XAxis
-          dataKey="id"
+          dataKey="timestamp"
+          type="number"
+          scale="linear"
+          domain={[minTimestamp, maxTimestamp]}
           stroke="#888888"
           fontSize={fontSize}
           tickLine={false}
           axisLine={false}
-          interval="preserveStartEnd"
-          tickCount={3}
-          tickFormatter={(value, index) => formattedData[index]?.date || value}
+          ticks={dateTicks}
+          tickFormatter={(timestamp) => {
+            // Find the exact data point for this timestamp
+            const dataPoint = formattedData.find(d => d.timestamp === timestamp)
+            if (dataPoint) {
+              return dataPoint.date
+            }
+            // Fallback: format the timestamp directly
+            try {
+              return format(new Date(timestamp), "MM/dd/yy")
+            } catch {
+              return ''
+            }
+          }}
+          angle={-45}
+          textAnchor="end"
+          height={60}
         />
         <YAxis
           stroke="#888888"

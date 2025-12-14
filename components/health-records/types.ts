@@ -59,6 +59,7 @@ export interface HealthRecord {
   measure_start_time?: string // Start time for epoch data, day start for daily data (datetime with timezone)
   measure_end_time?: string // End time for epoch data, null for daily data (datetime with timezone)
   data_type?: string // "epoch" or "daily" to distinguish data types
+  recorded_at?: string // Backward compatibility - timestamp from backend data_points
   device_id?: number
   device_info?: Record<string, unknown>
   accuracy?: string
