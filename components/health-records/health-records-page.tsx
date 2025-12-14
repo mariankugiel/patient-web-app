@@ -84,7 +84,8 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
           typeof metric.latest_value === 'object' && metric.latest_value !== null 
             ? metric.latest_value.value 
             : metric.latest_value, 
-          metric.default_unit || metric.unit
+          metric.default_unit || metric.unit,
+          metric.display_name
         )
       : "N/A"
 
@@ -104,8 +105,8 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
     // Convert data points to chart format
     // Use filtered daily data points for chart
     const chartData = dailyDataPoints.map((dp: HealthRecord) => {
-      // Use start_timestamp if available (for daily data), otherwise fall back to recorded_at
-      const dateValue = dp.start_timestamp || dp.recorded_at
+      // Use measure_start_time if available (for daily data), otherwise fall back to created_at
+      const dateValue = dp.measure_start_time || dp.created_at
       return {
         date: new Date(dateValue),
       value: typeof dp.value === 'object' && dp.value !== null ? dp.value.value : dp.value,

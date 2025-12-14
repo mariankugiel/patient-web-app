@@ -270,7 +270,9 @@ export class HealthRecordsApiService {
   static async updateHealthRecord(recordId: number, updates: {
     value?: number
     status?: string
-    recorded_at?: string
+    measure_start_time?: string
+    measure_end_time?: string
+    data_type?: string
   }): Promise<HealthRecord> {
     console.log('API: Updating health record:', recordId, updates)
     const response = await apiClient.put(`/health-records/${recordId}`, updates)

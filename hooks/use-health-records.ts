@@ -423,8 +423,55 @@ export function useAnalysisDashboard(healthRecordTypeId: number = 1, patientId?:
 // UTILITY FUNCTIONS
 // ============================================================================
 
-export function formatMetricValue(value: number, unit?: string): string {
+export function formatMetricValue(value: number | string, unit?: string, metricName?: string): string {
   if (value === null || value === undefined) return 'N/A'
+  
+  // Check if this is a time/date metric (sleep start/end time, etc.)
+  const metricNameLower = (metricName || '').toLowerCase()
+  const isTimeMetric = metricNameLower.includes('time') && (
+    metricNameLower.includes('sleep') || 
+    metricNameLower.includes('start') || 
+    metricNameLower.includes('end')
+  )
+  
+  // If it's a time metric, format as date
+  if (isTimeMetric) {
+    // Try to parse as date if it's a string (timestamp)
+    if (typeof value === 'string') {
+      try {
+        const date = new Date(value)
+        if (!isNaN(date.getTime())) {
+          // Format as date only (MMM dd, yyyy)
+          return date.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric' 
+          })
+        }
+      } catch (e) {
+        // If parsing fails, fall through to numeric formatting
+      }
+    }
+    // If it's a number (Unix timestamp in milliseconds or seconds), convert to date
+    const numericValue = Number(value)
+    if (!isNaN(numericValue) && numericValue > 1000000000) { // Likely a timestamp
+      try {
+        // Check if it's in seconds or milliseconds
+        const timestamp = numericValue > 1e12 ? numericValue : numericValue * 1000
+        const date = new Date(timestamp)
+        if (!isNaN(date.getTime())) {
+          // Format as date only (MMM dd, yyyy)
+          return date.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric' 
+          })
+        }
+      } catch (e) {
+        // If parsing fails, fall through to numeric formatting
+      }
+    }
+  }
   
   // Convert to number and validate
   const numericValue = Number(value)

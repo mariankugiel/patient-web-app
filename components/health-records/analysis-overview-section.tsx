@@ -287,7 +287,7 @@ export function AnalysisOverviewSection({
     const referenceRange = getGenderSpecificReferenceRange(metric)
     const calculatedStatus = latestDataPoint ? getStatusFromValue(latestDataPoint.value, referenceRange) : 'normal'
     
-    const currentValue = latestDataPoint ? formatMetricValue(latestDataPoint.value) : "N/A"
+    const currentValue = latestDataPoint ? formatMetricValue(latestDataPoint.value, undefined, metric.display_name) : "N/A"
     const unit = metric.default_unit || metric.unit
 
     // Prepare chart data (only daily data)

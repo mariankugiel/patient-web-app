@@ -142,18 +142,27 @@ export function MetricDetailDialog({
         )
       }
       
-      // For epoch data, show start - end
+      // For epoch data, show start - end on one row
       const endDate = new Date(endTimestamp)
       const endDateStr = formatInTimeZone(endDate, userTimezone, 'MMM dd, yyyy')
       const endTimeStr = formatInTimeZone(endDate, userTimezone, 'HH:mm:ss')
       
+      // Check if start and end are on the same date
+      const sameDate = startDateStr === endDateStr
+      
       return (
         <div className="flex flex-col">
-          <div className="text-sm">{startDateStr}</div>
-          <div className="text-xs text-muted-foreground">{startTimeStr}</div>
-          <div className="text-xs text-muted-foreground mt-1">-</div>
-          <div className="text-sm mt-1">{endDateStr}</div>
-          <div className="text-xs text-muted-foreground">{endTimeStr}</div>
+          <div className="text-sm">
+            {sameDate ? (
+              <>
+                {startDateStr} {startTimeStr} - {endTimeStr}
+              </>
+            ) : (
+              <>
+                {startDateStr} {startTimeStr} - {endDateStr} {endTimeStr}
+              </>
+            )}
+          </div>
         </div>
       )
     } catch (error) {
@@ -270,7 +279,7 @@ export function MetricDetailDialog({
           isEditing: false,
           tempValue: typeof dp.value === 'object' ? JSON.stringify(dp.value) : String(dp.value),
           tempStatus: dp.status,
-          tempDate: dp.recorded_at ? format(new Date(dp.recorded_at), 'yyyy-MM-dd') : ''
+          tempDate: (dp.measure_start_time || dp.created_at) ? format(new Date(dp.measure_start_time || dp.created_at), 'yyyy-MM-dd') : ''
         })))
         
         // Reset to first page when data changes
@@ -285,7 +294,7 @@ export function MetricDetailDialog({
         isEditing: false,
         tempValue: typeof dp.value === 'object' ? JSON.stringify(dp.value) : String(dp.value),
         tempStatus: dp.status,
-        tempDate: dp.recorded_at ? format(new Date(dp.recorded_at), 'yyyy-MM-dd') : ''
+        tempDate: (dp.measure_start_time || dp.created_at) ? format(new Date(dp.measure_start_time || dp.created_at), 'yyyy-MM-dd') : ''
       })))
     }
       } finally {
@@ -325,7 +334,7 @@ export function MetricDetailDialog({
             isEditing: false,
             tempValue: typeof record.value === 'object' ? JSON.stringify(record.value) : String(record.value),
             tempStatus: record.status,
-            tempDate: record.recorded_at ? format(new Date(record.recorded_at), 'yyyy-MM-dd') : ''
+            tempDate: (record.measure_start_time || record.created_at) ? format(new Date(record.measure_start_time || record.created_at), 'yyyy-MM-dd') : ''
           }
         : record
     ))
@@ -351,15 +360,15 @@ export function MetricDetailDialog({
       // Calculate status based on the new value and reference range
       const calculatedStatus = calculateStatus(numericValue)
 
-      // Convert date string to datetime format (add time if not present)
-      const recordedAt = record.tempDate?.includes('T') 
+      // Convert date string to datetime format with timezone (add time if not present)
+      const measureStartTime = record.tempDate?.includes('T') 
         ? record.tempDate 
-        : `${record.tempDate || ''}T00:00:00`
+        : `${record.tempDate || ''}T00:00:00Z`
 
       await HealthRecordsApiService.updateHealthRecord(recordId, {
         value: numericValue,
         status: calculatedStatus,
-        recorded_at: recordedAt
+        measure_start_time: measureStartTime
       })
 
       setRecords(prev => prev.map(r => 
@@ -369,7 +378,7 @@ export function MetricDetailDialog({
               isEditing: false,
               value: numericValue,
               status: calculatedStatus,
-              recorded_at: recordedAt
+              measure_start_time: measureStartTime
             } as EditableRecord
           : r
       ))
