@@ -420,7 +420,73 @@ export function MetricDetailDialog({
     }
   }
 
-  const formatValue = (value: Record<string, unknown> | string | number) => {
+  const formatValue = (value: Record<string, unknown> | string | number): React.ReactNode => {
+    // Check if this is a time metric (sleep start/end time, etc.)
+    const metricNameLower = (metric.display_name || '').toLowerCase()
+    const isTimeMetric = metricNameLower.includes('time') && (
+      metricNameLower.includes('sleep') || 
+      metricNameLower.includes('start') || 
+      metricNameLower.includes('end')
+    )
+    
+    // If it's a time metric, format as date-time
+    if (isTimeMetric) {
+      let dateValue: Date | null = null
+      
+      if (typeof value === 'string') {
+        try {
+          dateValue = new Date(value)
+          if (isNaN(dateValue.getTime())) dateValue = null
+        } catch (e) {
+          // Ignore
+        }
+      } else if (typeof value === 'number' && value > 1000000000) {
+        // Likely a timestamp
+        try {
+          const timestamp = value > 1e12 ? value : value * 1000
+          dateValue = new Date(timestamp)
+          if (isNaN(dateValue.getTime())) dateValue = null
+        } catch (e) {
+          // Ignore
+        }
+      }
+      
+      if (dateValue) {
+        // Format as date and time using user's timezone (on separate lines)
+        try {
+          const dateStr = formatInTimeZone(dateValue, userTimezone, 'MMM dd, yyyy')
+          const timeStr = formatInTimeZone(dateValue, userTimezone, 'HH:mm:ss')
+          // Return JSX for multi-line display
+          return (
+            <div className="flex flex-col">
+              <div className="text-sm">{dateStr}</div>
+              <div className="text-xs text-muted-foreground">{timeStr}</div>
+            </div>
+          ) as any
+        } catch (e) {
+          // Fallback to locale string with line break
+          const dateStr = dateValue.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          })
+          const timeStr = dateValue.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          })
+          return (
+            <div className="flex flex-col">
+              <div className="text-sm">{dateStr}</div>
+              <div className="text-xs text-muted-foreground">{timeStr}</div>
+            </div>
+          ) as any
+        }
+      }
+    }
+    
+    // Handle structured values for non-time metrics
     if (typeof value === 'object' && value !== null) {
       // Handle structured values like {"value": 88} or {"systolic": 120, "diastolic": 80}
       if (value.value !== undefined) {
@@ -714,9 +780,13 @@ export function MetricDetailDialog({
                         </div>
                       ) : (
                         <div className="flex justify-center">
-                        <span className="font-mono text-sm">
-                          {formatValue(record.value)}
-                        </span>
+                          {(() => {
+                            const formatted = formatValue(record.value)
+                            if (typeof formatted === 'object' && formatted !== null && 'type' in formatted) {
+                              return formatted
+                            }
+                            return <span className="font-mono text-sm">{formatted}</span>
+                          })()}
                         </div>
                       )}
                     </TableCell>

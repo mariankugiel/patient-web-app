@@ -325,7 +325,7 @@ export function AnalysisOverviewSection({
         </div>
         <div className="mt-1">
           <div className="flex items-baseline gap-1 mb-1">
-            <span className="text-2xl font-bold">{currentValue}</span>
+            <div className="text-2xl font-bold whitespace-pre-line">{currentValue}</div>
             {unit && <span className="text-xs text-muted-foreground font-normal">{unit}</span>}
           </div>
           <p className="text-xs text-muted-foreground mb-2">

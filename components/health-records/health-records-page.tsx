@@ -129,7 +129,7 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
               </Badge>
             </div>
             
-            <div className="text-2xl font-bold mb-1">
+            <div className="text-2xl font-bold mb-1 whitespace-pre-line">
               {currentValue}
             </div>
             

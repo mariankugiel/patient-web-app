@@ -434,42 +434,49 @@ export function formatMetricValue(value: number | string, unit?: string, metricN
     metricNameLower.includes('end')
   )
   
-  // If it's a time metric, format as date
+  // If it's a time metric, format as date and time (on separate lines)
   if (isTimeMetric) {
+    let date: Date | null = null
+    
     // Try to parse as date if it's a string (timestamp)
     if (typeof value === 'string') {
       try {
-        const date = new Date(value)
-        if (!isNaN(date.getTime())) {
-          // Format as date only (MMM dd, yyyy)
-          return date.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric' 
-          })
-        }
+        date = new Date(value)
+        if (isNaN(date.getTime())) date = null
       } catch (e) {
         // If parsing fails, fall through to numeric formatting
       }
     }
+    
     // If it's a number (Unix timestamp in milliseconds or seconds), convert to date
-    const numericValue = Number(value)
-    if (!isNaN(numericValue) && numericValue > 1000000000) { // Likely a timestamp
-      try {
-        // Check if it's in seconds or milliseconds
-        const timestamp = numericValue > 1e12 ? numericValue : numericValue * 1000
-        const date = new Date(timestamp)
-        if (!isNaN(date.getTime())) {
-          // Format as date only (MMM dd, yyyy)
-          return date.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric' 
-          })
+    if (!date) {
+      const numericValue = Number(value)
+      if (!isNaN(numericValue) && numericValue > 1000000000) { // Likely a timestamp
+        try {
+          // Check if it's in seconds or milliseconds
+          const timestamp = numericValue > 1e12 ? numericValue : numericValue * 1000
+          date = new Date(timestamp)
+          if (isNaN(date.getTime())) date = null
+        } catch (e) {
+          // If parsing fails, fall through to numeric formatting
         }
-      } catch (e) {
-        // If parsing fails, fall through to numeric formatting
       }
+    }
+    
+    if (date) {
+      // Format as date and time on separate lines (using \n for line break)
+      const dateStr = date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      })
+      const timeStr = date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      })
+      return `${dateStr}\n${timeStr}`
     }
   }
   
