@@ -172,29 +172,52 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
                 displayValue = data.originalValue
               }
               
+              // Check if this is a sleep start/end time metric
+              const metricNameLower = (metricName || '').toLowerCase()
+              const isSleepTimeMetric = metricNameLower.includes('sleep') && (
+                metricNameLower.includes('start') || metricNameLower.includes('end')
+              )
+              
               // Format date and time for tooltip
               let dateDisplay = data.date
               let timeDisplay = ''
               
               if (data.originalDate instanceof Date) {
                 try {
-                  const dateStr = formatInTimeZone(data.originalDate, userTimezone, 'MMM dd, yyyy')
-                  const timeStr = formatInTimeZone(data.originalDate, userTimezone, 'HH:mm:ss')
-                  dateDisplay = dateStr
-                  timeDisplay = timeStr
+                  if (isSleepTimeMetric) {
+                    // For sleep time metrics, show only time (no date)
+                    timeDisplay = formatInTimeZone(data.originalDate, userTimezone, 'HH:mm:ss')
+                    dateDisplay = '' // Don't show date for sleep time metrics
+                  } else {
+                    // For other metrics, show date and time
+                    const dateStr = formatInTimeZone(data.originalDate, userTimezone, 'MMM dd, yyyy')
+                    const timeStr = formatInTimeZone(data.originalDate, userTimezone, 'HH:mm:ss')
+                    dateDisplay = dateStr
+                    timeDisplay = timeStr
+                  }
                 } catch (e) {
                   // Fallback to locale string
-                  dateDisplay = data.originalDate.toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                  })
-                  timeDisplay = data.originalDate.toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: false
-                  })
+                  if (isSleepTimeMetric) {
+                    timeDisplay = data.originalDate.toLocaleTimeString('en-US', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: false
+                    })
+                    dateDisplay = ''
+                  } else {
+                    dateDisplay = data.originalDate.toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })
+                    timeDisplay = data.originalDate.toLocaleTimeString('en-US', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: false
+                    })
+                  }
                 }
               }
               
@@ -202,14 +225,26 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
                 <div className="rounded-lg border bg-background p-2 shadow-sm">
                   <div className="grid grid-cols-2 gap-2">
                     <div className="flex flex-col">
-                      <span className="text-[0.70rem] uppercase text-muted-foreground">Date</span>
-                      <span className="font-bold text-xs">
-                        {dateDisplay}
-                      </span>
-                      {timeDisplay && (
-                        <span className="text-[0.70rem] text-muted-foreground">
-                          {timeDisplay}
-                        </span>
+                      {!isSleepTimeMetric && (
+                        <>
+                          <span className="text-[0.70rem] uppercase text-muted-foreground">Date</span>
+                          <span className="font-bold text-xs">
+                            {dateDisplay}
+                          </span>
+                          {timeDisplay && (
+                            <span className="text-[0.70rem] text-muted-foreground">
+                              {timeDisplay}
+                            </span>
+                          )}
+                        </>
+                      )}
+                      {isSleepTimeMetric && (
+                        <>
+                          <span className="text-[0.70rem] uppercase text-muted-foreground">Time</span>
+                          <span className="font-bold text-xs">
+                            {timeDisplay}
+                          </span>
+                        </>
                       )}
                     </div>
                     <div className="flex flex-col">

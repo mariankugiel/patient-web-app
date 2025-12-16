@@ -464,7 +464,17 @@ export function formatMetricValue(value: number | string, unit?: string, metricN
     }
     
     if (date) {
-      // Format as date and time on separate lines (using \n for line break)
+      // For sleep start/end time metrics, show only time (no date)
+      if (metricNameLower.includes('sleep') && (metricNameLower.includes('start') || metricNameLower.includes('end'))) {
+        const timeStr = date.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        })
+        return timeStr
+      }
+      // For other time metrics, format as date and time on separate lines
       const dateStr = date.toLocaleDateString('en-US', { 
         year: 'numeric', 
         month: 'short', 
