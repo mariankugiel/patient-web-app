@@ -103,6 +103,7 @@ export interface MetricWithData {
   }
   data_type?: string
   description?: string
+  thryve_type?: string // "Daily" or "Epoch" - from metric template
   // Backend returns these field names
   latest_value?: any // Can be object {value: number} or primitive
   latest_status?: 'normal' | 'abnormal' | 'critical' | 'unknown'

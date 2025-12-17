@@ -25,44 +25,45 @@ interface HealthMetricsChartProps {
 export function HealthMetricsChart({ data, metricName, options = {} }: HealthMetricsChartProps) {
   const { fontSize = 12, tickCount = 5, roundValues = false, userTimezone = 'UTC' } = options
 
-  // Format the data for the chart - use timestamp for proper X-axis alignment
-  const formattedData = data.map((item, index) => ({
-    date: format(item.date, "MM/dd/yy"),
-    timestamp: item.date.getTime(), // Use timestamp for X-axis alignment
+  // Check if this is a sleep start/end time metric (show time only, not date)
+  const metricNameLower = (metricName || '').toLowerCase()
+  const isTimeOnlyMetric = (
+    metricNameLower.includes('sleep') && 
+    (metricNameLower.includes('start time') || metricNameLower.includes('end time'))
+  )
+  
+  // Check if this is a sleep duration metric (sleep time, deep sleep time, etc.)
+  const isSleepDurationMetric = (
+    metricNameLower.includes('sleep') && 
+    metricNameLower.includes('time') && 
+    !metricNameLower.includes('start') && 
+    !metricNameLower.includes('end')
+  )
+
+  // Filter out invalid dates before formatting
+  const validData = data.filter(item => {
+    if (!item.date || !(item.date instanceof Date) || isNaN(item.date.getTime())) {
+      console.warn('Invalid date in chart data:', item.date)
+      return false
+    }
+    return true
+  })
+
+  // Format the data for the chart
+  const formattedData = validData.map((item, index) => ({
+    date: isTimeOnlyMetric 
+      ? format(item.date, "HH:mm") // Time only for sleep start/end time
+      : format(item.date, "MM/dd/yy"), // Date for other metrics
     originalDate: item.date, // Keep original date object for tooltip
     value: item.value,
-    index: index, // Keep index for reference
     id: item.id || index, // Use unique ID for each point
     originalValue: item.originalValue, // Keep original value
+    isTimeOnly: isTimeOnlyMetric, // Flag for tooltip formatting
+    isSleepDuration: (item as any).isSleepDuration || false, // Flag for sleep duration metrics
   }))
-  
-  // Calculate domain for X-axis to ensure first and last dates are visible
-  const minTimestamp = formattedData.length > 0 ? formattedData[0].timestamp : 0
-  const maxTimestamp = formattedData.length > 0 ? formattedData[formattedData.length - 1].timestamp : 0
-  
-  // Calculate custom ticks to ensure first and last dates are always shown
-  const calculateDateTicks = () => {
-    if (formattedData.length === 0) return []
-    if (formattedData.length === 1) return [formattedData[0].timestamp]
-    if (formattedData.length <= 5) {
-      // Show all dates if 5 or fewer
-      return formattedData.map(d => d.timestamp)
-    }
-    // Show first, last, and evenly distributed middle dates
-    const ticks = [formattedData[0].timestamp] // First
-    const tickCount = 5
-    const step = Math.floor((formattedData.length - 1) / (tickCount - 1))
-    for (let i = step; i < formattedData.length - 1; i += step) {
-      ticks.push(formattedData[i].timestamp)
-    }
-    ticks.push(formattedData[formattedData.length - 1].timestamp) // Last
-    return ticks
-  }
-  
-  const dateTicks = calculateDateTicks()
 
   // Find min and max values for better tick calculation
-  const values = data.map((item) => item.value).filter(val => val != null && !isNaN(val))
+  const values = validData.map((item) => item.value).filter(val => val != null && !isNaN(val))
 
   if (values.length === 0) {
     return (
@@ -108,49 +109,45 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={formattedData} margin={{ top: 5, right: 5, bottom: 30, left: 5 }}>
+      <LineChart data={formattedData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
         <XAxis
-          dataKey="timestamp"
-          type="number"
-          scale="linear"
-          domain={[minTimestamp, maxTimestamp]}
+          dataKey="id"
           stroke="#888888"
           fontSize={fontSize}
           tickLine={false}
           axisLine={false}
-          ticks={dateTicks}
-          tickFormatter={(timestamp) => {
-            // Find the exact data point for this timestamp
-            const dataPoint = formattedData.find(d => d.timestamp === timestamp)
-            if (dataPoint) {
-              return dataPoint.date
-            }
-            // Fallback: format the timestamp directly
-            try {
-              return format(new Date(timestamp), "MM/dd/yy")
-            } catch {
-              return ''
-            }
-          }}
-          angle={-45}
-          textAnchor="end"
-          height={60}
+          interval="preserveStartEnd"
+          tickCount={isTimeOnlyMetric ? 5 : 3}
+          tickFormatter={(value, index) => formattedData[index]?.date || value}
         />
         <YAxis
           stroke="#888888"
           fontSize={fontSize}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(value) => `${roundValues ? Math.round(value) : value}`}
+          tickFormatter={(value) => {
+            if (isTimeOnlyMetric) {
+              // For sleep start/end time: format minutes since midnight as HH:mm
+              const hours = Math.floor(value / 60)
+              const minutes = Math.floor(value % 60)
+              return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+            }
+            // For all other numbers, show 2 decimal places
+            const numValue = typeof value === 'number' ? value : parseFloat(String(value)) || 0
+            return numValue.toFixed(2)
+          }}
           ticks={calculateTicks()}
           domain={[(minValue) => Math.floor(minValue * 0.95), (maxValue) => Math.ceil(maxValue * 1.05)]}
-          width={25}
+          width={isTimeOnlyMetric ? 40 : 25}
         />
         <Tooltip
           content={({ active, payload, label }) => {
             if (active && payload && payload.length) {
               const data = payload[0].payload
-              const value = data.value // Get value directly from the data payload
+              let value = data.value // Get value directly from the data payload
+              
+              // Check if this is a sleep duration metric
+              const isSleepDuration = data.isSleepDuration || isSleepDurationMetric
               
               // Format the display value properly
               let displayValue = value
@@ -161,35 +158,42 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
                   // Blood pressure format
                   displayValue = `${data.originalValue.systolic}/${data.originalValue.diastolic}`
                 } else if (data.originalValue.value !== undefined) {
-                  // Object with value property
+                  // Object with value property - already converted to hours in chart data if sleep duration
                   displayValue = data.originalValue.value
                 } else {
                   // Fallback to processed value
                   displayValue = value
                 }
-              } else if (data.originalValue && typeof data.originalValue === 'string') {
-                // If original was a string, use it
-                displayValue = data.originalValue
+              } else {
+                // For simple values, data.value is already in hours for sleep duration metrics
+                // (converted in chart data preparation), so use it directly
+                displayValue = data.value
               }
               
-              // Check if this is a sleep start/end time metric
-              const metricNameLower = (metricName || '').toLowerCase()
-              const isSleepTimeMetric = metricNameLower.includes('sleep') && (
-                metricNameLower.includes('start') || metricNameLower.includes('end')
-              )
+              // Format the display value (always show 2 decimal places, remove trailing zeros)
+              if (typeof displayValue === 'number') {
+                displayValue = displayValue.toFixed(2).replace(/\.?0+$/, '')
+              } else if (typeof displayValue === 'string') {
+                // Try to parse string numbers and format them
+                const parsed = parseFloat(displayValue)
+                if (!isNaN(parsed)) {
+                  displayValue = parsed.toFixed(2).replace(/\.?0+$/, '')
+                }
+              }
               
               // Format date and time for tooltip
-              let dateDisplay = data.date
+              const isTimeOnly = data.isTimeOnly || false
+              let dateDisplay = ''
               let timeDisplay = ''
               
               if (data.originalDate instanceof Date) {
                 try {
-                  if (isSleepTimeMetric) {
-                    // For sleep time metrics, show only time (no date)
-                    timeDisplay = formatInTimeZone(data.originalDate, userTimezone, 'HH:mm:ss')
-                    dateDisplay = '' // Don't show date for sleep time metrics
+                  if (isTimeOnly) {
+                    // For sleep start/end time: show only time (hh:mm) - no date
+                    timeDisplay = formatInTimeZone(data.originalDate, userTimezone, 'HH:mm')
+                    dateDisplay = '' // Don't show date at all
                   } else {
-                    // For other metrics, show date and time
+                    // For other metrics: show date and time
                     const dateStr = formatInTimeZone(data.originalDate, userTimezone, 'MMM dd, yyyy')
                     const timeStr = formatInTimeZone(data.originalDate, userTimezone, 'HH:mm:ss')
                     dateDisplay = dateStr
@@ -197,14 +201,13 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
                   }
                 } catch (e) {
                   // Fallback to locale string
-                  if (isSleepTimeMetric) {
+                  if (isTimeOnly) {
                     timeDisplay = data.originalDate.toLocaleTimeString('en-US', {
                       hour: '2-digit',
                       minute: '2-digit',
-                      second: '2-digit',
                       hour12: false
                     })
-                    dateDisplay = ''
+                    dateDisplay = '' // Don't show date
                   } else {
                     dateDisplay = data.originalDate.toLocaleDateString('en-US', {
                       year: 'numeric',
@@ -219,40 +222,47 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
                     })
                   }
                 }
+              } else if (isTimeOnly && data.date) {
+                // Fallback: if originalDate is not available but we have formatted date, use it
+                timeDisplay = data.date // This should already be "HH:mm" format
+                dateDisplay = ''
+              } else if (!isTimeOnly && data.date) {
+                // Fallback for non-time-only metrics
+                dateDisplay = data.date
               }
               
               return (
                 <div className="rounded-lg border bg-background p-2 shadow-sm">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="flex flex-col">
-                      {!isSleepTimeMetric && (
-                        <>
-                          <span className="text-[0.70rem] uppercase text-muted-foreground">Date</span>
-                          <span className="font-bold text-xs">
-                            {dateDisplay}
-                          </span>
-                          {timeDisplay && (
-                            <span className="text-[0.70rem] text-muted-foreground">
-                              {timeDisplay}
-                            </span>
-                          )}
-                        </>
-                      )}
-                      {isSleepTimeMetric && (
-                        <>
-                          <span className="text-[0.70rem] uppercase text-muted-foreground">Time</span>
-                          <span className="font-bold text-xs">
+                  <div className={isTimeOnly ? "flex flex-col gap-2" : "grid grid-cols-2 gap-2"}>
+                    {!isTimeOnly && (
+                      <div className="flex flex-col">
+                        <span className="text-[0.70rem] uppercase text-muted-foreground">Date</span>
+                        <span className="font-bold text-xs">
+                          {dateDisplay}
+                        </span>
+                        {timeDisplay && (
+                          <span className="text-[0.70rem] text-muted-foreground">
                             {timeDisplay}
                           </span>
-                        </>
-                      )}
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[0.70rem] uppercase text-muted-foreground">{metricName}</span>
-                      <span className="font-bold text-xs">
-                        {displayValue}
-                      </span>
-                    </div>
+                        )}
+                      </div>
+                    )}
+                    {isTimeOnly && (
+                      <div className="flex flex-col">
+                        <span className="text-[0.70rem] uppercase text-muted-foreground">Time</span>
+                        <span className="font-bold text-xs">
+                          {timeDisplay}
+                        </span>
+                      </div>
+                    )}
+                    {!isTimeOnly && (
+                      <div className="flex flex-col">
+                        <span className="text-[0.70rem] uppercase text-muted-foreground">{metricName}</span>
+                        <span className="font-bold text-xs">
+                          {displayValue}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )

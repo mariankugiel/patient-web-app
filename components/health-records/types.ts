@@ -81,6 +81,7 @@ export interface MetricWithData {
   }
   description?: string
   data_type?: string
+  thryve_type?: string // "Daily" or "Epoch" - from metric template
   is_default?: boolean
   created_at?: string
   created_by?: number

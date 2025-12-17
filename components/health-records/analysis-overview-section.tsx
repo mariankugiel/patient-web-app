@@ -277,30 +277,118 @@ export function AnalysisOverviewSection({
 
   // Render metric box
   const renderMetricBox = (metric: MetricWithData) => {
-    // Filter to show only daily data (exclude epoch data)
-    const dailyDataPoints = metric.data_points ? metric.data_points.filter((item: HealthRecord) => 
-      !item.data_type || item.data_type === 'daily'
-    ) : []
+    // Backend now filters data points based on thryve_type (Daily or Epoch)
+    // So we use all data_points as provided by backend
+    const dataPoints = metric.data_points || []
     
-    // Get the latest data point (from filtered daily data)
-    const latestDataPoint = dailyDataPoints && dailyDataPoints.length > 0 ? dailyDataPoints[dailyDataPoints.length - 1] : null
+    // Get the latest data point (backend already filters correctly)
+    const latestDataPoint = dataPoints && dataPoints.length > 0 ? dataPoints[dataPoints.length - 1] : null
     const referenceRange = getGenderSpecificReferenceRange(metric)
     const calculatedStatus = latestDataPoint ? getStatusFromValue(latestDataPoint.value, referenceRange) : 'normal'
     
     const currentValue = latestDataPoint ? formatMetricValue(latestDataPoint.value, undefined, metric.display_name) : "N/A"
     const unit = metric.default_unit || metric.unit
 
-    // Prepare chart data (only daily data)
-    const chartData = dailyDataPoints.map((item: HealthRecord, index: number) => {
-      // Use start_timestamp if available (for daily data), otherwise fall back to recorded_at
-      const dateValue = item.start_timestamp || item.recorded_at
-      return {
-        date: new Date(dateValue),
-      value: Number(item.value) || 0,
-      id: `${metric.id}-${index}`,
-      originalValue: item.value
-      }
-    })
+    // Check if this is a sleep start/end time metric (use value as timestamp for x-axis)
+    const metricNameLower = (metric.display_name || '').toLowerCase()
+    const isTimeOnlyMetric = (
+      metricNameLower.includes('sleep') && 
+      (metricNameLower.includes('start time') || metricNameLower.includes('end time'))
+    )
+    
+    // List of sleep duration metrics that should be converted
+    const sleepDurationMetrics = [
+      'deep sleep time',
+      'light sleep time',
+      'sleep time',
+      'time awake',
+      'time in bed',
+      'time to fall asleep'
+    ]
+    
+    // Check if this is a sleep duration metric
+    const isSleepDurationMetric = sleepDurationMetrics.some(sleepMetric => 
+      metricNameLower.includes(sleepMetric.toLowerCase())
+    )
+    
+    // Check unit from backend - only convert if unit is "Minutes"
+    const unitLower = (metric.default_unit || metric.unit || '').toLowerCase()
+    const shouldConvertToHours = isSleepDurationMetric && (
+      unitLower.includes('minute') || unitLower === 'min' || unitLower === 'mins'
+    )
+
+    // Prepare chart data
+    // Backend already filters based on thryve_type (Daily shows one per date, Epoch shows all)
+    const chartData = dataPoints
+      .filter((item: HealthRecord) => {
+        if (isTimeOnlyMetric) {
+          // For sleep start/end time: value contains the timestamp
+          return item.value != null
+        } else {
+          // For other metrics: filter by date
+          const dateValue = item.measure_start_time || (item as any).recorded_at || (item as any).created_at
+          return dateValue != null && dateValue !== ''
+        }
+      })
+      .map((item: HealthRecord, index: number) => {
+        let date: Date
+        
+        if (isTimeOnlyMetric) {
+          // For sleep start/end time: use the value as timestamp
+          const timestamp = typeof item.value === 'number' 
+            ? (item.value > 1e12 ? item.value : item.value * 1000) // Convert seconds to ms if needed
+            : parseFloat(String(item.value)) > 1e12 
+              ? parseFloat(String(item.value))
+              : parseFloat(String(item.value)) * 1000
+          date = new Date(timestamp)
+          
+          // Validate the date is valid
+          if (isNaN(date.getTime())) {
+            console.warn(`Invalid timestamp value for data point ${item.id}:`, item.value)
+            return null
+          }
+          
+          // For sleep start/end time, normalize value to minutes since midnight (0-1440)
+          // This gives a meaningful y-axis scale (0 = 00:00, 1440 = 24:00)
+          const hours = date.getHours()
+          const minutes = date.getMinutes()
+          const minutesSinceMidnight = hours * 60 + minutes
+          
+          return {
+            date: date,
+            value: minutesSinceMidnight, // Use minutes since midnight as y-value
+            id: item.id || `${metric.id}-${index}`, // Use unique ID for each point
+            originalValue: item.value, // Keep original timestamp
+            isTimeOnly: true
+          }
+        } else {
+          // For other metrics: use measure_start_time or recorded_at
+          const dateValue = item.measure_start_time || (item as any).recorded_at || (item as any).created_at
+          date = dateValue ? new Date(dateValue) : new Date() // Fallback to current date if still null
+          
+          // Validate the date is valid
+          if (isNaN(date.getTime())) {
+            console.warn(`Invalid date value for data point ${item.id}:`, dateValue)
+            return null
+          }
+        }
+        
+        // Get the numeric value
+        const numericValue = Number(item.value) || 0
+        
+        // For sleep duration metrics, convert minutes to hours only if unit is "Minutes"
+        const chartValue = shouldConvertToHours ? numericValue / 60 : numericValue
+        
+        return {
+          date: date,
+          value: chartValue,
+          id: item.id || `${metric.id}-${index}`, // Use unique ID for each point (important for epoch data with multiple values per date)
+          originalValue: item.value,
+          isTimeOnly: false, // Not a time-only metric
+          isSleepDuration: shouldConvertToHours // Flag for tooltip formatting
+        }
+      })
+      .filter(item => item !== null) // Remove any null entries from invalid dates
 
     return (
       <div key={metric.id} className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleMetricClick(metric)}>
@@ -563,7 +651,8 @@ export function AnalysisOverviewSection({
           metric={{
             ...selectedMetric,
             unit: selectedMetric.unit || selectedMetric.default_unit || 'N/A',
-            data_type: selectedMetric.data_type || 'number'
+            data_type: selectedMetric.data_type || 'number',
+            thryve_type: selectedMetric.thryve_type // Pass thryve_type to dialog
           }}
           dataPoints={selectedMetric.data_points || []}
           onDataUpdated={() => {

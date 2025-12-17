@@ -73,12 +73,11 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
     const isAbnormal = metric.latest_status === "abnormal" || metric.latest_status === "critical"
     const trendIcon = renderTrendIcon(metric.trend || "stable")
 
-    // Filter to show only daily data (exclude epoch data)
-    const dailyDataPoints = metric.data_points ? metric.data_points.filter((item: HealthRecord) => 
-      !item.data_type || item.data_type === 'daily'
-    ) : []
+    // Backend now filters data points based on thryve_type (Daily or Epoch)
+    // So we use all data_points as provided by backend
+    const dataPoints = metric.data_points || []
     
-    // Format current value - use latest_value from backend (should already be filtered to daily)
+    // Format current value - use latest_value from backend (already filtered by thryve_type)
     const currentValue = metric.latest_value
       ? formatMetricValue(
           typeof metric.latest_value === 'object' && metric.latest_value !== null 
@@ -102,16 +101,106 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
     
     const referenceRange = getGenderSpecificReferenceRange(metric)
 
+    // Check if this is a sleep start/end time metric (use value as timestamp for x-axis)
+    const metricNameLower = (metric.display_name || '').toLowerCase()
+    const isTimeOnlyMetric = (
+      metricNameLower.includes('sleep') && 
+      (metricNameLower.includes('start time') || metricNameLower.includes('end time'))
+    )
+    
+    // List of sleep duration metrics that should be converted
+    const sleepDurationMetrics = [
+      'deep sleep time',
+      'light sleep time',
+      'sleep time',
+      'time awake',
+      'time in bed',
+      'time to fall asleep'
+    ]
+    
+    // Check if this is a sleep duration metric
+    const isSleepDurationMetric = sleepDurationMetrics.some(sleepMetric => 
+      metricNameLower.includes(sleepMetric.toLowerCase())
+    )
+    
+    // Check unit from backend - only convert if unit is "Minutes"
+    const unitLower = (metric.default_unit || metric.unit || '').toLowerCase()
+    const shouldConvertToHours = isSleepDurationMetric && (
+      unitLower.includes('minute') || unitLower === 'min' || unitLower === 'mins'
+    )
+
     // Convert data points to chart format
-    // Use filtered daily data points for chart
-    const chartData = dailyDataPoints.map((dp: HealthRecord) => {
-      // Use measure_start_time if available (for daily data), otherwise fall back to created_at
-      const dateValue = dp.measure_start_time || dp.created_at
-      return {
-        date: new Date(dateValue),
-      value: typeof dp.value === 'object' && dp.value !== null ? dp.value.value : dp.value,
-      }
-    })
+    // Backend already filters based on thryve_type (Daily shows one per date, Epoch shows all)
+    const chartData = dataPoints
+      .filter((dp: HealthRecord) => {
+        if (isTimeOnlyMetric) {
+          // For sleep start/end time: value contains the timestamp
+          return dp.value != null
+        } else {
+          // For other metrics: filter by date
+          const dateValue = dp.measure_start_time || (dp as any).recorded_at || (dp as any).created_at
+          return dateValue != null && dateValue !== ''
+        }
+      })
+      .map((dp: HealthRecord, index: number) => {
+        let date: Date
+        
+        if (isTimeOnlyMetric) {
+          // For sleep start/end time: use the value as timestamp
+          const timestamp = typeof dp.value === 'number' 
+            ? (dp.value > 1e12 ? dp.value : dp.value * 1000) // Convert seconds to ms if needed
+            : parseFloat(String(dp.value)) > 1e12 
+              ? parseFloat(String(dp.value))
+              : parseFloat(String(dp.value)) * 1000
+          date = new Date(timestamp)
+          
+          // Validate the date is valid
+          if (isNaN(date.getTime())) {
+            console.warn(`Invalid timestamp value for data point ${dp.id}:`, dp.value)
+            return null
+          }
+          
+          // For sleep start/end time, normalize value to minutes since midnight (0-1440)
+          // This gives a meaningful y-axis scale (0 = 00:00, 1440 = 24:00)
+          const hours = date.getHours()
+          const minutes = date.getMinutes()
+          const minutesSinceMidnight = hours * 60 + minutes
+          
+          return {
+            date: date,
+            value: minutesSinceMidnight, // Use minutes since midnight as y-value
+            id: dp.id || `${metric.id}-${index}`, // Use unique ID for each point
+            originalValue: dp.value // Keep original timestamp
+          }
+        } else {
+          // For other metrics: use measure_start_time or recorded_at
+          const dateValue = dp.measure_start_time || (dp as any).recorded_at || (dp as any).created_at
+          date = dateValue ? new Date(dateValue) : new Date() // Fallback to current date if still null
+          
+          // Validate the date is valid
+          if (isNaN(date.getTime())) {
+            console.warn(`Invalid date value for data point ${dp.id}:`, dateValue)
+            return null
+          }
+        }
+        
+        // Get the numeric value
+        const rawValue = typeof dp.value === 'object' && dp.value !== null ? dp.value.value : dp.value
+        const numericValue = Number(rawValue) || 0
+        
+        // For sleep duration metrics, convert minutes to hours only if unit is "Minutes"
+        const chartValue = shouldConvertToHours ? numericValue / 60 : numericValue
+        
+        return {
+          date: date,
+          value: chartValue,
+          id: dp.id || `${metric.id}-${index}`, // Use unique ID for each point (important for epoch data with multiple values per date)
+          originalValue: dp.value,
+          isTimeOnly: false, // Not a time-only metric
+          isSleepDuration: shouldConvertToHours // Flag for tooltip formatting
+        }
+      })
+      .filter(item => item !== null) // Remove any null entries from invalid dates
     
 
     return (

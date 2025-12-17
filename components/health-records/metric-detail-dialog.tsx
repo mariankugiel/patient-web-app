@@ -38,6 +38,7 @@ interface MetricDetailDialogProps {
     updated_at?: string
     created_by?: number
     updated_by?: number
+    thryve_type?: string // "Daily" or "Epoch"
   }
   dataPoints: HealthRecord[]
   onDataUpdated: () => void
@@ -274,7 +275,15 @@ export function MetricDetailDialog({
           endDateStr
         )
         
-        setRecords(fetchedRecords.map(dp => ({
+        // If thryve_type is Daily, filter out epoch data
+        let filteredRecords = fetchedRecords
+        if (metric.thryve_type === 'Daily') {
+          filteredRecords = fetchedRecords.filter(record => 
+            record.data_type !== 'epoch'
+          )
+        }
+        
+        setRecords(filteredRecords.map(dp => ({
           ...dp,
           isEditing: false,
           tempValue: typeof dp.value === 'object' ? JSON.stringify(dp.value) : String(dp.value),

@@ -426,16 +426,30 @@ export function useAnalysisDashboard(healthRecordTypeId: number = 1, patientId?:
 export function formatMetricValue(value: number | string, unit?: string, metricName?: string): string {
   if (value === null || value === undefined) return 'N/A'
   
-  // Check if this is a time/date metric (sleep start/end time, etc.)
+  // Check if this is a sleep start/end time metric (show only time, not date)
   const metricNameLower = (metricName || '').toLowerCase()
-  const isTimeMetric = metricNameLower.includes('time') && (
-    metricNameLower.includes('sleep') || 
-    metricNameLower.includes('start') || 
-    metricNameLower.includes('end')
+  const isSleepStartEndTime = (
+    metricNameLower.includes('sleep') && 
+    (metricNameLower.includes('start time') || metricNameLower.includes('end time'))
   )
   
-  // If it's a time metric, format as date and time (on separate lines)
-  if (isTimeMetric) {
+  // List of sleep duration metrics that should be converted
+  const sleepDurationMetrics = [
+    'deep sleep time',
+    'light sleep time',
+    'sleep time',
+    'time awake',
+    'time in bed',
+    'time to fall asleep'
+  ]
+  
+  // Check if this is a sleep duration metric
+  const isSleepDurationMetric = sleepDurationMetrics.some(sleepMetric => 
+    metricNameLower.includes(sleepMetric.toLowerCase())
+  )
+  
+  // If it's a sleep start/end time metric, format as time only (HH:mm)
+  if (isSleepStartEndTime) {
     let date: Date | null = null
     
     // Try to parse as date if it's a string (timestamp)
@@ -464,17 +478,54 @@ export function formatMetricValue(value: number | string, unit?: string, metricN
     }
     
     if (date) {
-      // For sleep start/end time metrics, show only time (no date)
-      if (metricNameLower.includes('sleep') && (metricNameLower.includes('start') || metricNameLower.includes('end'))) {
-        const timeStr = date.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false
-        })
-        return timeStr
+      // Format as time only (HH:mm) - no date
+      const timeStr = date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      })
+      return timeStr
+    }
+  }
+  
+  // Check if this is a time/date metric (other time metrics, not sleep start/end)
+  const isTimeMetric = metricNameLower.includes('time') && (
+    metricNameLower.includes('sleep') || 
+    metricNameLower.includes('start') || 
+    metricNameLower.includes('end')
+  )
+  
+  // If it's another time metric (not sleep start/end), format as date and time (on separate lines)
+  if (isTimeMetric && !isSleepStartEndTime) {
+    let date: Date | null = null
+    
+    // Try to parse as date if it's a string (timestamp)
+    if (typeof value === 'string') {
+      try {
+        date = new Date(value)
+        if (isNaN(date.getTime())) date = null
+      } catch (e) {
+        // If parsing fails, fall through to numeric formatting
       }
-      // For other time metrics, format as date and time on separate lines
+    }
+    
+    // If it's a number (Unix timestamp in milliseconds or seconds), convert to date
+    if (!date) {
+      const numericValue = Number(value)
+      if (!isNaN(numericValue) && numericValue > 1000000000) { // Likely a timestamp
+        try {
+          // Check if it's in seconds or milliseconds
+          const timestamp = numericValue > 1e12 ? numericValue : numericValue * 1000
+          date = new Date(timestamp)
+          if (isNaN(date.getTime())) date = null
+        } catch (e) {
+          // If parsing fails, fall through to numeric formatting
+        }
+      }
+    }
+    
+    if (date) {
+      // Format as date and time on separate lines (using \n for line break)
       const dateStr = date.toLocaleDateString('en-US', { 
         year: 'numeric', 
         month: 'short', 
@@ -491,8 +542,18 @@ export function formatMetricValue(value: number | string, unit?: string, metricN
   }
   
   // Convert to number and validate
-  const numericValue = Number(value)
+  let numericValue = Number(value)
   if (isNaN(numericValue)) return 'N/A'
+  
+  // For sleep duration metrics, check unit - only convert if unit is "Minutes"
+  // If unit is "Hours", show the value as-is
+  if (isSleepDurationMetric) {
+    const unitLower = (unit || '').toLowerCase()
+    if (unitLower.includes('minute') || unitLower === 'min' || unitLower === 'mins') {
+      numericValue = numericValue / 60 // Convert minutes to hours
+    }
+    // If unit is "Hours" or "Hour", use the value as-is
+  }
   
   // Use intelligent precision: show up to 2 decimals, remove trailing zeros
   const formatted = numericValue.toFixed(2).replace(/\.?0+$/, '')
