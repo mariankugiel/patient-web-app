@@ -20,7 +20,7 @@ import {
   HealthRecord,
   MetricWithData
 } from './types'
-import { formatMetricValue, formatReferenceRange, getStatusColor, getTrendColor } from '@/hooks/use-health-records'
+import { formatMetricValue, formatReferenceRange, getStatusColor, getTrendColor, formatNumericValue } from '@/hooks/use-health-records'
 
 interface HealthRecordsPageProps {
   healthRecordTypeId: number
@@ -78,16 +78,18 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
     const dataPoints = metric.data_points || []
     
     // Format current value - use latest_value from backend (already filtered by thryve_type)
+    // Format value without unit since unit is displayed separately
+    const baseUnit = metric.default_unit || metric.unit
     const currentValue = metric.latest_value
-      ? formatMetricValue(
+      ? formatNumericValue(
           typeof metric.latest_value === 'object' && metric.latest_value !== null 
             ? metric.latest_value.value 
             : metric.latest_value, 
-          metric.default_unit || metric.unit,
+          baseUnit,
           metric.display_name
         )
       : "N/A"
-
+    
     // Format reference range
     const getGenderSpecificReferenceRange = (metric: any) => {
       if (!metric.reference_data) return 'Reference range not specified'
@@ -108,26 +110,28 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
       (metricNameLower.includes('start time') || metricNameLower.includes('end time'))
     )
     
-    // List of sleep duration metrics that should be converted
+    // List of sleep duration metrics that should be converted from minutes to hours
+    // EXCLUDE "time to fall asleep" and "time awake" - they should remain in minutes
     const sleepDurationMetrics = [
       'deep sleep time',
       'light sleep time',
       'sleep time',
-      'time awake',
-      'time in bed',
-      'time to fall asleep'
+      'time in bed'
+      // Note: 'time to fall asleep' and 'time awake' are NOT included - they stay in minutes
     ]
     
-    // Check if this is a sleep duration metric
+    // Check if this is a sleep duration metric (excluding "Time to fall asleep")
     const isSleepDurationMetric = sleepDurationMetrics.some(sleepMetric => 
       metricNameLower.includes(sleepMetric.toLowerCase())
     )
     
     // Check unit from backend - only convert if unit is "Minutes"
-    const unitLower = (metric.default_unit || metric.unit || '').toLowerCase()
-    const shouldConvertToHours = isSleepDurationMetric && (
-      unitLower.includes('minute') || unitLower === 'min' || unitLower === 'mins'
-    )
+    const unitLower = (baseUnit || '').toLowerCase()
+    const isMinutesUnit = unitLower.includes('minute') || unitLower === 'min' || unitLower === 'mins'
+    const shouldConvertToHours = isSleepDurationMetric && isMinutesUnit
+    
+    // Display "Hours" for sleep duration metrics that were converted from minutes
+    const displayUnit = (isSleepDurationMetric && isMinutesUnit) ? 'Hours' : baseUnit
 
     // Convert data points to chart format
     // Backend already filters based on thryve_type (Daily shows one per date, Epoch shows all)
@@ -203,6 +207,12 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
       .filter(item => item !== null) // Remove any null entries from invalid dates
     
 
+    // Only show Normal/Abnormal badge if there's a valid reference range
+    const hasValidRange = referenceRange && 
+      referenceRange !== 'Reference range not specified' && 
+      referenceRange !== 'N/A' &&
+      referenceRange.trim() !== ''
+    
     return (
       <Card key={metric.id} className={`p-4 ${isAbnormal ? 'border-red-200 bg-red-50' : ''}`}>
         <div className="flex items-start justify-between mb-3">
@@ -210,12 +220,14 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
             <div className="flex items-center gap-2 mb-1">
               <h4 className="font-medium text-sm">{metric.display_name}</h4>
               {trendIcon}
+              {hasValidRange && (
               <Badge 
                 variant="outline" 
                 className={`text-xs ${getStatusColor(metric.latest_status || 'normal')}`}
               >
                 {metric.latest_status || 'normal'}
               </Badge>
+              )}
             </div>
             
             <div className="text-2xl font-bold mb-1 whitespace-pre-line">
@@ -227,7 +239,7 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
             </div>
             
             {chartData.length > 0 && (
-              <div className="h-20">
+              <div className="h-[120px]">
                 <HealthMetricsChart
                   data={chartData}
                   metricName={metric.display_name}
@@ -236,6 +248,7 @@ export function HealthRecordsPage({ healthRecordTypeId, title, description }: He
                     tickCount: 5,
                     roundValues: false,
                     userTimezone: user?.profile?.timezone || 'UTC',
+                    unit: displayUnit,
                   }}
                 />
               </div>

@@ -255,13 +255,13 @@ export default function SummaryPage() {
             {t("health.reference")}: {metric.reference}
           </p>
 
-          <div className="h-[100px]">
+          <div className="h-[120px]">
             <HealthMetricsChart
               data={metric.data}
               metricName={metric.name}
               options={{
                 fontSize: 10,
-                tickCount: 3,
+                tickCount: 5,
                 roundValues: true,
               }}
             />

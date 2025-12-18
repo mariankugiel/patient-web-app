@@ -15,9 +15,9 @@ export function getFirstAccessiblePage(
   patientPermissions: AccessiblePatient['permissions'] | null,
   isViewingOtherPatient: boolean
 ): string {
-  // If not viewing another patient, default to dashboard (viewing own data)
+  // If not viewing another patient, default to health records (viewing own data)
   if (!isViewingOtherPatient || !patientPermissions) {
-    return '/patient/dashboard'
+    return '/patient/health-records'
   }
 
   // Define navigation items in priority order (first accessible will be returned)
@@ -72,9 +72,8 @@ export function isPageAccessible(
     return true
   }
 
-  // Dashboard, Profile, and Permissions are NEVER accessible when viewing another patient
-  if (pathname.includes('/patient/dashboard') || 
-      pathname.includes('/patient/profile') || 
+  // Profile and Permissions are NEVER accessible when viewing another patient
+  if (pathname.includes('/patient/profile') || 
       pathname.includes('/patient/permissions')) {
     return false
   }

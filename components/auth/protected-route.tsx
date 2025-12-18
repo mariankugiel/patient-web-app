@@ -14,7 +14,7 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ 
   children, 
   requireAuth = true, 
-  redirectTo = '/patient/dashboard' 
+  redirectTo = '/patient/health-records' 
 }: ProtectedRouteProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -42,7 +42,7 @@ export function ProtectedRoute({
         //   router.push('/onboarding')
         // } else if (!needsOnboarding && redirectTo === '/onboarding') {
         //   // Redirect users who don't need onboarding away from onboarding
-        //   router.push('/patient/dashboard')
+        //   router.push('/patient/health-records')
         // }
       }
     }

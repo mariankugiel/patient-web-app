@@ -21,7 +21,7 @@ import { MetricDetailDialog } from '@/components/health-records/metric-detail-di
 import { EditSectionDialog } from '@/components/health-records/edit-section-dialog'
 import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
 import { HealthRecordsApiService } from '@/lib/api/health-records-api'
-import { formatMetricValue, formatReferenceRange } from '@/hooks/use-health-records'
+import { formatMetricValue, formatReferenceRange, formatNumericValue } from '@/hooks/use-health-records'
 import { toast } from 'react-toastify'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
@@ -286,36 +286,40 @@ export function AnalysisOverviewSection({
     const referenceRange = getGenderSpecificReferenceRange(metric)
     const calculatedStatus = latestDataPoint ? getStatusFromValue(latestDataPoint.value, referenceRange) : 'normal'
     
-    const currentValue = latestDataPoint ? formatMetricValue(latestDataPoint.value, undefined, metric.display_name) : "N/A"
-    const unit = metric.default_unit || metric.unit
+    const baseUnit = metric.default_unit || metric.unit
+    const metricNameLower = (metric.display_name || '').toLowerCase()
+    
+    // Format value without unit since unit is displayed separately
+    const currentValue = latestDataPoint 
+      ? formatNumericValue(latestDataPoint.value, baseUnit, metric.display_name) 
+      : "N/A"
+    
+    // For sleep duration metrics (except "Time to fall asleep" and "Time awake"), display unit as "Hours" if original was minutes
+    const sleepDurationMetrics = [
+      'deep sleep time',
+      'light sleep time',
+      'sleep time',
+      'time in bed'
+      // Note: 'time to fall asleep' and 'time awake' are NOT included - they stay in minutes
+    ]
+    const isSleepDurationMetric = sleepDurationMetrics.some(sleepMetric => 
+      metricNameLower.includes(sleepMetric.toLowerCase())
+    )
+    const unitLower = (baseUnit || '').toLowerCase()
+    const isMinutesUnit = unitLower.includes('minute') || unitLower === 'min' || unitLower === 'mins'
+    
+    // Display "Hours" for sleep duration metrics that were converted from minutes
+    const unit = (isSleepDurationMetric && isMinutesUnit) ? 'Hours' : baseUnit
 
     // Check if this is a sleep start/end time metric (use value as timestamp for x-axis)
-    const metricNameLower = (metric.display_name || '').toLowerCase()
     const isTimeOnlyMetric = (
       metricNameLower.includes('sleep') && 
       (metricNameLower.includes('start time') || metricNameLower.includes('end time'))
     )
     
-    // List of sleep duration metrics that should be converted
-    const sleepDurationMetrics = [
-      'deep sleep time',
-      'light sleep time',
-      'sleep time',
-      'time awake',
-      'time in bed',
-      'time to fall asleep'
-    ]
-    
-    // Check if this is a sleep duration metric
-    const isSleepDurationMetric = sleepDurationMetrics.some(sleepMetric => 
-      metricNameLower.includes(sleepMetric.toLowerCase())
-    )
-    
     // Check unit from backend - only convert if unit is "Minutes"
-    const unitLower = (metric.default_unit || metric.unit || '').toLowerCase()
-    const shouldConvertToHours = isSleepDurationMetric && (
-      unitLower.includes('minute') || unitLower === 'min' || unitLower === 'mins'
-    )
+    // Use the same sleepDurationMetrics list and isSleepDurationMetric already declared above
+    const shouldConvertToHours = isSleepDurationMetric && isMinutesUnit
 
     // Prepare chart data
     // Backend already filters based on thryve_type (Daily shows one per date, Epoch shows all)
@@ -390,10 +394,17 @@ export function AnalysisOverviewSection({
       })
       .filter(item => item !== null) // Remove any null entries from invalid dates
 
+    // Only show Normal/Abnormal badge if there's a valid reference range
+    const hasValidRange = referenceRange && 
+      referenceRange !== 'Reference range not specified' && 
+      referenceRange !== 'N/A' &&
+      referenceRange.trim() !== ''
+    
     return (
       <div key={metric.id} className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleMetricClick(metric)}>
         <div className="flex justify-between items-start mb-1">
           <h3 className="font-medium text-sm">{metric.display_name}</h3>
+          {hasValidRange && (
           <Badge
             variant={calculatedStatus === "normal" ? "outline" : "secondary"}
             className={`${calculatedStatus === "normal" ? "text-green-600" : "text-red-600"} text-xs py-0 px-1 h-5`}
@@ -410,6 +421,7 @@ export function AnalysisOverviewSection({
               </div>
             )}
           </Badge>
+          )}
         </div>
         <div className="mt-1">
           <div className="flex items-baseline gap-1 mb-1">
@@ -421,15 +433,16 @@ export function AnalysisOverviewSection({
           </p>
 
           {chartData.length > 0 && (
-            <div className="h-[60px] mt-2">
+            <div className="h-[120px] mt-2">
               <HealthMetricsChart
                 data={chartData}
                 metricName={metric.display_name}
                 options={{
-                  fontSize: 8,
-                  tickCount: 3,
+                  fontSize: 10,
+                  tickCount: 5,
                   roundValues: true,
-                  userTimezone: user?.profile?.timezone || 'UTC',
+                  userTimezone: (user as any)?.profile?.timezone || (user as any)?.user_metadata?.timezone || 'UTC',
+                  unit: (isSleepDurationMetric && isMinutesUnit) ? 'Hours' : (metric.default_unit || metric.unit),
                 }}
               />
             </div>

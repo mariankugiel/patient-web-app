@@ -9,6 +9,7 @@ interface ChartOptions {
   tickCount?: number
   roundValues?: boolean
   userTimezone?: string
+  unit?: string
 }
 
 interface HealthMetricsChartProps {
@@ -23,7 +24,29 @@ interface HealthMetricsChartProps {
 }
 
 export function HealthMetricsChart({ data, metricName, options = {} }: HealthMetricsChartProps) {
-  const { fontSize = 12, tickCount = 5, roundValues = false, userTimezone = 'UTC' } = options
+  const { fontSize = 12, tickCount = 5, roundValues = false, userTimezone = 'UTC', unit } = options
+  
+  // Helper function to format numeric value based on unit
+  const formatNumericValue = (value: number): string => {
+    const unitLower = (unit || '').toLowerCase()
+    
+    // Meters: no decimals (round to whole number)
+    if (unitLower.includes('meter') || unitLower.includes('metre') || unitLower === 'm') {
+      return Math.round(value).toString()
+    }
+    // Kilograms: 1 decimal place (always show 1 decimal, e.g., 36.2, 70.0)
+    else if (unitLower.includes('kilogram') || unitLower === 'kg' || unitLower === 'kgs') {
+      return value.toFixed(1)
+    }
+    // Hours: 1 decimal place (for sleep duration converted from minutes)
+    else if (unitLower.includes('hour') || unitLower === 'h' || unitLower === 'hr' || unitLower === 'hrs') {
+      return value.toFixed(1)
+    }
+    // Use intelligent precision for others: show up to 2 decimals, remove trailing zeros
+    else {
+      return value.toFixed(2).replace(/\.?0+$/, '')
+    }
+  }
 
   // Check if this is a sleep start/end time metric (show time only, not date)
   const metricNameLower = (metricName || '').toLowerCase()
@@ -132,13 +155,13 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
               const minutes = Math.floor(value % 60)
               return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
             }
-            // For all other numbers, show 2 decimal places
+            // For all other numbers, format based on unit
             const numValue = typeof value === 'number' ? value : parseFloat(String(value)) || 0
-            return numValue.toFixed(2)
+            return formatNumericValue(numValue)
           }}
           ticks={calculateTicks()}
           domain={[(minValue) => Math.floor(minValue * 0.95), (maxValue) => Math.ceil(maxValue * 1.05)]}
-          width={isTimeOnlyMetric ? 40 : 25}
+          width={isTimeOnlyMetric ? 50 : 45}
         />
         <Tooltip
           content={({ active, payload, label }) => {
@@ -170,14 +193,14 @@ export function HealthMetricsChart({ data, metricName, options = {} }: HealthMet
                 displayValue = data.value
               }
               
-              // Format the display value (always show 2 decimal places, remove trailing zeros)
+              // Format the display value based on unit
               if (typeof displayValue === 'number') {
-                displayValue = displayValue.toFixed(2).replace(/\.?0+$/, '')
+                displayValue = formatNumericValue(displayValue)
               } else if (typeof displayValue === 'string') {
                 // Try to parse string numbers and format them
                 const parsed = parseFloat(displayValue)
                 if (!isNaN(parsed)) {
-                  displayValue = parsed.toFixed(2).replace(/\.?0+$/, '')
+                  displayValue = formatNumericValue(parsed)
                 }
               }
               

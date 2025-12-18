@@ -75,11 +75,6 @@ export default function PatientSidebar() {
     // Define all navigation items with permission mappings
     const allNavigationItems: NavigationItem[] = [
       { 
-        name: t("nav.dashboard"), 
-        href: "/patient/dashboard", 
-        icon: Home
-      },
-      { 
         name: t("nav.healthRecords"), 
         href: "/patient/health-records", 
         icon: FileText,
@@ -130,9 +125,8 @@ export default function PatientSidebar() {
     
     // Filter based on permissions when viewing another patient
     return allNavigationItems.filter(item => {
-      // Dashboard, Profile, and Permissions: NEVER show when viewing another patient (only for own data)
-      if (item.href === '/patient/dashboard' || 
-          item.href === '/patient/profile' || 
+      // Profile and Permissions: NEVER show when viewing another patient (only for own data)
+      if (item.href === '/patient/profile' || 
           item.href === '/patient/permissions') {
         return false
       }

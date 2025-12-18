@@ -302,19 +302,6 @@ export class HealthRecordsApiService {
     console.log('API: Metric deleted successfully')
   }
 
-  // Analysis Dashboard
-  static async getAnalysisDashboard(patientId?: number): Promise<AnalysisDashboardResponse> {
-    const params: any = {}
-    if (patientId) {
-      params.patient_id = patientId
-      console.log('🔍 [Frontend API] getAnalysisDashboard called with patientId:', patientId)
-    } else {
-      console.log('📋 [Frontend API] getAnalysisDashboard called without patientId (using current user)')
-    }
-    const response = await apiClient.get('/health-records/dashboard', { params })
-    console.log('📊 [Frontend API] Dashboard response:', response.data)
-    return response.data
-  }
 
   // Get all user metrics for health plan dialog
   static async getAllUserMetrics(patientId?: number): Promise<HealthRecordMetric[]> {

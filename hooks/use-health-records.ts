@@ -555,10 +555,122 @@ export function formatMetricValue(value: number | string, unit?: string, metricN
     // If unit is "Hours" or "Hour", use the value as-is
   }
   
-  // Use intelligent precision: show up to 2 decimals, remove trailing zeros
-  const formatted = numericValue.toFixed(2).replace(/\.?0+$/, '')
+  // Round based on unit and metric type
+  let formatted: string
+  const unitLower = (unit || '').toLowerCase()
+  
+  // Meters: no decimals (round to whole number)
+  if (unitLower.includes('meter') || unitLower.includes('metre') || unitLower === 'm') {
+    formatted = Math.round(numericValue).toString()
+  }
+  // Kilograms: 1 decimal place (always show 1 decimal, e.g., 36.2, 70.0)
+  else if (unitLower.includes('kilogram') || unitLower === 'kg' || unitLower === 'kgs') {
+    formatted = numericValue.toFixed(1)
+  }
+  // Use intelligent precision for others: show up to 2 decimals, remove trailing zeros
+  else {
+    formatted = numericValue.toFixed(2).replace(/\.?0+$/, '')
+  }
   
   return `${formatted}${unit ? ` ${unit}` : ''}`
+}
+
+/**
+ * Format numeric value based on unit without appending the unit
+ * Used when unit is displayed separately in the UI
+ */
+export function formatNumericValue(value: number | string, unit?: string, metricName?: string): string {
+  if (value === null || value === undefined) return 'N/A'
+  
+  // Check if this is a sleep start/end time metric (show only time, not date)
+  const metricNameLower = (metricName || '').toLowerCase()
+  const isSleepStartEndTime = (
+    metricNameLower.includes('sleep') && 
+    (metricNameLower.includes('start time') || metricNameLower.includes('end time'))
+  )
+  
+  // If it's a sleep start/end time metric, format as time only (HH:mm)
+  if (isSleepStartEndTime) {
+    let date: Date | null = null
+    
+    // Try to parse as date if it's a string (timestamp)
+    if (typeof value === 'string') {
+      try {
+        date = new Date(value)
+        if (isNaN(date.getTime())) date = null
+      } catch (e) {
+        // If parsing fails, fall through to numeric formatting
+      }
+    }
+    
+    // If it's a number (Unix timestamp in milliseconds or seconds), convert to date
+    if (!date) {
+      const numericValue = Number(value)
+      if (!isNaN(numericValue) && numericValue > 1000000000) { // Likely a timestamp
+        try {
+          // Check if it's in seconds or milliseconds
+          const timestamp = numericValue > 1e12 ? numericValue : numericValue * 1000
+          date = new Date(timestamp)
+          if (isNaN(date.getTime())) date = null
+        } catch (e) {
+          // If parsing fails, fall through to numeric formatting
+        }
+      }
+    }
+    
+    if (date) {
+      // Format as time only (HH:mm) - no date
+      const timeStr = date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      })
+      return timeStr
+    }
+  }
+  
+  // Convert to number and validate
+  let numericValue = Number(value)
+  if (isNaN(numericValue)) return 'N/A'
+  
+  // List of sleep duration metrics that should be converted from minutes to hours
+  // Exclude "Time to fall asleep" and "Time awake" which should remain in minutes
+  const sleepDurationMetrics = [
+    'deep sleep time',
+    'light sleep time',
+    'sleep time',
+    'time in bed'
+    // Note: 'time to fall asleep' and 'time awake' are NOT included - they stay in minutes
+  ]
+  
+  // Check if this is a sleep duration metric (excluding "Time to fall asleep" and "Time awake")
+  const isSleepDurationMetric = sleepDurationMetrics.some(sleepMetric => 
+    metricNameLower.includes(sleepMetric.toLowerCase())
+  )
+  
+  // Check if unit indicates minutes - sleep duration data from Thryve is stored in minutes
+  const unitLower = (unit || '').toLowerCase()
+  const isMinutesUnit = unitLower.includes('minute') || unitLower === 'min' || unitLower === 'mins'
+  
+  // For sleep duration metrics (except "Time to fall asleep" and "Time awake"), convert minutes to hours
+  if (isSleepDurationMetric && isMinutesUnit) {
+    numericValue = numericValue / 60 // Convert minutes to hours
+    // Format with 1 decimal place for hours
+    return numericValue.toFixed(1)
+  }
+  
+  // Meters: no decimals (round to whole number)
+  if (unitLower.includes('meter') || unitLower.includes('metre') || unitLower === 'm') {
+    return Math.round(numericValue).toString()
+  }
+  // Kilograms: 1 decimal place (always show 1 decimal, e.g., 36.2, 70.0)
+  else if (unitLower.includes('kilogram') || unitLower === 'kg' || unitLower === 'kgs') {
+    return numericValue.toFixed(1)
+  }
+  // Use intelligent precision for others: show up to 2 decimals, remove trailing zeros
+  else {
+    return numericValue.toFixed(2).replace(/\.?0+$/, '')
+  }
 }
 
 export function formatReferenceRange(min?: number, max?: number): string {

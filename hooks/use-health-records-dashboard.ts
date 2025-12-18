@@ -25,17 +25,31 @@ export function useHealthRecordsDashboard(healthRecordTypeId: number, patientId?
       
       console.log('🔍 [Hook] useHealthRecordsDashboard.loadDashboard - patientId:', patientId, 'healthRecordTypeId:', healthRecordTypeId)
       
-      // Get the actual dashboard data with metrics and health records
-      const dashboardData = await HealthRecordsApiService.getAnalysisDashboard(patientId || undefined)
-      
-      // Also get combined sections and templates for creating new sections
+      // Get combined sections and templates with metrics and health records
       const response = await HealthRecordsApiService.getSectionsCombined(healthRecordTypeId, patientId || undefined)
       const userSections = response.user_sections || []
-      const adminTemplates = response.admin_templates || []
-      const allSections = [...userSections, ...adminTemplates]
+      
+      // Create dashboard-like response structure for compatibility
+      const dashboardData: AnalysisDashboardResponse = {
+        sections: userSections.map(section => ({
+          id: section.id,
+          name: section.name,
+          display_name: section.display_name,
+          description: section.description,
+          metrics: section.metrics || []
+        })),
+        latest_analysis: null,
+        summary_stats: {
+          total_sections: userSections.length,
+          total_metrics: userSections.reduce((sum, s) => sum + (s.metrics?.length || 0), 0),
+          total_data_points: 0,
+          abnormal_metrics: 0,
+          normal_metrics: 0
+        }
+      }
       
       setDashboard(dashboardData)
-      setSections(dashboardData.sections || []) // Use the sections with actual data
+      setSections(userSections) // Use the sections with actual data
     } catch (err: any) {
       setError(err.message)
       toast.error(`Failed to load dashboard: ${err.message}`)

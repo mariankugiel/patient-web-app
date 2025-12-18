@@ -15,7 +15,7 @@ import { toast } from "react-toastify"
 import { HealthRecordsApiService, HealthRecord, HealthRecordMetric } from "@/lib/api/health-records-api"
 import { MetricValueEditor } from "./metric-value-editor"
 import { EditMetricDialog } from "./edit-metric-dialog"
-import { formatReferenceRange } from "@/hooks/use-health-records"
+import { formatReferenceRange, formatMetricValue } from "@/hooks/use-health-records"
 import { useSelector } from 'react-redux'
 import { RootState } from '@/lib/store'
 import { useLanguage } from '@/contexts/language-context'
@@ -498,9 +498,10 @@ export function MetricDetailDialog({
     // Handle structured values for non-time metrics
     if (typeof value === 'object' && value !== null) {
       // Handle structured values like {"value": 88} or {"systolic": 120, "diastolic": 80}
-      if (value.value !== undefined) {
-        // Simple value object like {"value": 88}
-        return String(value.value)
+      if (value.value !== undefined && value.value !== null && (typeof value.value === 'number' || typeof value.value === 'string')) {
+        // Simple value object like {"value": 88} - use formatMetricValue for proper rounding
+        const unit = metric.default_unit || metric.unit || ''
+        return formatMetricValue(value.value, unit, metric.display_name)
       } else if (value.systolic !== undefined && value.diastolic !== undefined) {
         // Blood pressure format
         return `${value.systolic}/${value.diastolic}`
@@ -509,7 +510,12 @@ export function MetricDetailDialog({
         return JSON.stringify(value)
       }
     }
-    return String(value)
+    // For numeric or string values, use formatMetricValue for proper rounding
+    if ((typeof value === 'number' || typeof value === 'string') && value !== null && value !== undefined) {
+      const unit = metric.default_unit || metric.unit || ''
+      return formatMetricValue(value, unit, metric.display_name)
+    }
+    return 'N/A'
   }
 
   const handleEditMetric = () => {

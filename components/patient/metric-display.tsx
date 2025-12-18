@@ -200,6 +200,7 @@ export function MetricDisplay({ title, data, unit, referenceRange, icon, classNa
                 fontSize: 10,
                 tickCount: 3,
                 roundValues: true,
+                unit: unit,
               }}
             />
           </div>

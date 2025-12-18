@@ -17,8 +17,8 @@ export function useAuthRedirect() {
         // Redirect users who haven't completed or skipped onboarding
         router.push('/onboarding')
       } else {
-        // Redirect users who have completed or skipped onboarding to dashboard
-        router.push('/patient/dashboard')
+        // Redirect users who have completed or skipped onboarding to health records
+        router.push('/patient/health-records')
       }
     }
   }, [isAuthenticated, user, router])
