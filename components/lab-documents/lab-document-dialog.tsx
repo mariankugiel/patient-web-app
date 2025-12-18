@@ -13,7 +13,7 @@ import { toast } from 'react-toastify'
 import { medicalDocumentsApiService, MedicalDocument, MedicalDocumentUpdate } from '@/lib/api/medical-documents-api'
 import apiClient from '@/lib/api/axios-config'
 import { formatDateForInput } from '@/lib/date-utils'
-import { Loader2, Upload, FileText, CheckCircle, XCircle, AlertTriangle, Edit, Trash2 } from 'lucide-react'
+import { Loader2, Upload, FileText, CheckCircle, XCircle, AlertTriangle, Edit, Trash2, Languages } from 'lucide-react'
 import { useLanguage } from '@/contexts/language-context'
 import { DuplicateFileDialog } from '@/components/ui/duplicate-file-dialog'
 
@@ -242,11 +242,17 @@ export function LabDocumentDialog({
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [showAnalysisResults, setShowAnalysisResults] = useState(false)
-  const [analysisResults, setAnalysisResults] = useState<any[]>([])
-  const [editableResults, setEditableResults] = useState<any[]>([])
+  const [analysisResults, setAnalysisResults] = useState<any[]>([])  // Original data (for database storage)
+  const [editableResults, setEditableResults] = useState<any[]>([])  // Data shown in dialog (translated if available)
+  const [originalLabData, setOriginalLabData] = useState<any[]>([])  // Store original lab_data from backend
   const [hasFormChanged, setHasFormChanged] = useState(false)
   const [rejectedResults, setRejectedResults] = useState(false)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [languageInfo, setLanguageInfo] = useState<{
+    detected_language?: string
+    user_language?: string
+    translation_applied?: boolean
+  } | null>(null)
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
   const [duplicateInfo, setDuplicateInfo] = useState<{
     existingDocument: any
@@ -413,9 +419,21 @@ export function LabDocumentDialog({
         })
         
         if (ocrResponse.data.success && ocrResponse.data.lab_data) {
-          const extractedDate = ocrResponse.data.lab_data[0]?.date_of_value || ''
+          // Store language info
+          setLanguageInfo({
+            detected_language: ocrResponse.data.detected_language,
+            user_language: ocrResponse.data.user_language,
+            translation_applied: ocrResponse.data.translation_applied || false
+          })
           
-          const transformedResults = ocrResponse.data.lab_data.map((item: any) => ({
+          // Store original data for database storage
+          setOriginalLabData(ocrResponse.data.lab_data)
+          
+          // Use translated data if available for display, otherwise use original
+          const dataToUse = ocrResponse.data.translated_data || ocrResponse.data.lab_data
+          const extractedDate = dataToUse[0]?.date_of_value || ''
+          
+          const transformedResults = dataToUse.map((item: any) => ({
             metric_name: item.metric_name || item.name_of_analysis || item.name || 'Unknown Metric',
             value: item.value?.toString() || '',
             unit: item.unit || '',
@@ -450,10 +468,22 @@ export function LabDocumentDialog({
       }
 
       if (response.data.success && response.data.lab_data) {
-        // Extract date from analysis results if available
-        const extractedDate = response.data.lab_data[0]?.date_of_value || ''
+        // Store language info
+        setLanguageInfo({
+          detected_language: response.data.detected_language,
+          user_language: response.data.user_language,
+          translation_applied: response.data.translation_applied || false
+        })
         
-        const transformedResults = response.data.lab_data.map((item: any) => ({
+        // Store original data for database storage
+        setOriginalLabData(response.data.lab_data)
+        
+        // Use translated data if available for display, otherwise use original
+        const dataToUse = response.data.translated_data || response.data.lab_data
+        // Extract date from analysis results if available
+        const extractedDate = dataToUse[0]?.date_of_value || ''
+        
+        const transformedResults = dataToUse.map((item: any) => ({
           metric_name: item.metric_name || item.name_of_analysis || item.name || 'Unknown Metric',
           value: item.value?.toString() || '',
           unit: item.unit || '',
@@ -544,10 +574,12 @@ export function LabDocumentDialog({
     setSelectedFile(null)
     setAnalysisResults([])
     setEditableResults([])
+    setOriginalLabData([])
     setShowAnalysisResults(false)
     setHasFormChanged(false)
     setRejectedResults(false)
     setEditingIndex(null)
+    setLanguageInfo(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -600,8 +632,8 @@ export function LabDocumentDialog({
               fileSize: selectedFile.size
             })
             setPendingUpload(() => async () => {
-              // Retry upload after user confirms
-              await performUpload()
+              // Retry upload after user confirms - call handleSave again
+              await handleSave()
             })
             setShowDuplicateDialog(true)
             setUploading(false)
@@ -614,23 +646,34 @@ export function LabDocumentDialog({
           
           // If we have analysis results and they weren't rejected, create health records via bulk endpoint
           // The bulk endpoint will create both the document and health records
+          // Use original lab_data (not translated) for database storage to preserve source language
           if (editableResults.length > 0 && !rejectedResults) {
-            const bulkData = {
-              records: editableResults.map(result => ({
+            // Map editableResults back to original data structure
+            // We need to match editableResults with originalLabData by index
+            const recordsToSend = editableResults.map((editedResult, index) => {
+              // If we have original data, use it (preserves original language)
+              // But use edited values if user made changes
+              const originalRecord = originalLabData[index] || {}
+              return {
                 lab_name: formData.provider || 'Unknown Lab',
-                type_of_analysis: result.type_of_analysis || 'General Lab Analysis',
-                metric_name: result.metric_name,
-                date_of_value: result.date_of_value || dateForBackend,
-                value: result.value,
-                unit: result.unit || '',
-                reference: result.reference_range || ''
-              })),
+                type_of_analysis: originalRecord.type_of_analysis || editedResult.type_of_analysis || 'General Lab Analysis',
+                metric_name: originalRecord.metric_name || editedResult.metric_name,
+                date_of_value: editedResult.date_of_value || dateForBackend,
+                value: editedResult.value,  // Use edited value
+                unit: editedResult.unit || originalRecord.unit || '',
+                reference: originalRecord.reference || originalRecord.reference_range || editedResult.reference_range || ''
+              }
+            })
+            
+            const bulkData = {
+              records: recordsToSend,
               file_name: selectedFile.name,
               description: formData.description,
               s3_url: uploadResult.s3_url,
               lab_test_date: dateForBackend, // Use the same formatted date
               provider: formData.provider,
-              document_type: formData.lab_test_type // Send document type here
+              document_type: formData.lab_test_type, // Send document type here
+              detected_language: languageInfo?.detected_language || 'en' // Pass detected language for proper source_language storage
             }
 
             const bulkResponse = await apiClient.post('/health-records/health-record-doc-lab/bulk', bulkData)
@@ -814,22 +857,32 @@ export function LabDocumentDialog({
       let result: MedicalDocument | null = null
       
       if (editableResults.length > 0 && !rejectedResults) {
-        const bulkData = {
-          records: editableResults.map(result => ({
+        // Use original lab_data (not translated) for database storage to preserve source language
+        // Map editableResults back to original data structure
+        const recordsToSend = editableResults.map((editedResult, index) => {
+          // If we have original data, use it (preserves original language)
+          // But use edited values if user made changes
+          const originalRecord = originalLabData[index] || {}
+          return {
             lab_name: formData.provider || 'Unknown Lab',
-            type_of_analysis: result.type_of_analysis || 'General Lab Analysis',
-            metric_name: result.metric_name,
-            date_of_value: result.date_of_value || dateForBackend,
-            value: result.value,
-            unit: result.unit || '',
-            reference: result.reference_range || ''
-          })),
+            type_of_analysis: originalRecord.type_of_analysis || editedResult.type_of_analysis || 'General Lab Analysis',
+            metric_name: originalRecord.metric_name || editedResult.metric_name,
+            date_of_value: editedResult.date_of_value || dateForBackend,
+            value: editedResult.value,  // Use edited value
+            unit: editedResult.unit || originalRecord.unit || '',
+            reference: originalRecord.reference || originalRecord.reference_range || editedResult.reference_range || ''
+          }
+        })
+        
+        const bulkData = {
+          records: recordsToSend,
           file_name: selectedFile.name,
           description: formData.description,
           s3_url: uploadResult.s3_url,
           lab_test_date: dateForBackend,
           provider: formData.provider,
-          document_type: formData.lab_test_type
+          document_type: formData.lab_test_type,
+          detected_language: languageInfo?.detected_language || 'en' // Pass detected language for proper source_language storage
         }
 
         const bulkResponse = await apiClient.post('/health-records/health-record-doc-lab/bulk', bulkData)
@@ -1115,7 +1168,15 @@ export function LabDocumentDialog({
               {analyzing ? (
                 t("health.documents.analyzingDocumentPleaseWait")
               ) : (
-                t("health.documents.reviewExtractedValues")
+                <div className="flex items-center gap-3">
+                  <span>{t("health.documents.reviewExtractedValues")}</span>
+                  {languageInfo?.translation_applied && (
+                    <Badge variant="outline" className="min-w-[90px] justify-center">
+                      <Languages className="h-3 w-3 mr-1" />
+                      {languageInfo.detected_language?.toUpperCase()} → {languageInfo.user_language?.toUpperCase()}
+                    </Badge>
+                  )}
+                </div>
               )}
             </DialogDescription>
           </DialogHeader>
