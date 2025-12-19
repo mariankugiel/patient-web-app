@@ -48,8 +48,8 @@ export function useOnboardingSkip() {
       
       toast.success("Onboarding skipped successfully. You can complete it later from your profile.")
       
-      // Redirect to dashboard
-      router.push('/patient/dashboard')
+      // Redirect to health records summary page
+      router.push('/patient/health-records/summary')
     } catch (error: any) {
       // Check if it's a connection error
       const isConnectionError = error?.code === 'ECONNABORTED' || 
@@ -76,7 +76,7 @@ export function useOnboardingSkip() {
         
         // Silently proceed - user can still use the app
         toast.success("Onboarding skipped. Changes will sync when connection is restored.")
-        router.push('/patient/dashboard')
+        router.push('/patient/health-records/summary')
       } else {
         // Non-connection error - log and show error message
         console.error('Failed to update profile in backend:', error)

@@ -155,10 +155,43 @@ function IntegrationsTabContent() {
         window.location.href = connectionResponse.url
       } else {
         // Disconnect: Get disconnection URL and redirect
-        connectionResponse = await ThryveApiService.getDisconnectionUrl(dataSourceId, redirectUri)
-        toast.info("Redirecting to disconnect your account...")
-        // Redirect to Thryve disconnection page
-        window.location.href = connectionResponse.url
+        try {
+          connectionResponse = await ThryveApiService.getDisconnectionUrl(dataSourceId, redirectUri)
+          
+          // Check if the response indicates the integration was already removed (no access token)
+          if (connectionResponse.url && connectionResponse.url.includes('connected=false')) {
+            // Integration was removed because there was no access token
+            // Update local state and reload integrations
+            setSettings((p) => ({ ...p, [integrationKey]: false }))
+            await loadIntegrations()
+            toast.success(`Integration removed successfully`)
+            setConnectionState((prev) => {
+              const newState = { ...prev }
+              delete newState[integrationKey]
+              return newState
+            })
+            return
+          }
+          
+          toast.info("Redirecting to disconnect your account...")
+          // Redirect to Thryve disconnection page
+          window.location.href = connectionResponse.url
+        } catch (error: any) {
+          // Check if error is about missing access token
+          if (error.message && error.message.includes("access token")) {
+            // No access token means integration is not connected - just remove it locally
+            setSettings((p) => ({ ...p, [integrationKey]: false }))
+            await loadIntegrations()
+            toast.success(`Integration removed successfully`)
+            setConnectionState((prev) => {
+              const newState = { ...prev }
+              delete newState[integrationKey]
+              return newState
+            })
+            return
+          }
+          throw error // Re-throw other errors
+        }
       }
     } catch (error: any) {
       console.error(`Error ${checked ? 'connecting' : 'disconnecting'} ${integrationKey}:`, error)

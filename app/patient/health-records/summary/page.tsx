@@ -6,266 +6,240 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Activity,
-  AlertTriangle,
-  Heart,
-  Brain,
-  ThumbsUp,
-  Lightbulb,
   TrendingUp,
   TrendingDown,
   Minus,
-  BarChart3,
-  Droplets,
-  Scale,
   ArrowRight,
-  TreesIcon as Lungs,
-  Pill,
-  Utensils,
-  Moon,
-  Dumbbell,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  Brain,
+  AlertTriangle,
+  ThumbsUp,
+  Lightbulb,
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { useSwitchedPatient } from "@/contexts/patient-context"
 import { HealthMetricsChart } from "@/components/patient/health-metrics-chart"
 import { useRouter } from "next/navigation"
+import { useSummaryData } from "@/hooks/use-summary-data"
+import { useAIAnalysis } from "@/hooks/use-ai-analysis"
+import { MetricWithData } from "@/lib/api/health-records-api"
+import { formatMetricValue, formatReferenceRange, formatNumericValue } from "@/hooks/use-health-records"
+import { useSelector } from "react-redux"
+import { RootState } from "@/lib/store"
+import { useEffect, useRef } from "react"
 
 export default function SummaryPage() {
   const { t } = useLanguage()
-  const { patientToken } = useSwitchedPatient()
+  const { patientToken, patientId } = useSwitchedPatient()
   const router = useRouter()
+  const { user } = useSelector((state: RootState) => state.auth)
+  const { summaryData, loading, error } = useSummaryData()
+  
+  // Fetch AI analysis for overall assessment (using type 1 for general analysis)
+  const { 
+    analysis: aiAnalysis, 
+    loading: aiLoading, 
+    error: aiError,
+    generateAnalysis 
+  } = useAIAnalysis(1, patientId || null)
+  
+  // Track if we've attempted to fetch AI analysis to prevent infinite loops
+  const aiAnalysisAttempted = useRef(false)
+  
+  // Reset the attempted flag when patientId changes
+  useEffect(() => {
+    aiAnalysisAttempted.current = false
+  }, [patientId])
+  
+  // Auto-load AI analysis when page loads
+  useEffect(() => {
+    if (!aiLoading && !aiAnalysis && !aiAnalysisAttempted.current) {
+      aiAnalysisAttempted.current = true
+      generateAnalysis(false).catch((err) => {
+        console.error('Failed to generate AI analysis:', err)
+        // Don't reset the flag on error to prevent infinite retries
+      })
+    }
+  }, [aiLoading, aiAnalysis, generateAnalysis, patientId])
 
-  const renderTrendIcon = (status: string) => {
-    if (status === "improving") {
+  const renderTrendIcon = (trend?: string) => {
+    if (trend === "improving") {
       return <TrendingUp className="h-4 w-4 text-green-500" />
-    } else if (status === "declining" || status === "needs improvement") {
+    } else if (trend === "declining") {
       return <TrendingDown className="h-4 w-4 text-red-500" />
     } else {
       return <Minus className="h-4 w-4 text-yellow-500" />
     }
   }
 
-  // Sample data for charts
-  const sampleData = [
-    { date: new Date("2023-01-15"), value: 135 },
-    { date: new Date("2023-02-15"), value: 132 },
-    { date: new Date("2023-03-15"), value: 128 },
-    { date: new Date("2023-04-15"), value: 125 },
-  ]
+  // Get gender-specific reference range
+  const getGenderSpecificReferenceRange = (metric: MetricWithData) => {
+    if (!metric.reference_data) return 'Reference range not specified'
+    
+    const userGender = user?.user_metadata?.gender?.toLowerCase()
+    const gender = userGender === 'female' ? 'female' : 'male'
+    const genderData = metric.reference_data[gender]
+    
+    return formatReferenceRange(genderData?.min, genderData?.max)
+  }
 
-  // Group metrics by category for the summary tab
-  const healthMetricsSummary = [
-    {
-      name: t("health.metrics.bloodPressure"),
-      value: "132/85 mmHg",
-      reference: "<120/80 mmHg",
-      trend: "improving",
-      change: "-13/7 mmHg",
-      status: "abnormal",
-      icon: <Heart className="h-5 w-5 text-red-500" />,
-      category: "health",
-      data: sampleData,
-      chartType: "line",
-      tab: "vitals",
-    },
-    {
-      name: t("health.metrics.bloodGlucose"),
-      value: "98 mg/dL",
-      reference: "70-99 mg/dL",
-      trend: "improving",
-      change: "-12 mg/dL",
-      status: "normal",
-      icon: <Droplets className="h-5 w-5 text-blue-500" />,
-      category: "health",
-      data: sampleData,
-      chartType: "line",
-      tab: "analysis",
-    },
-    {
-      name: t("health.metrics.ldlCholesterol"),
-      value: "125 mg/dL",
-      reference: "<100 mg/dL",
-      trend: "improving",
-      change: "-10 mg/dL",
-      status: "abnormal",
-      icon: <BarChart3 className="h-5 w-5 text-orange-500" />,
-      category: "health",
-      data: sampleData,
-      chartType: "line",
-      tab: "analysis",
-    },
-    {
-      name: t("health.metrics.heartRate"),
-      value: "68 bpm",
-      reference: "60-100 bpm",
-      trend: "improving",
-      change: "-3 bpm",
-      status: "normal",
-      icon: <Activity className="h-5 w-5 text-pink-500" />,
-      category: "health",
-      data: sampleData,
-      chartType: "line",
-      tab: "vitals",
-    },
-    {
-      name: t("health.metrics.oxygenSaturation"),
-      value: "98%",
-      reference: "95-100%",
-      trend: "improving",
-      change: "+1%",
-      status: "normal",
-      icon: <Lungs className="h-5 w-5 text-cyan-500" />,
-      category: "health",
-      data: sampleData,
-      chartType: "line",
-      tab: "vitals",
-    },
-    {
-      name: t("health.metrics.whiteBloodCells"),
-      value: "11.2 K/uL",
-      reference: "4.5-10.0 K/uL",
-      trend: "improving",
-      change: "-0.8 K/uL",
-      status: "abnormal",
-      icon: <Pill className="h-5 w-5 text-violet-500" />,
-      category: "health",
-      data: sampleData,
-      chartType: "line",
-      tab: "analysis",
-    },
-  ]
+  // Format chart data from metric
+  const formatChartData = (metric: MetricWithData) => {
+    const dataPoints = metric.data_points || []
+    if (dataPoints.length === 0) return []
 
-  const wellnessMetricsSummary = [
-    {
-      name: t("health.metrics.weight"),
-      value: "158 lbs",
-      reference: "145-165 lbs",
-      trend: "improving",
-      change: "-7 lbs",
-      status: "normal",
-      icon: <Scale className="h-5 w-5 text-blue-500" />,
-      category: "wellness",
-      data: sampleData,
-      chartType: "line",
-      tab: "body-composition",
-    },
-    {
-      name: t("health.metrics.bodyFat"),
-      value: "24%",
-      reference: "10-20%",
-      trend: "improving",
-      change: "-2.3%",
-      status: "abnormal",
-      icon: <Scale className="h-5 w-5 text-purple-500" />,
-      category: "wellness",
-      data: sampleData,
-      chartType: "line",
-      tab: "body-composition",
-    },
-    {
-      name: t("health.metrics.sleep"),
-      value: "7.2 " + t("health.units.hours"),
-      reference: "7-9 " + t("health.units.hours"),
-      trend: "stable",
-      change: "+0.2 " + t("health.units.hours"),
-      status: "normal",
-      icon: <Moon className="h-5 w-5 text-indigo-500" />,
-      category: "wellness",
-      data: sampleData,
-      chartType: "line",
-      tab: "lifestyle",
-    },
-    {
-      name: t("health.metrics.steps"),
-      value: "6,200",
-      reference: "10,000",
-      trend: "improving",
-      change: "+800",
-      status: "abnormal",
-      icon: <Activity className="h-5 w-5 text-green-500" />,
-      category: "wellness",
-      data: sampleData,
-      chartType: "line",
-      tab: "lifestyle",
-    },
-    {
-      name: t("health.metrics.workouts"),
-      value: "3/" + t("health.units.week"),
-      reference: "3-5/" + t("health.units.week"),
-      trend: "improving",
-      change: "+1",
-      status: "normal",
-      icon: <Dumbbell className="h-5 w-5 text-amber-500" />,
-      category: "wellness",
-      data: sampleData,
-      chartType: "line",
-      tab: "lifestyle",
-    },
-    {
-      name: t("health.metrics.nutritionScore"),
-      value: "72/100",
-      reference: ">80/100",
-      trend: "improving",
-      change: "+5 " + t("health.units.points"),
-      status: "abnormal",
-      icon: <Utensils className="h-5 w-5 text-emerald-500" />,
-      category: "wellness",
-      data: sampleData,
-      chartType: "line",
-      tab: "lifestyle",
-    },
-  ]
+    return dataPoints
+      .filter((item: any) => {
+        const dateValue = item.measure_start_time || item.recorded_at || item.created_at
+        return dateValue != null && dateValue !== ''
+      })
+      .map((item: any) => {
+        const dateValue = item.measure_start_time || item.recorded_at || item.created_at
+        const date = dateValue ? new Date(dateValue) : new Date()
+        
+        if (isNaN(date.getTime())) {
+          return null
+        }
+        
+        const numericValue = Number(item.value) || 0
+        
+        return {
+          date: date,
+          value: numericValue,
+          id: item.id || `${metric.id}-${Date.now()}`,
+          originalValue: item.value,
+        }
+      })
+      .filter(item => item !== null)
+  }
 
-  // Render a metric card with appropriate chart type and link to detailed tab
-  const renderSummaryMetricCard = (metric: any) => {
+  // Determine status from value and reference range
+  const getStatusFromValue = (value: number, referenceRange: string): "normal" | "abnormal" | "critical" => {
+    if (!referenceRange || referenceRange === 'Reference range not specified' || referenceRange === 'N/A') return "normal"
+    
+    const numericValue = Number(value) || 0
+    
+    if (referenceRange.includes(' - ')) {
+      const [minStr, maxStr] = referenceRange.split(' - ')
+      const min = parseFloat(minStr)
+      const max = parseFloat(maxStr)
+      if (!isNaN(min) && !isNaN(max)) {
+        return (numericValue >= min && numericValue <= max) ? "normal" : "abnormal"
+      }
+    } else if (referenceRange.includes('≤')) {
+      const threshold = parseFloat(referenceRange.replace('≤', '').trim())
+      if (!isNaN(threshold)) {
+        return numericValue <= threshold ? "normal" : "abnormal"
+      }
+    } else if (referenceRange.includes('≥')) {
+      const threshold = parseFloat(referenceRange.replace('≥', '').trim())
+      if (!isNaN(threshold)) {
+        return numericValue >= threshold ? "normal" : "abnormal"
+      }
+    } else if (referenceRange.includes('<')) {
+      const threshold = parseFloat(referenceRange.replace('<', '').trim())
+      if (!isNaN(threshold)) {
+        return numericValue < threshold ? "normal" : "abnormal"
+      }
+    } else if (referenceRange.includes('>')) {
+      const threshold = parseFloat(referenceRange.replace('>', '').trim())
+      if (!isNaN(threshold)) {
+        return numericValue > threshold ? "normal" : "abnormal"
+      }
+    }
+    
+    return "normal"
+  }
+
+  // Render a metric card
+  const renderMetricCard = (metric: MetricWithData) => {
+    const latestValue = metric.latest_value
+    const referenceRange = getGenderSpecificReferenceRange(metric)
+    const status = metric.latest_status || (latestValue ? getStatusFromValue(Number(latestValue), referenceRange) : 'normal')
+    const baseUnit = metric.default_unit || metric.unit || ''
+    
+    // Format value
+    const currentValue = latestValue 
+      ? formatNumericValue(Number(latestValue), baseUnit, metric.display_name) 
+      : "N/A"
+    
+    const chartData = formatChartData(metric)
+    const hasValidRange = referenceRange && 
+      referenceRange !== 'Reference range not specified' && 
+      referenceRange !== 'N/A' &&
+      referenceRange.trim() !== ''
+
+    // Determine which tab to navigate to based on health_record_type_id
+    const getTabName = (typeId?: number) => {
+      switch (typeId) {
+        case 2: return "vitals"
+        case 3: return "body-composition"
+        case 4: return "lifestyle"
+        case 1: return "analysis"
+        default: return "analysis"
+      }
+    }
+
     return (
-      <Card key={metric.name} className="overflow-hidden flex flex-col h-full">
+      <Card key={metric.id} className="overflow-hidden flex flex-col h-full">
         <CardHeader className="pb-2 flex-none">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {metric.icon}
-              <CardTitle className="text-base">{metric.name}</CardTitle>
+              <CardTitle className="text-base">{metric.display_name}</CardTitle>
             </div>
-            <Badge
-              variant={metric.status === "normal" ? "outline" : "secondary"}
-              className={metric.status === "normal" ? "text-green-500" : "text-red-500"}
-            >
-              {metric.status === "normal" ? t("health.status.normal") : t("health.status.abnormal")}
-            </Badge>
+            {hasValidRange && (
+              <Badge
+                variant={status === "normal" ? "outline" : "secondary"}
+                className={`${status === "normal" ? "text-green-600" : "text-red-600"} text-xs py-0 px-1 h-5`}
+              >
+                {status === "normal" ? (
+                  <div className="flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    <span>Normal</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    <span>Abnormal</span>
+                  </div>
+                )}
+              </Badge>
+            )}
           </div>
         </CardHeader>
         <CardContent className="pb-2 flex-grow">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-2xl font-bold">{metric.value}</p>
-            <div className="flex items-center gap-1">
-              {renderTrendIcon(metric.trend)}
-              <span
-                className={`text-xs ${
-                  metric.trend === "improving"
-                    ? "text-green-500"
-                    : metric.trend === "declining"
-                      ? "text-red-500"
-                      : "text-yellow-500"
-                }`}
-              >
-                {metric.change}
-              </span>
+            <div className="flex items-baseline gap-1">
+              <p className="text-2xl font-bold whitespace-pre-line">{currentValue}</p>
+              {baseUnit && <span className="text-xs text-muted-foreground font-normal">{baseUnit}</span>}
             </div>
+            {metric.trend && metric.trend !== "unknown" && (
+              <div className="flex items-center gap-1">
+                {renderTrendIcon(metric.trend)}
+              </div>
+            )}
           </div>
           <p className="text-xs text-muted-foreground mb-2">
-            {t("health.reference")}: {metric.reference}
+            {t("health.reference")}: {referenceRange}
           </p>
 
-          <div className="h-[120px]">
-            <HealthMetricsChart
-              data={metric.data}
-              metricName={metric.name}
-              options={{
-                fontSize: 10,
-                tickCount: 5,
-                roundValues: true,
-              }}
-            />
-          </div>
+          {chartData.length > 0 && (
+            <div className="h-[120px] mt-2">
+              <HealthMetricsChart
+                data={chartData}
+                metricName={metric.display_name}
+                options={{
+                  fontSize: 10,
+                  tickCount: 5,
+                  roundValues: true,
+                  userTimezone: (user as any)?.profile?.timezone || (user as any)?.user_metadata?.timezone || 'UTC',
+                  unit: baseUnit,
+                }}
+              />
+            </div>
+          )}
         </CardContent>
         <CardFooter className="pt-0 flex-none">
           <Button
@@ -274,7 +248,8 @@ export default function SummaryPage() {
             className="w-full text-xs text-muted-foreground hover:text-foreground"
             onClick={() => {
               const tokenQuery = patientToken ? `?patientToken=${encodeURIComponent(patientToken)}` : ""
-              const targetUrl = `/patient/health-records/${metric.tab}${tokenQuery}`
+              const tabName = getTabName(metric.health_record_type_id)
+              const targetUrl = `/patient/health-records/${tabName}${tokenQuery}`
               router.push(targetUrl)
             }}
           >
@@ -285,18 +260,78 @@ export default function SummaryPage() {
     )
   }
 
-  // Calculate overall health score
-  const calculateHealthScore = () => {
-    // Count normal vs abnormal metrics
-    const healthMetrics = [...healthMetricsSummary, ...wellnessMetricsSummary]
-    const normalCount = healthMetrics.filter((m) => m.status === "normal").length
-    const totalCount = healthMetrics.length
+  // Render a section with recommended and recent rows
+  const renderSection = (
+    title: string,
+    description: string,
+    recommended: MetricWithData[],
+    recent: MetricWithData[]
+  ) => {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Recommended Row */}
+          {recommended.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold mb-3">{t("health.recommendedForYou") || "Recommended for You"}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {recommended.map((metric) => renderMetricCard(metric))}
+              </div>
+            </div>
+          )}
 
-    // Calculate percentage
-    return Math.round((normalCount / totalCount) * 100)
+          {/* Recent Row */}
+          {recent.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold mb-3">{t("health.recentlyUpdated") || "Recently Updated"}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {recent.map((metric) => renderMetricCard(metric))}
+              </div>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {recommended.length === 0 && recent.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>{t("health.noMetricsAvailable") || "No metrics available for this section."}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    )
   }
 
-  const healthScore = calculateHealthScore()
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin mb-4 text-gray-400" />
+        <h3 className="text-lg font-medium mb-2">{t('health.loadingHealthData') || 'Loading health data...'}</h3>
+        <p className="text-gray-600">{t('health.pleaseWaitFetchingRecords') || 'Please wait while we fetch your records...'}</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <AlertCircle className="h-8 w-8 text-red-500 mb-4" />
+        <h3 className="text-lg font-medium mb-2">{t('health.errorLoadingData') || 'Error loading data'}</h3>
+        <p className="text-gray-600">{error}</p>
+      </div>
+    )
+  }
+
+  if (!summaryData) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">{t("health.noDataAvailable") || "No data available"}</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -307,112 +342,105 @@ export default function SummaryPage() {
           <CardDescription>{t("health.overallAssessmentDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-6">
-            {/* Health Score */}
-            <div className="flex-1">
-              <div className="flex flex-col items-center justify-center">
-                <div className="relative h-36 w-36 flex items-center justify-center">
-                  <svg className="h-full w-full" viewBox="0 0 100 100">
-                    <circle
-                      className="text-muted stroke-current"
-                      strokeWidth="10"
-                      cx="50"
-                      cy="50"
-                      r="40"
-                      fill="transparent"
-                    />
-                    <circle
-                      className={`${
-                        healthScore >= 80 ? "text-green-500" : healthScore >= 60 ? "text-yellow-500" : "text-red-500"
-                      } stroke-current`}
-                      strokeWidth="10"
-                      strokeLinecap="round"
-                      cx="50"
-                      cy="50"
-                      r="40"
-                      fill="transparent"
-                      strokeDasharray={`${healthScore * 2.51} 251`}
-                      strokeDashoffset="0"
-                      transform="rotate(-90 50 50)"
-                    />
-                  </svg>
-                  <div className="absolute flex flex-col items-center justify-center">
-                    <span className="text-3xl font-bold">{healthScore}</span>
-                    <span className="text-sm text-muted-foreground">{t("health.healthScore")}</span>
-                  </div>
+          <div className="rounded-lg bg-muted/50 p-4 border border-muted">
+            <div className="flex items-start gap-3">
+              <Brain className="h-5 w-5 text-teal-600 mt-0.5" />
+              <div className="space-y-3 flex-1">
+                {/* Areas of Concern */}
+                <div>
+                  <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-red-600">
+                    <AlertTriangle className="h-4 w-4" />
+                    {t("health.areasOfConcern")}:
+                  </h4>
+                  {aiLoading ? (
+                    <p className="text-sm text-gray-500">{t("health.analyzingYourHealthData") || "Analyzing your health data..."}</p>
+                  ) : aiError ? (
+                    <p className="text-sm text-gray-500 italic">{t("health.unableToAnalyzeConcerns") || "Unable to analyze concerns at this time. Please try again later."}</p>
+                  ) : !aiAnalysis ? (
+                    <p className="text-sm text-gray-500 italic">{t("health.noAnalysisAvailableYet") || "No analysis available yet. AI analysis will appear here once generated."}</p>
+                  ) : (aiAnalysis?.analysis?.areas_of_concern || []).length === 0 ? (
+                    <p className="text-sm text-gray-500 italic">{t("health.noAreasOfConcernIdentified") || "No areas of concern identified in your current health data."}</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {(aiAnalysis?.analysis?.areas_of_concern || []).map((concern: string, index: number) => (
+                        <p key={index} className="text-sm">
+                          {typeof concern === 'string' ? concern : String(concern)}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="mt-2 text-center">
-                  <p className="font-medium">
-                    {healthScore >= 80
-                      ? t("health.excellent")
-                      : healthScore >= 60
-                        ? t("health.good")
-                        : t("health.needsImprovement")}
-                  </p>
+                
+                {/* Positive Trends */}
+                <div>
+                  <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-green-600">
+                    <ThumbsUp className="h-4 w-4" />
+                    {t("health.positiveTrends")}:
+                  </h4>
+                  {aiLoading ? (
+                    <p className="text-sm text-gray-500">{t("health.identifyingPositiveTrends") || "Identifying positive trends..."}</p>
+                  ) : aiError ? (
+                    <p className="text-sm text-gray-500 italic">{t("health.unableToIdentifyTrends") || "Unable to identify trends at this time. Please try again later."}</p>
+                  ) : !aiAnalysis ? (
+                    <p className="text-sm text-gray-500 italic">{t("health.noAnalysisAvailableYet") || "No analysis available yet. AI analysis will appear here once generated."}</p>
+                  ) : (aiAnalysis?.analysis?.positive_trends || []).length === 0 ? (
+                    <p className="text-sm text-gray-500 italic">{t("health.noPositiveTrendsIdentified") || "No positive trends identified in your current health data."}</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {(aiAnalysis?.analysis?.positive_trends || []).map((trend: string, index: number) => (
+                        <p key={index} className="text-sm">
+                          {typeof trend === 'string' ? trend : String(trend)}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Recommendations */}
+                <div>
+                  <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-blue-600">
+                    <Lightbulb className="h-4 w-4" />
+                    {t("health.recommendations")}:
+                  </h4>
+                  {aiLoading ? (
+                    <p className="text-sm text-gray-500">{t("health.generatingPersonalizedRecommendations") || "Generating personalized recommendations..."}</p>
+                  ) : aiError ? (
+                    <p className="text-sm text-gray-500 italic">{t("health.unableToGenerateRecommendations") || "Unable to generate recommendations at this time. Please try again later."}</p>
+                  ) : !aiAnalysis ? (
+                    <p className="text-sm text-gray-500 italic">{t("health.noAnalysisAvailableYet") || "No analysis available yet. AI analysis will appear here once generated."}</p>
+                  ) : (aiAnalysis?.analysis?.recommendations || []).length === 0 ? (
+                    <p className="text-sm text-gray-500 italic">{t("health.noRecommendationsAvailable") || "No recommendations available for your current health data."}</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {(aiAnalysis?.analysis?.recommendations || []).map((recommendation: string, index: number) => (
+                        <p key={index} className="text-sm">
+                          {typeof recommendation === 'string' ? recommendation : String(recommendation)}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-
-            {/* AI Summary */}
-            <div className="flex-[2]">
-              <div className="rounded-lg bg-muted/50 p-4 border border-muted h-full">
-                <div className="flex items-start gap-3">
-                  <Brain className="h-5 w-5 text-teal-600 mt-0.5" />
-                  <div className="space-y-3">
-                    <div>
-                      <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-red-600">
-                        <AlertTriangle className="h-4 w-4" />
-                        {t("health.areasOfConcern")}:
-                      </h4>
-                      <p className="text-sm">{t("health.ldlConcern")}</p>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-green-600">
-                        <ThumbsUp className="h-4 w-4" />
-                        {t("health.positiveTrends")}:
-                      </h4>
-                      <p className="text-sm">{t("health.bpImprovement")}</p>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-blue-600">
-                        <Lightbulb className="h-4 w-4" />
-                        {t("health.recommendations")}:
-                      </h4>
-                      <p className="text-sm">{t("health.medicationRecommendation")}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Health Records Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("health.healthRecords")}</CardTitle>
-          <CardDescription>{t("health.importantMetrics")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {healthMetricsSummary.map((metric) => renderSummaryMetricCard(metric))}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Wellness Section */}
+      {renderSection(
+        t("health.wellness") || "Wellness",
+        t("health.wellnessDescription") || "Body, Vitals, and Lifestyle",
+        summaryData.wellness.recommended,
+        summaryData.wellness.recent
+      )}
 
-      {/* Wellness Records Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("health.wellnessRecords")}</CardTitle>
-          <CardDescription>{t("health.lifestyleMetrics")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {wellnessMetricsSummary.map((metric) => renderSummaryMetricCard(metric))}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Analysis Section */}
+      {renderSection(
+        t("health.analysis") || "Analysis",
+        t("health.analysisDescription") || "Health analysis and insights",
+        summaryData.analysis.recommended,
+        summaryData.analysis.recent
+      )}
     </div>
   )
 }

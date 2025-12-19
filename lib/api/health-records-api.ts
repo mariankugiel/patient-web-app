@@ -127,6 +127,17 @@ export interface SectionWithMetrics {
   metrics: MetricWithData[]
 }
 
+export interface SummaryDataResponse {
+  wellness: {
+    recommended: MetricWithData[]
+    recent: MetricWithData[]
+  }
+  analysis: {
+    recommended: MetricWithData[]
+    recent: MetricWithData[]
+  }
+}
+
 export interface AnalysisDashboardResponse {
   sections: SectionWithMetrics[]
   latest_analysis?: any
@@ -248,6 +259,19 @@ export class HealthRecordsApiService {
       params.end_date = endDate
     }
     const response = await apiClient.get(`/health-records/metrics/${metricId}/records`, { params })
+    return response.data
+  }
+
+  // Summary data for summary page
+  static async getSummaryData(patientId?: number, patientToken?: string): Promise<SummaryDataResponse> {
+    const params: any = {}
+    if (patientId) {
+      params.patient_id = patientId
+    }
+    if (patientToken) {
+      params.patient_token = patientToken
+    }
+    const response = await apiClient.get('/health-records/summary', { params })
     return response.data
   }
 

@@ -26,12 +26,14 @@ import {
   X,
   Check,
   Globe,
+  Activity,
 } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 
 import { type Language, getTranslation } from "@/lib/translations"
 import { WelcomePage } from "./welcome-page"
+import { IntegrationStep } from "./steps/integration-step"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
@@ -141,6 +143,9 @@ interface FormData {
   labAnalysis: File | null
   medicalImages: Array<{ file: File; category: string; conclusion: string; status: string; date: Date | undefined }>
 
+  // Integrations
+  integrations?: Record<string, boolean>
+
   // Health Plan
   wantsHealthGoals: boolean
   healthGoals: Array<{ goal: string; targetDate: Date | undefined }>
@@ -218,10 +223,7 @@ const getSteps = (language: Language) => [
   { id: 2, title: getTranslation(language, "steps.medicalCondition"), icon: Heart },
   { id: 3, title: getTranslation(language, "steps.familyHistory"), icon: Users },
   { id: 4, title: getTranslation(language, "steps.healthRecords"), icon: FileText },
-  { id: 5, title: getTranslation(language, "steps.healthPlan"), icon: CalendarIconAlt },
-  { id: 6, title: getTranslation(language, "steps.appointments"), icon: CalendarIconAlt },
-  { id: 7, title: getTranslation(language, "steps.permissions"), icon: Settings },
-  { id: 8, title: getTranslation(language, "steps.settings"), icon: Settings },
+  { id: 5, title: getTranslation(language, "steps.integrations") || "Integrations", icon: Activity },
 ]
 
 export function OnboardingSurvey() {
@@ -334,6 +336,7 @@ export function OnboardingSurvey() {
     appointmentReminders: false,
     dataSharing: false,
     familyFriends: [],
+    integrations: {},
   })
 
   const updateFormData = (field: string, value: any) => {
@@ -404,7 +407,7 @@ export function OnboardingSurvey() {
       }))
 
       toast.success("Onboarding skipped successfully!")
-      router.push("/patient/dashboard")
+      router.push("/patient/health-records/summary")
     } catch (error) {
       console.error('Error marking onboarding as skipped:', error)
       toast.error("Failed to skip onboarding. Please try again.")
@@ -620,9 +623,11 @@ export function OnboardingSurvey() {
             {currentStep === 4 && (
               <HealthRecordsStep formData={formData} updateFormData={updateFormData} language={language} />
             )}
-            {currentStep === 5 && <HealthPlanStep formData={formData} updateFormData={updateFormData} />}
-            {currentStep === 6 && <AppointmentsStep formData={formData} updateFormData={updateFormData} />}
-            {currentStep === 7 && (
+            {currentStep === 5 && (
+              <IntegrationStep formData={formData} updateFormData={updateFormData} language={language} />
+            )}
+            {false && currentStep === 6 && <AppointmentsStep formData={formData} updateFormData={updateFormData} />}
+            {false && currentStep === 7 && (
               <div className="space-y-8">
                 <div>
                   <h3 className="text-lg font-medium mb-4">
@@ -885,7 +890,6 @@ export function OnboardingSurvey() {
                 </div>
               </div>
             )}
-            {currentStep === 8 && <SettingsStep formData={formData} updateFormData={updateFormData} />}
           </CardContent>
         </Card>
 
@@ -902,7 +906,7 @@ export function OnboardingSurvey() {
               onClick={currentStep === steps.length ? async () => {
                 console.log("Submit", formData)
                 await markOnboardingCompleted()
-                router.push("/patient/dashboard")
+                router.push("/patient/health-records/summary")
               } : nextStep}
               className="bg-primary hover:bg-primary/90"
             >
@@ -1122,20 +1126,3 @@ const HealthRecordsStep = ({ formData, updateFormData, language }: any) => (
   </div>
 )
 
-const HealthPlanStep = ({ formData, updateFormData }: any) => (
-  <div className="space-y-6">
-    <p className="text-muted-foreground">Health plan step - to be implemented</p>
-  </div>
-)
-
-const AppointmentsStep = ({ formData, updateFormData }: any) => (
-  <div className="space-y-6">
-    <p className="text-muted-foreground">Appointments step - to be implemented</p>
-  </div>
-)
-
-const SettingsStep = ({ formData, updateFormData }: any) => (
-  <div className="space-y-6">
-    <p className="text-muted-foreground">Settings step - to be implemented</p>
-  </div>
-)
