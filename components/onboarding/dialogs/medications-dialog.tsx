@@ -1,8 +1,7 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useLanguage } from '@/contexts/language-context'
-import { getTranslation } from '@/lib/translations'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,33 +31,35 @@ interface MedicationsDialogProps {
   editingMedication?: Medication | null
 }
 
-const FREQUENCY_OPTIONS = [
-  { value: 'once-daily', label: 'Once Daily' },
-  { value: 'twice-daily', label: 'Twice Daily' },
-  { value: 'three-times-daily', label: 'Three Times Daily' },
-  { value: 'four-times-daily', label: 'Four Times Daily' },
-  { value: 'as-needed', label: 'As Needed' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'monthly', label: 'Monthly' }
-]
-
 const REMINDER_TIMES = [
   '06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00',
   '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'
 ]
 
-const REMINDER_DAYS = [
-  { value: 'monday', label: 'Monday' },
-  { value: 'tuesday', label: 'Tuesday' },
-  { value: 'wednesday', label: 'Wednesday' },
-  { value: 'thursday', label: 'Thursday' },
-  { value: 'friday', label: 'Friday' },
-  { value: 'saturday', label: 'Saturday' },
-  { value: 'sunday', label: 'Sunday' }
-]
-
 export function MedicationsDialog({ isOpen, onClose, onSave, editingMedication }: MedicationsDialogProps) {
-  const { language } = useLanguage()
+  const { t } = useLanguage()
+  
+  // Frequency options with translations
+  const FREQUENCY_OPTIONS = useMemo(() => [
+    { value: 'once-daily', label: t('medications.onceDaily') },
+    { value: 'twice-daily', label: t('medications.twiceDaily') },
+    { value: 'three-times-daily', label: t('medications.threeTimesDaily') },
+    { value: 'four-times-daily', label: t('medications.fourTimesDaily') },
+    { value: 'as-needed', label: t('medications.asNeeded') },
+    { value: 'weekly', label: t('medications.weekly') },
+    { value: 'monthly', label: t('medications.monthly') }
+  ], [t])
+  
+  // Reminder days with translations
+  const REMINDER_DAYS = useMemo(() => [
+    { value: 'monday', label: t('medications.mondayFull') },
+    { value: 'tuesday', label: t('medications.tuesdayFull') },
+    { value: 'wednesday', label: t('medications.wednesdayFull') },
+    { value: 'thursday', label: t('medications.thursdayFull') },
+    { value: 'friday', label: t('medications.fridayFull') },
+    { value: 'saturday', label: t('medications.saturdayFull') },
+    { value: 'sunday', label: t('medications.sundayFull') }
+  ], [t])
   const [formData, setFormData] = useState<Partial<Medication>>({
     drugName: '',
     purpose: '',
@@ -93,27 +94,27 @@ export function MedicationsDialog({ isOpen, onClose, onSave, editingMedication }
     const newErrors: string[] = []
 
     if (!formData.drugName?.trim()) {
-      newErrors.push('Drug name is required')
+      newErrors.push(t('medications.drugNameRequired'))
     }
 
     if (!formData.purpose?.trim()) {
-      newErrors.push('Purpose is required')
+      newErrors.push(t('medications.purposeRequired'))
     }
 
     if (!formData.dosage?.trim()) {
-      newErrors.push('Dosage is required')
+      newErrors.push(t('medications.dosageRequired'))
     }
 
     if (!formData.frequency) {
-      newErrors.push('Frequency is required')
+      newErrors.push(t('medications.frequencyRequired'))
     }
 
     if (formData.hasReminder && !formData.reminderTime) {
-      newErrors.push('Reminder time is required when reminder is enabled')
+      newErrors.push(t('medications.reminderTimeRequired'))
     }
 
     if (formData.hasReminder && (!formData.reminderDays || formData.reminderDays.length === 0)) {
-      newErrors.push('At least one reminder day is required')
+      newErrors.push(t('medications.reminderDaysRequired'))
     }
 
     setErrors(newErrors)
@@ -162,12 +163,12 @@ export function MedicationsDialog({ isOpen, onClose, onSave, editingMedication }
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? 'Edit Medication' : 'Add New Medication'}
+            {isEditing ? t('medications.editMedicationTitle') : t('medications.addNewMedicationTitle')}
           </DialogTitle>
           <DialogDescription>
             {isEditing 
-              ? 'Update your medication information. You can add detailed scheduling after completing onboarding.'
-              : 'Add a new medication to your list. You can add detailed scheduling after completing onboarding.'
+              ? t('medications.editMedicationDesc')
+              : t('medications.addNewMedicationDesc')
             }
           </DialogDescription>
         </DialogHeader>
@@ -175,47 +176,47 @@ export function MedicationsDialog({ isOpen, onClose, onSave, editingMedication }
         <div className="space-y-6">
           {/* Basic Information */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Basic Information</h3>
+            <h3 className="text-lg font-semibold">{t('medications.basicInformation')}</h3>
             
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="drugName">Medication Name *</Label>
+                <Label htmlFor="drugName">{t('medications.medicationName')} *</Label>
                 <Input
                   id="drugName"
                   value={formData.drugName || ''}
                   onChange={(e) => setFormData({ ...formData, drugName: e.target.value })}
-                  placeholder="e.g., Metformin, Lisinopril"
+                  placeholder={t('medications.medicationNamePlaceholder')}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dosage">Dosage *</Label>
+                <Label htmlFor="dosage">{t('medications.dosage')} *</Label>
                 <Input
                   id="dosage"
                   value={formData.dosage || ''}
                   onChange={(e) => setFormData({ ...formData, dosage: e.target.value })}
-                  placeholder="e.g., 500mg, 10mg"
+                  placeholder={t('medications.dosagePlaceholderDialog')}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="purpose">Purpose *</Label>
+                <Label htmlFor="purpose">{t('medications.purpose')} *</Label>
                 <Input
                   id="purpose"
                   value={formData.purpose || ''}
                   onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
-                  placeholder="What is this medication for?"
+                  placeholder={t('medications.purposePlaceholderDialog')}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="frequency">Frequency *</Label>
+                <Label htmlFor="frequency">{t('medications.frequency')} *</Label>
                 <Select
                   value={formData.frequency || ''}
                   onValueChange={(value) => setFormData({ ...formData, frequency: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select frequency" />
+                    <SelectValue placeholder={t('medications.selectFrequency')} />
                   </SelectTrigger>
                   <SelectContent>
                     {FREQUENCY_OPTIONS.map((option) => (
@@ -238,20 +239,20 @@ export function MedicationsDialog({ isOpen, onClose, onSave, editingMedication }
                 onCheckedChange={(checked) => setFormData({ ...formData, hasReminder: !!checked })}
               />
               <Label htmlFor="hasReminder" className="text-sm font-medium">
-                Set reminder for this medication
+                {t('medications.setReminderForMedication')}
               </Label>
             </div>
 
             {formData.hasReminder && (
               <div className="space-y-4 pl-6 border-l-2 border-blue-200">
                 <div className="space-y-2">
-                  <Label htmlFor="reminderTime">Reminder Time</Label>
+                  <Label htmlFor="reminderTime">{t('medications.reminderTime')}</Label>
                   <Select
                     value={formData.reminderTime || ''}
                     onValueChange={(value) => setFormData({ ...formData, reminderTime: value })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select time" />
+                      <SelectValue placeholder={t('medications.selectTime')} />
                     </SelectTrigger>
                     <SelectContent>
                       {REMINDER_TIMES.map((time) => (
@@ -264,7 +265,7 @@ export function MedicationsDialog({ isOpen, onClose, onSave, editingMedication }
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Reminder Days</Label>
+                  <Label>{t('medications.reminderDays')}</Label>
                   <div className="grid grid-cols-2 gap-2">
                     {REMINDER_DAYS.map((day) => (
                       <div key={day.value} className="flex items-center space-x-2">
@@ -299,10 +300,10 @@ export function MedicationsDialog({ isOpen, onClose, onSave, editingMedication }
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {t('health.dialog.cancel')}
           </Button>
           <Button onClick={handleSave}>
-            {isEditing ? 'Update Medication' : 'Add Medication'}
+            {isEditing ? t('medications.updateMedication') : t('medications.addMedication')}
           </Button>
         </DialogFooter>
       </DialogContent>

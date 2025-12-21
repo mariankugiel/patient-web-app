@@ -79,8 +79,8 @@ export function SurgeriesHospitalizationsSection() {
           </div>
         ) : surgeries.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            <p>No surgeries or hospitalizations recorded.</p>
-            <p className="text-sm">Click the Add button above to add your first entry.</p>
+            <p>{t('health.noSurgeriesHospitalizations')}</p>
+            <p className="text-sm">{t('health.noSurgeriesHospitalizationsDesc')}</p>
           </div>
         ) : (
           <div className="space-y-3">

@@ -11,10 +11,10 @@ import { setCurrentStep, addCompletedStep } from '@/lib/features/onboarding/onbo
 import { AuthApiService } from '@/lib/api/auth-api'
 import { PersonalInformationStep } from '@/components/onboarding/steps/personal-information-step'
 import { OnboardingLayout } from '@/components/onboarding/onboarding-layout'
-import { type Language, getTranslation } from '@/lib/translations'
 import { toast } from 'react-toastify'
 import { useOnboardingSkip } from '@/hooks/use-onboarding-skip'
 import { useOnboardingAuth } from '@/hooks/use-onboarding-auth'
+import { useLanguage } from '@/contexts/language-context'
 
 interface LocationDetails {
   display_name: string
@@ -52,7 +52,7 @@ export default function PersonalInformationPage() {
   const { user, isReady } = useOnboardingAuth()
   const completedSteps = useSelector((state: RootState) => state.onboarding.completedSteps)
   const { skipOnboarding, isSkipping } = useOnboardingSkip()
-  const [language, setLanguage] = useState<Language>("en-US")
+  const { t } = useLanguage()
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState<FormData>({
@@ -155,32 +155,24 @@ export default function PersonalInformationPage() {
     const errors: Record<string, string> = {}
     
     if (!formData.firstName.trim()) {
-      errors.firstName = "First name is required"
+      errors.firstName = t("onboarding.validation.firstNameRequired")
     }
     if (!formData.lastName.trim()) {
-      errors.lastName = "Last name is required"
+      errors.lastName = t("onboarding.validation.lastNameRequired")
     }
     if (!formData.dateOfBirth.trim()) {
-      errors.dateOfBirth = "Date of birth is required"
+      errors.dateOfBirth = t("onboarding.validation.dateOfBirthRequired")
     }
     if (!formData.gender.trim()) {
-      errors.gender = "Gender is required"
+      errors.gender = t("onboarding.validation.genderRequired")
     }
     if (!formData.location.trim()) {
-      errors.location = "Location is required"
+      errors.location = t("onboarding.validation.locationRequired")
     }
     if (!formData.phone.trim()) {
-      errors.phone = "Phone number is required"
+      errors.phone = t("onboarding.validation.phoneRequired")
     }
-    if (!formData.emergencyContactName.trim()) {
-      errors.emergencyContactName = "Emergency contact name is required"
-    }
-    if (!formData.emergencyContactPhone.trim()) {
-      errors.emergencyContactPhone = "Emergency contact phone is required"
-    }
-    if (!formData.emergencyContactRelationship.trim()) {
-      errors.emergencyContactRelationship = "Emergency contact relationship is required"
-    }
+    // Emergency contacts are optional - no validation needed
     
     return errors
   }
@@ -201,11 +193,11 @@ export default function PersonalInformationPage() {
     try {
       await saveProgress()
       dispatch(addCompletedStep(1))
-      toast.success("Personal information saved successfully!")
+      toast.success(t("onboarding.messages.personalInfoSavedSuccess"))
       router.push('/onboarding/steps/2')
     } catch (error) {
       console.error('Error in handleNext:', error)
-      toast.error("Failed to save personal information. Please try again.")
+      toast.error(t("onboarding.messages.personalInfoSaveError"))
     } finally {
       setIsSubmitting(false)
     }
@@ -213,10 +205,6 @@ export default function PersonalInformationPage() {
 
   const handleBack = () => {
     router.push('/onboarding')
-  }
-
-  const handleLanguageChange = (newLanguage: Language) => {
-    setLanguage(newLanguage)
   }
 
   const handleStepClick = (stepId: number) => {
@@ -231,10 +219,8 @@ export default function PersonalInformationPage() {
   return (
     <OnboardingLayout
       currentStep={1}
-      totalSteps={8}
+      totalSteps={6}
       completedSteps={completedSteps}
-      language={language}
-      onLanguageChange={handleLanguageChange}
       onStepClick={handleStepClick}
       onPrevious={handleBack}
       onNext={handleNext}
@@ -242,12 +228,11 @@ export default function PersonalInformationPage() {
       isSkipping={isSkipping}
       isLoading={isSubmitting}
       showBackButton={false}
-      stepTitle={getTranslation(language, "steps.personalInfo")}
+      stepTitle={t("steps.personalInfo")}
     >
       <PersonalInformationStep 
         formData={formData} 
         updateFormData={updateFormData} 
-        language={language}
         fieldErrors={fieldErrors}
       />
     </OnboardingLayout>

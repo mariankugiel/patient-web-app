@@ -156,7 +156,7 @@ function IntegrationsTabContent() {
       } else {
         // Disconnect: Get disconnection URL and redirect
         try {
-          connectionResponse = await ThryveApiService.getDisconnectionUrl(dataSourceId, redirectUri)
+        connectionResponse = await ThryveApiService.getDisconnectionUrl(dataSourceId, redirectUri)
           
           // Check if the response indicates the integration was already removed (no access token)
           if (connectionResponse.url && connectionResponse.url.includes('connected=false')) {
@@ -173,9 +173,9 @@ function IntegrationsTabContent() {
             return
           }
           
-          toast.info("Redirecting to disconnect your account...")
-          // Redirect to Thryve disconnection page
-          window.location.href = connectionResponse.url
+        toast.info("Redirecting to disconnect your account...")
+        // Redirect to Thryve disconnection page
+        window.location.href = connectionResponse.url
         } catch (error: any) {
           // Check if error is about missing access token
           if (error.message && error.message.includes("access token")) {

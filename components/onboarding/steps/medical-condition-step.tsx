@@ -5,18 +5,19 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, AlertCircle, CheckCircle, Plus, Info } from 'lucide-react'
-import { type Language } from "@/lib/translations"
 import { CurrentConditionsDialog } from "@/components/health-records/current-conditions-dialog"
 import { PastConditionsDialog } from "@/components/health-records/past-conditions-dialog"
 import { PastSurgeriesDialog } from "@/components/health-records/past-surgeries-dialog"
 import { MedicationsDialog } from '@/components/onboarding/dialogs/medications-dialog'
 import { MedicalConditionApiService } from '@/lib/api/medical-condition-api'
+import { useLanguage } from '@/contexts/language-context'
 
 interface MedicalConditionStepProps {
-  language: Language
 }
 
-export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
+export function MedicalConditionStep({}: MedicalConditionStepProps) {
+  const { t } = useLanguage()
+  
   // Local state for medical conditions data
   const [currentHealthProblems, setCurrentHealthProblems] = useState<any[]>([])
   const [medications, setMedications] = useState<any[]>([])
@@ -27,7 +28,7 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
 
   // Helper function to format dates (handles both date and datetime formats)
   const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return 'Not specified'
+    if (!dateString) return t('onboarding.medicalConditions.notSpecified')
 
     try {
       // Handle both date (YYYY-MM-DD) and datetime (YYYY-MM-DDTHH:mm:ss) formats
@@ -49,14 +50,14 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
   const getStatusBadge = (status: string) => {
     const statusConfig = {
       // Medical condition statuses
-      'uncontrolled': { label: 'Uncontrolled', variant: 'destructive' as const },
-      'controlled': { label: 'Controlled', variant: 'default' as const },
-      'partiallyControlled': { label: 'Partially Controlled', variant: 'secondary' as const },
-      'resolved': { label: 'Resolved', variant: 'outline' as const },
+      'uncontrolled': { label: t('onboarding.medicalConditions.status.uncontrolled'), variant: 'destructive' as const },
+      'controlled': { label: t('onboarding.medicalConditions.status.controlled'), variant: 'default' as const },
+      'partiallyControlled': { label: t('onboarding.medicalConditions.status.partiallyControlled'), variant: 'secondary' as const },
+      'resolved': { label: t('onboarding.medicalConditions.status.resolved'), variant: 'outline' as const },
       // Surgery recovery statuses
-      'full_recovery': { label: 'Full Recovery', variant: 'default' as const },
-      'ongoing_treatment': { label: 'Ongoing Treatment', variant: 'secondary' as const },
-      'no_recovery': { label: 'No Recovery', variant: 'destructive' as const }
+      'full_recovery': { label: t('onboarding.medicalConditions.status.fullRecovery'), variant: 'default' as const },
+      'ongoing_treatment': { label: t('onboarding.medicalConditions.status.ongoingTreatment'), variant: 'secondary' as const },
+      'no_recovery': { label: t('onboarding.medicalConditions.status.noRecovery'), variant: 'destructive' as const }
     }
 
     const config = statusConfig[status as keyof typeof statusConfig] || { label: status, variant: 'outline' as const }
@@ -105,7 +106,7 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
       setMedications(medicationsData)
     } catch (err) {
       console.error('Failed to load medical conditions:', err)
-      setError('Failed to load medical conditions data')
+      setError(t('onboarding.medicalConditions.failedToLoadMedicalConditions'))
     } finally {
       setIsLoading(false)
     }
@@ -204,7 +205,7 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
       <div className="space-y-8">
         <div className="text-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading medical conditions...</p>
+          <p className="text-gray-600">{t('onboarding.medicalConditions.loadingMedicalConditions')}</p>
         </div>
       </div>
     )
@@ -217,7 +218,7 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
           <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-4" />
           <p className="text-red-600 mb-4">{error}</p>
           <Button onClick={() => window.location.reload()} variant="outline">
-            Retry
+            {t('onboarding.medicalConditions.retry')}
           </Button>
         </div>
       </div>
@@ -231,9 +232,9 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
-              Current Medical Conditions
+              {t('onboarding.medicalConditions.currentMedicalConditions')}
             <span className="text-sm font-normal text-gray-500">
-                ({currentHealthProblems.length} entries)
+                ({currentHealthProblems.length} {t('onboarding.medicalConditions.entries')})
             </span>
           </CardTitle>
             <Button
@@ -243,7 +244,7 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
               className="flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
-              Add
+              {t('onboarding.medicalConditions.add')}
             </Button>
           </div>
         </CardHeader>
@@ -268,14 +269,14 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
               
                 <div className="space-y-3 text-sm">
                 <div>
-                    <span className="font-medium">Diagnosed Date:</span> {problem.diagnosed_date ? formatDate(problem.diagnosed_date) : 'Not specified'}
+                    <span className="font-medium">{t('onboarding.medicalConditions.fields.diagnosedDate')}</span> {problem.diagnosed_date ? formatDate(problem.diagnosed_date) : t('onboarding.medicalConditions.notSpecified')}
                 </div>
                 <div>
-                    <span className="font-medium">Treatment Plan:</span> {problem.treatment_plan || problem.treatment || 'Not specified'}
+                    <span className="font-medium">{t('onboarding.medicalConditions.fields.treatmentPlan')}</span> {problem.treatment_plan || problem.treatment || t('onboarding.medicalConditions.notSpecified')}
                   </div>
                   {(problem.description || problem.comments) && (
                     <div>
-                      <span className="font-medium">Description:</span> {problem.description || problem.comments}
+                      <span className="font-medium">{t('onboarding.medicalConditions.fields.description')}</span> {problem.description || problem.comments}
                   </div>
                 )}
               </div>
@@ -291,9 +292,9 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
-              Medications
+              {t('onboarding.medicalConditions.medications')}
             <span className="text-sm font-normal text-gray-500">
-                ({medications.length} entries)
+                ({medications.length} {t('onboarding.medicalConditions.entries')})
             </span>
           </CardTitle>
             <Button
@@ -303,7 +304,7 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
               className="flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
-              Add
+              {t('onboarding.medicalConditions.add')}
             </Button>
           </div>
         </CardHeader>
@@ -325,17 +326,17 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <div>
-                  <span className="font-medium">Purpose:</span> {medication.purpose}
+                  <span className="font-medium">{t('onboarding.medicalConditions.fields.purpose')}</span> {medication.purpose}
                 </div>
                 <div>
-                  <span className="font-medium">Dosage:</span> {medication.dosage}
+                  <span className="font-medium">{t('onboarding.medicalConditions.fields.dosage')}</span> {medication.dosage}
                 </div>
                 <div>
-                  <span className="font-medium">Frequency:</span> {medication.frequency}
+                  <span className="font-medium">{t('onboarding.medicalConditions.fields.frequency')}</span> {medication.frequency}
                 </div>
                   {medication.has_reminder && (
                     <div>
-                      <span className="font-medium">Reminder:</span> {medication.reminder_time} ({medication.reminder_days?.join(', ') || 'Daily'})
+                      <span className="font-medium">{t('onboarding.medicalConditions.fields.reminder')}</span> {medication.reminder_time} ({medication.reminder_days?.join(', ') || t('onboarding.medicalConditions.daily')})
                   </div>
                 )}
                 </div>
@@ -350,9 +351,9 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
-            Past Medical Conditions
+            {t('onboarding.medicalConditions.pastMedicalConditions')}
             <span className="text-sm font-normal text-gray-500">
-                ({pastMedicalConditions.length} entries)
+                ({pastMedicalConditions.length} {t('onboarding.medicalConditions.entries')})
             </span>
           </CardTitle>
             <Button
@@ -362,7 +363,7 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
               className="flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
-              Add
+              {t('onboarding.medicalConditions.add')}
             </Button>
           </div>
         </CardHeader>
@@ -387,17 +388,17 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
               
                 <div className="space-y-3 text-sm">
                 <div>
-                    <span className="font-medium">Diagnosed Date:</span> {condition.diagnosed_date ? formatDate(condition.diagnosed_date) : 'Not specified'}
+                    <span className="font-medium">{t('onboarding.medicalConditions.fields.diagnosedDate')}</span> {condition.diagnosed_date ? formatDate(condition.diagnosed_date) : t('onboarding.medicalConditions.notSpecified')}
                 </div>
                 <div>
-                    <span className="font-medium">Resolved Date:</span> {condition.resolved_date ? formatDate(condition.resolved_date) : 'Not specified'}
+                    <span className="font-medium">{t('onboarding.medicalConditions.fields.resolvedDate')}</span> {condition.resolved_date ? formatDate(condition.resolved_date) : t('onboarding.medicalConditions.notSpecified')}
                 </div>
                   <div>
-                    <span className="font-medium">Treatment Plan:</span> {condition.treatment_plan || condition.treatment || 'Not specified'}
+                    <span className="font-medium">{t('onboarding.medicalConditions.fields.treatmentPlan')}</span> {condition.treatment_plan || condition.treatment || t('onboarding.medicalConditions.notSpecified')}
                   </div>
                   {(condition.description || condition.comments) && (
                     <div>
-                      <span className="font-medium">Description:</span> {condition.description || condition.comments}
+                      <span className="font-medium">{t('onboarding.medicalConditions.fields.description')}</span> {condition.description || condition.comments}
                   </div>
                 )}
               </div>
@@ -413,9 +414,9 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
-            Past Surgeries
+            {t('onboarding.medicalConditions.pastSurgeries')}
             <span className="text-sm font-normal text-gray-500">
-                ({pastSurgeries.length} entries)
+                ({pastSurgeries.length} {t('onboarding.medicalConditions.entries')})
             </span>
           </CardTitle>
             <Button
@@ -425,7 +426,7 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
               className="flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
-              Add
+              {t('onboarding.medicalConditions.add')}
             </Button>
           </div>
         </CardHeader>
@@ -440,7 +441,7 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
               <Card className="p-4 border-l-4 border-l-gray-400 bg-gray-50 group-hover:border-blue-300">
                 <div className="flex items-start mb-3">
                 <div className="flex items-center gap-2">
-                    <h4 className="font-medium text-gray-900">{surgery.condition_name?.replace('Surgery: ', '') || 'Surgery'}</h4>
+                    <h4 className="font-medium text-gray-900">{surgery.condition_name?.replace('Surgery: ', '') || t('onboarding.medicalConditions.surgery')}</h4>
                     <Calendar className="w-4 h-4 text-gray-600" />
                 </div>
                   <div className="ml-auto">
@@ -450,17 +451,17 @@ export function MedicalConditionStep({ language }: MedicalConditionStepProps) {
               
                 <div className="space-y-3 text-sm">
                 <div>
-                    <span className="font-medium">Type:</span> Surgery
+                    <span className="font-medium">{t('onboarding.medicalConditions.fields.type')}</span> {t('onboarding.medicalConditions.surgery')}
                 </div>
                 <div>
-                    <span className="font-medium">Date:</span> {surgery.diagnosed_date ? formatDate(surgery.diagnosed_date) : 'Not specified'}
+                    <span className="font-medium">{t('onboarding.medicalConditions.fields.date')}</span> {surgery.diagnosed_date ? formatDate(surgery.diagnosed_date) : t('onboarding.medicalConditions.notSpecified')}
                 </div>
                   <div>
-                    <span className="font-medium">Treatment:</span> {surgery.treatment_plan || 'Not specified'}
+                    <span className="font-medium">{t('onboarding.medicalConditions.fields.treatment')}</span> {surgery.treatment_plan || t('onboarding.medicalConditions.notSpecified')}
                   </div>
                   {surgery.description && (
                     <div>
-                      <span className="font-medium">Notes:</span> {surgery.description}
+                      <span className="font-medium">{t('onboarding.medicalConditions.fields.notes')}</span> {surgery.description}
                   </div>
                 )}
               </div>

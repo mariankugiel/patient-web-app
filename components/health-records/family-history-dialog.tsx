@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Trash2, Loader2, Plus } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
+import { ChronicDiseaseAutocomplete } from "@/components/ui/chronic-disease-autocomplete"
 
 interface FamilyHistoryDialogProps {
   open: boolean
@@ -404,14 +405,15 @@ export function FamilyHistoryDialog({
                           </Button>
                         </div>
                         
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                         <div className="space-y-3">
                            <div className="space-y-1">
                              <Label className="text-xs">{t('health.dialog.diseaseName')} <span className="text-red-500">*</span></Label>
-                             <Input
+                             <ChronicDiseaseAutocomplete
                                value={disease.disease}
-                               onChange={(e) => updateChronicDisease(index, 'disease', e.target.value)}
+                               onChange={(value) => updateChronicDisease(index, 'disease', value)}
                                placeholder={t('health.dialog.diseaseNamePlaceholder')}
-                               className={`text-sm ${validationErrors[`chronic_disease_${index}_name`] ? "border-red-500" : ""}`}
+                               className="text-sm"
+                               error={validationErrors[`chronic_disease_${index}_name`]}
                              />
                              {validationErrors[`chronic_disease_${index}_name`] && (
                                <p className="text-xs text-red-500">{validationErrors[`chronic_disease_${index}_name`]}</p>
@@ -558,14 +560,15 @@ export function FamilyHistoryDialog({
                           </Button>
                         </div>
                         
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                         <div className="space-y-3">
                            <div className="space-y-1">
                              <Label className="text-xs">{t('health.dialog.diseaseName')} <span className="text-red-500">*</span></Label>
-                             <Input
+                             <ChronicDiseaseAutocomplete
                                value={disease.disease}
-                               onChange={(e) => updateChronicDisease(index, 'disease', e.target.value)}
+                               onChange={(value) => updateChronicDisease(index, 'disease', value)}
                                placeholder={t('health.dialog.diseaseNamePlaceholder')}
-                               className={`text-sm ${validationErrors[`chronic_disease_${index}_name`] ? "border-red-500" : ""}`}
+                               className="text-sm"
+                               error={validationErrors[`chronic_disease_${index}_name`]}
                              />
                              {validationErrors[`chronic_disease_${index}_name`] && (
                                <p className="text-xs text-red-500">{validationErrors[`chronic_disease_${index}_name`]}</p>

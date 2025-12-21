@@ -92,11 +92,11 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
     const errors: {[key: string]: string} = {}
     
     if (!editingSurgery?.name?.trim()) {
-      errors.name = 'Procedure name is required'
+      errors.name = t('health.dialog.procedureNameRequired')
     }
     
     if (!editingSurgery?.procedure_date?.trim()) {
-      errors.procedure_date = 'Procedure date is required'
+      errors.procedure_date = t('health.dialog.procedureDateRequired')
     }
     
     setValidationErrors(errors)
@@ -170,12 +170,12 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {isEditMode ? 'Edit Surgery/Hospitalization' : 'Add New Surgery/Hospitalization'}
+              {isEditMode ? t('health.dialog.editSurgeryHospitalization') : t('health.dialog.addNewSurgeryHospitalization')}
             </DialogTitle>
             <DialogDescription>
               {isEditMode 
-                ? 'Edit surgery/hospitalization details.'
-                : 'Add a new surgery/hospitalization. All fields are optional except Name and Date.'
+                ? t('health.dialog.editSurgeryHospitalizationDesc')
+                : t('health.dialog.addNewSurgeryHospitalizationDesc')
               }
             </DialogDescription>
           </DialogHeader>
@@ -185,7 +185,7 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
             {isEditMode && editingSurgery && (
               <div className="border rounded-lg p-4 space-y-4">
                 <div className="flex justify-between items-center">
-                  <h4 className="font-medium text-gray-900">Edit Surgery/Hospitalization</h4>
+                  <h4 className="font-medium text-gray-900">{t('health.dialog.editSurgeryHospitalization')}</h4>
                   <Button
                     onClick={confirmDelete}
                     size="sm"
@@ -198,33 +198,33 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit_procedure_type">Type <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="edit_procedure_type">{t('health.dialog.procedureType')} <span className="text-red-500">*</span></Label>
                     <Select
                       value={editingSurgery.procedure_type}
                       onValueChange={(value) => updateSurgeryField('procedure_type', value)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
+                        <SelectValue placeholder={t('health.dialog.selectProcedureType')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="surgery">Surgery</SelectItem>
-                        <SelectItem value="hospitalization">Hospitalization</SelectItem>
+                        <SelectItem value="surgery">{t('health.surgery')}</SelectItem>
+                        <SelectItem value="hospitalization">{t('health.hospitalization')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit_recovery_status">Current Status</Label>
+                    <Label htmlFor="edit_recovery_status">{t('health.currentStatus')}</Label>
                     <Select
                       value={editingSurgery.recovery_status}
                       onValueChange={(value) => updateSurgeryField('recovery_status', value)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
+                        <SelectValue placeholder={t('health.dialog.selectStatus')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="full_recovery">Full Recovery</SelectItem>
-                        <SelectItem value="partial_recovery">Partial Recovery</SelectItem>
-                        <SelectItem value="no_recovery">No Recovery</SelectItem>
+                        <SelectItem value="full_recovery">{t('health.recovery.full')}</SelectItem>
+                        <SelectItem value="partial_recovery">{t('health.recovery.partial')}</SelectItem>
+                        <SelectItem value="no_recovery">{t('health.recovery.none')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -232,12 +232,12 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit_name">Name <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="edit_name">{t('health.dialog.procedureName')} <span className="text-red-500">*</span></Label>
                     <Input
                       id="edit_name"
                       value={editingSurgery.name}
                       onChange={(e) => updateSurgeryField('name', e.target.value)}
-                      placeholder="Procedure name"
+                      placeholder={t('health.dialog.procedureNamePlaceholder')}
                       className={validationErrors.name ? "border-red-500" : ""}
                     />
                     {validationErrors.name && (
@@ -245,7 +245,7 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit_procedure_date">Date <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="edit_procedure_date">{t('health.dialog.procedureDate')} <span className="text-red-500">*</span></Label>
                     <Input
                       id="edit_procedure_date"
                       type="date"
@@ -261,42 +261,42 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit_reason">Reason</Label>
+                    <Label htmlFor="edit_reason">{t('health.dialog.reasonForSurgery')}</Label>
                     <Input
                       id="edit_reason"
                       value={editingSurgery.reason}
                       onChange={(e) => updateSurgeryField('reason', e.target.value)}
-                      placeholder="Reason for surgery"
+                      placeholder={t('health.dialog.reasonForSurgeryPlaceholder')}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit_body_area">Body Area</Label>
+                    <Label htmlFor="edit_body_area">{t('health.bodyArea')}</Label>
                     <Input
                       id="edit_body_area"
                       value={editingSurgery.body_area}
                       onChange={(e) => updateSurgeryField('body_area', e.target.value)}
-                      placeholder="e.g., Abdomen, Heart, Brain"
+                      placeholder={t('health.dialog.bodyAreaPlaceholder')}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit_treatment">Treatment</Label>
+                  <Label htmlFor="edit_treatment">{t('health.dialog.treatmentProvided')}</Label>
                   <Input
                     id="edit_treatment"
                     value={editingSurgery.treatment}
                     onChange={(e) => updateSurgeryField('treatment', e.target.value)}
-                    placeholder="Treatment provided"
+                    placeholder={t('health.dialog.treatmentProvidedPlaceholder')}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit_notes">Notes</Label>
+                  <Label htmlFor="edit_notes">{t('health.notes')}</Label>
                   <Textarea
                     id="edit_notes"
                     value={editingSurgery.notes}
                     onChange={(e) => updateSurgeryField('notes', e.target.value)}
-                    placeholder="Additional notes"
+                    placeholder={t('health.dialog.additionalNotesPlaceholder')}
                     rows={3}
                   />
                 </div>
@@ -308,33 +308,33 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
               <div className="border rounded-lg p-4 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="add_procedure_type">Type <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="add_procedure_type">{t('health.dialog.procedureType')} <span className="text-red-500">*</span></Label>
                     <Select
                       value={editingSurgery.procedure_type}
                       onValueChange={(value) => updateSurgeryField('procedure_type', value)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
+                        <SelectValue placeholder={t('health.dialog.selectProcedureType')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="surgery">Surgery</SelectItem>
-                        <SelectItem value="hospitalization">Hospitalization</SelectItem>
+                        <SelectItem value="surgery">{t('health.surgery')}</SelectItem>
+                        <SelectItem value="hospitalization">{t('health.hospitalization')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="add_recovery_status">Current Status</Label>
+                    <Label htmlFor="add_recovery_status">{t('health.currentStatus')}</Label>
                     <Select
                       value={editingSurgery.recovery_status}
                       onValueChange={(value) => updateSurgeryField('recovery_status', value)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
+                        <SelectValue placeholder={t('health.dialog.selectStatus')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="full_recovery">Full Recovery</SelectItem>
-                        <SelectItem value="partial_recovery">Partial Recovery</SelectItem>
-                        <SelectItem value="no_recovery">No Recovery</SelectItem>
+                        <SelectItem value="full_recovery">{t('health.recovery.full')}</SelectItem>
+                        <SelectItem value="partial_recovery">{t('health.recovery.partial')}</SelectItem>
+                        <SelectItem value="no_recovery">{t('health.recovery.none')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -342,12 +342,12 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="add_name">Name <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="add_name">{t('health.dialog.procedureName')} <span className="text-red-500">*</span></Label>
                     <Input
                       id="add_name"
                       value={editingSurgery.name}
                       onChange={(e) => updateSurgeryField('name', e.target.value)}
-                      placeholder="Procedure name"
+                      placeholder={t('health.dialog.procedureNamePlaceholder')}
                       className={validationErrors.name ? "border-red-500" : ""}
                     />
                     {validationErrors.name && (
@@ -355,7 +355,7 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="add_procedure_date">Date <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="add_procedure_date">{t('health.dialog.procedureDate')} <span className="text-red-500">*</span></Label>
                     <Input
                       id="add_procedure_date"
                       type="date"
@@ -371,42 +371,42 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="add_reason">Reason</Label>
+                    <Label htmlFor="add_reason">{t('health.dialog.reasonForSurgery')}</Label>
                     <Input
                       id="add_reason"
                       value={editingSurgery.reason}
                       onChange={(e) => updateSurgeryField('reason', e.target.value)}
-                      placeholder="Reason for surgery"
+                      placeholder={t('health.dialog.reasonForSurgeryPlaceholder')}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="add_body_area">Body Area</Label>
+                    <Label htmlFor="add_body_area">{t('health.bodyArea')}</Label>
                     <Input
                       id="add_body_area"
                       value={editingSurgery.body_area}
                       onChange={(e) => updateSurgeryField('body_area', e.target.value)}
-                      placeholder="e.g., Abdomen, Heart, Brain"
+                      placeholder={t('health.dialog.bodyAreaPlaceholder')}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="add_treatment">Treatment</Label>
+                  <Label htmlFor="add_treatment">{t('health.dialog.treatmentProvided')}</Label>
                   <Input
                     id="add_treatment"
                     value={editingSurgery.treatment}
                     onChange={(e) => updateSurgeryField('treatment', e.target.value)}
-                    placeholder="Treatment provided"
+                    placeholder={t('health.dialog.treatmentProvidedPlaceholder')}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="add_notes">Notes</Label>
+                  <Label htmlFor="add_notes">{t('health.notes')}</Label>
                   <Textarea
                     id="add_notes"
                     value={editingSurgery.notes}
                     onChange={(e) => updateSurgeryField('notes', e.target.value)}
-                    placeholder="Additional notes"
+                    placeholder={t('health.dialog.additionalNotesPlaceholder')}
                     rows={3}
                   />
                 </div>
@@ -416,11 +416,11 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
 
           <DialogFooter>
             <Button variant="outline" onClick={handleCancel} disabled={saving}>
-              Cancel
+              {t('health.dialog.cancel')}
             </Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {isEditMode ? 'Update Surgery' : 'Add Surgery'}
+              {isEditMode ? t('health.dialog.updateSurgery') : t('health.dialog.addSurgery')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -430,15 +430,15 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
       <AlertDialog open={surgeryToDelete !== null} onOpenChange={() => setSurgeryToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+            <AlertDialogTitle>{t('health.dialog.confirmDeletion')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this surgery/hospitalization? This action cannot be undone.
+              {t('health.dialog.deleteSurgeryConfirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleDeleteCancel}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={handleDeleteCancel}>{t('health.dialog.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteConfirm} className="bg-red-600 hover:bg-red-700">
-              Delete
+              {t('health.dialog.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

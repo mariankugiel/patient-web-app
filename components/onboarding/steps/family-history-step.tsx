@@ -5,16 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Loader2, Plus } from "lucide-react"
-import { useLanguage } from "@/contexts/language-context"
 import { useFamilyMedicalHistory } from "@/hooks/use-medical-conditions"
 import { FamilyHistoryDialog } from "@/components/health-records/family-history-dialog"
-import { type Language } from "@/lib/translations"
+import { useLanguage } from "@/contexts/language-context"
 
 interface FamilyHistoryStepProps {
-  language: Language
 }
 
-export function FamilyHistoryStep({ language }: FamilyHistoryStepProps) {
+export function FamilyHistoryStep({}: FamilyHistoryStepProps) {
   const { t } = useLanguage()
   const [editFamilyHistoryOpen, setEditFamilyHistoryOpen] = useState(false)
   const [selectedFamilyHistory, setSelectedFamilyHistory] = useState<any>(null)
@@ -42,7 +40,7 @@ export function FamilyHistoryStep({ language }: FamilyHistoryStepProps) {
           <div>
             <CardTitle>{t("health.familyHistory")}</CardTitle>
             <CardDescription>
-              {t("health.familyConditions") || "Add family members and their medical history"}
+              {t("health.familyConditions")}
             </CardDescription>
           </div>
           <Button 
@@ -55,7 +53,7 @@ export function FamilyHistoryStep({ language }: FamilyHistoryStepProps) {
             }}
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>{t("action.add") || "Add"}</span>
+            <span>{t("health.dialog.add")}</span>
           </Button>
         </CardHeader>
         <CardContent>
@@ -93,33 +91,33 @@ export function FamilyHistoryStep({ language }: FamilyHistoryStepProps) {
                         {formatRelationName(entry.relation)}
                       </h3>
                       <Badge variant={isDeceased ? "secondary" : "default"}>
-                        {isDeceased ? "Deceased" : "Alive"}
+                        {isDeceased ? t("health.deceased") : t("health.alive")}
                       </Badge>
                     </div>
                     
                     {isDeceased ? (
                       <div className="text-sm text-muted-foreground space-y-1">
                         {entry.age_at_death && (
-                          <p><span className="font-medium">Age at Death:</span> {entry.age_at_death}</p>
+                          <p><span className="font-medium">{t("health.ageAtDeath")}:</span> {entry.age_at_death}</p>
                         )}
                         {entry.cause_of_death && (
-                          <p><span className="font-medium">Cause of Death:</span> {entry.cause_of_death}</p>
+                          <p><span className="font-medium">{t("health.causeOfDeath")}:</span> {entry.cause_of_death}</p>
                         )}
                       </div>
                     ) : (
                       <div className="space-y-2">
                         {entry.current_age && (
                           <p className="text-sm text-muted-foreground">
-                            <span className="font-medium">Current Age:</span> {entry.current_age}
+                            <span className="font-medium">{t("health.currentAge")}:</span> {entry.current_age}
                           </p>
                         )}
                         {chronicDiseases.length > 0 && (
                           <div>
-                            <p className="text-sm font-medium mb-1">Chronic Diseases:</p>
+                            <p className="text-sm font-medium mb-1">{t("health.chronicDiseases")}:</p>
                             <div className="space-y-1">
                               {chronicDiseases.map((disease: any, idx: number) => (
                                 <div key={idx} className="text-sm text-muted-foreground pl-3">
-                                  • {disease.disease} {disease.age_at_diagnosis && `(diagnosed at age ${disease.age_at_diagnosis})`}
+                                  • {disease.disease} {disease.age_at_diagnosis && `(${t("health.diagnosedAtAge")} ${disease.age_at_diagnosis})`}
                                   {disease.comments && <span className="text-xs italic"> - {disease.comments}</span>}
                                 </div>
                               ))}
@@ -132,9 +130,9 @@ export function FamilyHistoryStep({ language }: FamilyHistoryStepProps) {
                     {/* Legacy condition display for backward compatibility */}
                     {entry.condition && (
                       <div className="mt-2 text-sm text-muted-foreground border-t pt-2">
-                        <p><span className="font-medium">Condition:</span> {entry.condition}</p>
-                        {entry.ageOfOnset && <p><span className="font-medium">Age of Onset:</span> {entry.ageOfOnset}</p>}
-                        {entry.outcome && <p><span className="font-medium">Outcome:</span> {entry.outcome}</p>}
+                        <p><span className="font-medium">{t("health.condition")}:</span> {entry.condition}</p>
+                        {entry.ageOfOnset && <p><span className="font-medium">{t("health.ageOfOnset")}:</span> {entry.ageOfOnset}</p>}
+                        {entry.outcome && <p><span className="font-medium">{t("health.outcome")}:</span> {entry.outcome}</p>}
                       </div>
                     )}
                   </div>

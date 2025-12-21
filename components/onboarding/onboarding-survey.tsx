@@ -626,270 +626,6 @@ export function OnboardingSurvey() {
             {currentStep === 5 && (
               <IntegrationStep formData={formData} updateFormData={updateFormData} language={language} />
             )}
-            {false && currentStep === 6 && <AppointmentsStep formData={formData} updateFormData={updateFormData} />}
-            {false && currentStep === 7 && (
-              <div className="space-y-8">
-                <div>
-                  <h3 className="text-lg font-medium mb-4">
-                    {getTranslation(language, "permissions.healthProfessionals")}
-                  </h3>
-                  <div className="flex items-center justify-between mb-4">
-                    <Label className="text-base font-medium">
-                      {getTranslation(language, "permissions.authorizedProfessionals")}
-                    </Label>
-                    <Button type="button" variant="outline" size="sm" onClick={addHealthProfessional}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      {getTranslation(language, "permissions.addProfessional")}
-                    </Button>
-                  </div>
-
-                  {formData.healthProfessionals.map((professional, index) => (
-                    <Card key={index} className="mb-4 border-2 border-gray-300">
-                      <CardContent className="pt-4">
-                        <div className="grid grid-cols-3 gap-4 mb-4">
-                          <div>
-                            <Label>{getTranslation(language, "permissions.name")}</Label>
-                            <Input
-                              value={professional.name}
-                              onChange={(e) => updateHealthProfessional(index, "name", e.target.value)}
-                              placeholder={getTranslation(language, "permissions.namePlaceholder")}
-                              className="border-2 border-gray-300"
-                            />
-                          </div>
-                          <div>
-                            <Label>{getTranslation(language, "permissions.specialty")}</Label>
-                            <Input
-                              value={professional.specialty}
-                              onChange={(e) => updateHealthProfessional(index, "specialty", e.target.value)}
-                              placeholder={getTranslation(language, "permissions.specialtyPlaceholder")}
-                              className="border-2 border-gray-300"
-                            />
-                          </div>
-                          <div>
-                            <Label>{getTranslation(language, "permissions.email")}</Label>
-                            <Input
-                              value={professional.email}
-                              onChange={(e) => updateHealthProfessional(index, "email", e.target.value)}
-                              placeholder={getTranslation(language, "permissions.emailPlaceholder")}
-                              className="border-2 border-gray-300"
-                            />
-                          </div>
-                        </div>
-                        {(() => {
-                          const renderPermissionsTable = (person: any, updateFunction: Function, index: number) => {
-                            const categories = [
-                              { key: "medicalHistory", label: getTranslation(language, "permissions.medicalHistory") },
-                              { key: "healthRecords", label: getTranslation(language, "permissions.healthRecords") },
-                              { key: "healthPlan", label: getTranslation(language, "permissions.healthPlan") },
-                              { key: "medications", label: getTranslation(language, "permissions.medications") },
-                              { key: "appointments", label: getTranslation(language, "permissions.appointments") },
-                              { key: "messages", label: getTranslation(language, "permissions.messages") },
-                            ]
-
-                            return (
-                              <div className="mt-4">
-                                <Label className="text-sm font-medium text-gray-600 mb-3 block">
-                                  {getTranslation(language, "permissions.updateAccess")}
-                                </Label>
-                                <div className="border-2 border-gray-300 rounded-lg overflow-hidden">
-                                  <div className="grid grid-cols-4 bg-gray-50 border-b">
-                                    <div className="p-3 font-medium">
-                                      {getTranslation(language, "permissions.category")}
-                                    </div>
-                                    <div className="p-3 font-medium text-center">
-                                      {getTranslation(language, "permissions.view")}
-                                    </div>
-                                    <div className="p-3 font-medium text-center">
-                                      {getTranslation(language, "permissions.download")}
-                                    </div>
-                                    <div className="p-3 font-medium text-center">
-                                      {getTranslation(language, "permissions.edit")}
-                                    </div>
-                                  </div>
-                                  {categories.map((category) => (
-                                    <div key={category.key} className="grid grid-cols-4 border-b last:border-b-0">
-                                      <div className="p-3 flex items-center">
-                                        <span>{category.label}</span>
-                                      </div>
-                                      <div className="p-3 flex justify-center">
-                                        <Checkbox
-                                          checked={person.permissions[category.key]?.view || false}
-                                          onCheckedChange={(checked: boolean) =>
-                                            updateFunction(index, `permissions.${category.key}.view`, checked)
-                                          }
-                                          className="border-2 border-gray-300"
-                                        />
-                                      </div>
-                                      <div className="p-3 flex justify-center">
-                                        {category.key === "appointments" || category.key === "messages" ? (
-                                          <span className="text-gray-400">-</span>
-                                        ) : (
-                                          <Checkbox
-                                            checked={person.permissions[category.key]?.download || false}
-                                            onCheckedChange={(checked: boolean) =>
-                                              updateFunction(index, `permissions.${category.key}.download`, checked)
-                                            }
-                                            className="border-2 border-gray-300"
-                                          />
-                                        )}
-                                      </div>
-                                      <div className="p-3 flex justify-center">
-                                        <Checkbox
-                                          checked={person.permissions[category.key]?.edit || false}
-                                          onCheckedChange={(checked: boolean) =>
-                                            updateFunction(index, `permissions.${category.key}.edit`, checked)
-                                          }
-                                          className="border-2 border-gray-300"
-                                        />
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )
-                          }
-                          return renderPermissionsTable(professional, updateHealthProfessional, index)
-                        })()}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-4">{getTranslation(language, "permissions.familyFriends")}</h3>
-                  <div className="flex items-center justify-between mb-4">
-                    <Label className="text-base font-medium">
-                      {getTranslation(language, "permissions.authorizedContacts")}
-                    </Label>
-                    <Button type="button" variant="outline" size="sm" onClick={addFamilyFriend}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      {getTranslation(language, "permissions.addContact")}
-                    </Button>
-                  </div>
-
-                  {formData.familyFriends.map((contact, index) => (
-                    <Card key={index} className="mb-4 border-2 border-gray-300">
-                      <CardContent className="pt-4">
-                        <div className="grid grid-cols-3 gap-4 mb-4">
-                          <div>
-                            <Label>Name</Label>
-                            <Input
-                              value={contact.name}
-                              onChange={(e) => updateFamilyFriend(index, "name", e.target.value)}
-                              placeholder="Full name"
-                              className="border-2 border-gray-300"
-                            />
-                          </div>
-                          <div>
-                            <Label>Relationship</Label>
-                            <Select
-                              value={contact.relationship}
-                              onValueChange={(value: string) => updateFamilyFriend(index, "relationship", value)}
-                            >
-                              <SelectTrigger className="border-2 border-gray-300">
-                                <SelectValue placeholder="Select relationship" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="spousePartner">
-                                  {getTranslation(language, "options.spousePartner")}
-                                </SelectItem>
-                                <SelectItem value="parent">{getTranslation(language, "options.parent")}</SelectItem>
-                                <SelectItem value="child">{getTranslation(language, "options.child")}</SelectItem>
-                                <SelectItem value="sibling">{getTranslation(language, "options.sibling")}</SelectItem>
-                                <SelectItem value="friend">{getTranslation(language, "options.friend")}</SelectItem>
-                                <SelectItem value="other">{getTranslation(language, "options.other")}</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label>Email</Label>
-                            <Input
-                              value={contact.email}
-                              onChange={(e) => updateFamilyFriend(index, "email", e.target.value)}
-                              placeholder="email@example.com"
-                              className="border-2 border-gray-300"
-                            />
-                          </div>
-                        </div>
-                        {(() => {
-                          const renderPermissionsTable = (person: any, updateFunction: Function, index: number) => {
-                            const categories = [
-                              { key: "medicalHistory", label: getTranslation(language, "permissions.medicalHistory") },
-                              { key: "healthRecords", label: getTranslation(language, "permissions.healthRecords") },
-                              { key: "healthPlan", label: getTranslation(language, "permissions.healthPlan") },
-                              { key: "medications", label: getTranslation(language, "permissions.medications") },
-                              { key: "appointments", label: getTranslation(language, "permissions.appointments") },
-                              { key: "messages", label: getTranslation(language, "permissions.messages") },
-                            ]
-
-                            return (
-                              <div className="mt-4">
-                                <Label className="text-sm font-medium text-gray-600 mb-3 block">
-                                  {getTranslation(language, "permissions.updateAccess")}
-                                </Label>
-                                <div className="border-2 border-gray-300 rounded-lg overflow-hidden">
-                                  <div className="grid grid-cols-4 bg-gray-50 border-b">
-                                    <div className="p-3 font-medium">Category</div>
-                                    <div className="p-3 font-medium text-center">
-                                      {getTranslation(language, "permissions.view")}
-                                    </div>
-                                    <div className="p-3 font-medium text-center">
-                                      {getTranslation(language, "permissions.download")}
-                                    </div>
-                                    <div className="p-3 font-medium text-center">
-                                      {getTranslation(language, "permissions.edit")}
-                                    </div>
-                                  </div>
-                                  {categories.map((category) => (
-                                    <div key={category.key} className="grid grid-cols-4 border-b last:border-b-0">
-                                      <div className="p-3 flex items-center">
-                                        <span>{category.label}</span>
-                                      </div>
-                                      <div className="p-3 flex justify-center">
-                                        <Checkbox
-                                          checked={person.permissions[category.key]?.view || false}
-                                          onCheckedChange={(checked: boolean) =>
-                                            updateFunction(index, `permissions.${category.key}.view`, checked)
-                                          }
-                                          className="border-2 border-gray-300"
-                                        />
-                                      </div>
-                                      <div className="p-3 flex justify-center">
-                                        {category.key === "appointments" || category.key === "messages" ? (
-                                          <span className="text-gray-400">-</span>
-                                        ) : (
-                                          <Checkbox
-                                            checked={person.permissions[category.key]?.download || false}
-                                            onCheckedChange={(checked: boolean) =>
-                                              updateFunction(index, `permissions.${category.key}.download`, checked)
-                                            }
-                                            className="border-2 border-gray-300"
-                                          />
-                                        )}
-                                      </div>
-                                      <div className="p-3 flex justify-center">
-                                        <Checkbox
-                                          checked={person.permissions[category.key]?.edit || false}
-                                          onCheckedChange={(checked: boolean) =>
-                                            updateFunction(index, `permissions.${category.key}.edit`, checked)
-                                          }
-                                          className="border-2 border-gray-300"
-                                        />
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )
-                          }
-                          return renderPermissionsTable(contact, updateFamilyFriend, index)
-                        })()}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -1063,7 +799,7 @@ const PersonalInformationStep = ({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="emergencyContactName">{getTranslation(language, "fields.emergencyContactName")} *</Label>
+          <Label htmlFor="emergencyContactName">{getTranslation(language, "fields.emergencyContactName")}</Label>
           <Input
             id="emergencyContactName"
             value={formData.emergencyContactName}
@@ -1073,7 +809,7 @@ const PersonalInformationStep = ({
           />
         </div>
         <div>
-          <Label htmlFor="emergencyContactPhone">{getTranslation(language, "fields.emergencyContactPhone")} *</Label>
+          <Label htmlFor="emergencyContactPhone">{getTranslation(language, "fields.emergencyContactPhone")}</Label>
           <Input
             id="emergencyContactPhone"
             value={formData.emergencyContactPhone}
@@ -1085,7 +821,7 @@ const PersonalInformationStep = ({
       </div>
 
       <div>
-        <Label htmlFor="emergencyContactRelationship">{getTranslation(language, "fields.relationship")} *</Label>
+        <Label htmlFor="emergencyContactRelationship">{getTranslation(language, "fields.relationship")}</Label>
         <Select
           value={formData.emergencyContactRelationship}
           onValueChange={(value: string) => updateFormData("emergencyContactRelationship", value)}

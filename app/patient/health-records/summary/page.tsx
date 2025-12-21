@@ -190,10 +190,10 @@ export default function SummaryPage() {
               <CardTitle className="text-base">{metric.display_name}</CardTitle>
             </div>
             {hasValidRange && (
-              <Badge
+            <Badge
                 variant={status === "normal" ? "outline" : "secondary"}
                 className={`${status === "normal" ? "text-green-600" : "text-red-600"} text-xs py-0 px-1 h-5`}
-              >
+            >
                 {status === "normal" ? (
                   <div className="flex items-center gap-1">
                     <CheckCircle className="h-3 w-3" />
@@ -205,7 +205,7 @@ export default function SummaryPage() {
                     <span>Abnormal</span>
                   </div>
                 )}
-              </Badge>
+            </Badge>
             )}
           </div>
         </CardHeader>
@@ -216,9 +216,9 @@ export default function SummaryPage() {
               {baseUnit && <span className="text-xs text-muted-foreground font-normal">{baseUnit}</span>}
             </div>
             {metric.trend && metric.trend !== "unknown" && (
-              <div className="flex items-center gap-1">
-                {renderTrendIcon(metric.trend)}
-              </div>
+            <div className="flex items-center gap-1">
+              {renderTrendIcon(metric.trend)}
+            </div>
             )}
           </div>
           <p className="text-xs text-muted-foreground mb-2">
@@ -227,18 +227,18 @@ export default function SummaryPage() {
 
           {chartData.length > 0 && (
             <div className="h-[120px] mt-2">
-              <HealthMetricsChart
+            <HealthMetricsChart
                 data={chartData}
                 metricName={metric.display_name}
-                options={{
-                  fontSize: 10,
-                  tickCount: 5,
-                  roundValues: true,
+              options={{
+                fontSize: 10,
+                tickCount: 5,
+                roundValues: true,
                   userTimezone: (user as any)?.profile?.timezone || (user as any)?.user_metadata?.timezone || 'UTC',
                   unit: baseUnit,
-                }}
-              />
-            </div>
+              }}
+            />
+          </div>
           )}
         </CardContent>
         <CardFooter className="pt-0 flex-none">
@@ -343,15 +343,15 @@ export default function SummaryPage() {
         </CardHeader>
         <CardContent>
           <div className="rounded-lg bg-muted/50 p-4 border border-muted">
-            <div className="flex items-start gap-3">
-              <Brain className="h-5 w-5 text-teal-600 mt-0.5" />
+                <div className="flex items-start gap-3">
+                  <Brain className="h-5 w-5 text-teal-600 mt-0.5" />
               <div className="space-y-3 flex-1">
                 {/* Areas of Concern */}
-                <div>
-                  <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-red-600">
-                    <AlertTriangle className="h-4 w-4" />
-                    {t("health.areasOfConcern")}:
-                  </h4>
+                    <div>
+                      <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-red-600">
+                        <AlertTriangle className="h-4 w-4" />
+                        {t("health.areasOfConcern")}:
+                      </h4>
                   {aiLoading ? (
                     <p className="text-sm text-gray-500">{t("health.analyzingYourHealthData") || "Analyzing your health data..."}</p>
                   ) : aiError ? (
@@ -372,11 +372,11 @@ export default function SummaryPage() {
                 </div>
                 
                 {/* Positive Trends */}
-                <div>
-                  <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-green-600">
-                    <ThumbsUp className="h-4 w-4" />
-                    {t("health.positiveTrends")}:
-                  </h4>
+                    <div>
+                      <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-green-600">
+                        <ThumbsUp className="h-4 w-4" />
+                        {t("health.positiveTrends")}:
+                      </h4>
                   {aiLoading ? (
                     <p className="text-sm text-gray-500">{t("health.identifyingPositiveTrends") || "Identifying positive trends..."}</p>
                   ) : aiError ? (
@@ -397,11 +397,11 @@ export default function SummaryPage() {
                 </div>
                 
                 {/* Recommendations */}
-                <div>
-                  <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-blue-600">
-                    <Lightbulb className="h-4 w-4" />
-                    {t("health.recommendations")}:
-                  </h4>
+                    <div>
+                      <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-blue-600">
+                        <Lightbulb className="h-4 w-4" />
+                        {t("health.recommendations")}:
+                      </h4>
                   {aiLoading ? (
                     <p className="text-sm text-gray-500">{t("health.generatingPersonalizedRecommendations") || "Generating personalized recommendations..."}</p>
                   ) : aiError ? (

@@ -9,8 +9,8 @@ import { RootState, AppDispatch } from "@/lib/store"
 import { updateHealthRecords, setCurrentStep, addCompletedStep } from "@/lib/features/onboarding/onboardingSlice"
 import { HealthRecordsStep } from "@/components/onboarding/steps/health-records-step"
 import { OnboardingLayout } from "@/components/onboarding/onboarding-layout"
-import { type Language, getTranslation } from "@/lib/translations"
 import { useOnboardingSkip } from '@/hooks/use-onboarding-skip'
+import { useLanguage } from '@/contexts/language-context'
 
 interface FormData {
   healthRecords: {
@@ -39,8 +39,7 @@ export default function HealthRecordsPage() {
   const { user } = useSelector((state: RootState) => state.auth)
   const healthRecords = useSelector((state: RootState) => state.onboarding.healthRecords)
   const completedSteps = useSelector((state: RootState) => state.onboarding.completedSteps)
-  
-  const [language, setLanguage] = useState<Language>("en-US")
+  const { t } = useLanguage()
   const { skipOnboarding, isSkipping } = useOnboardingSkip()
 
   // Set current step
@@ -68,10 +67,6 @@ export default function HealthRecordsPage() {
     router.push('/onboarding/steps/3')
   }
 
-  const handleLanguageChange = (newLanguage: Language) => {
-    setLanguage(newLanguage)
-  }
-
   const handleStepClick = (stepId: number) => {
     if (completedSteps.includes(stepId) || stepId <= 4) {
       router.push(`/onboarding/steps/${stepId}`)
@@ -85,23 +80,20 @@ export default function HealthRecordsPage() {
   return (
     <OnboardingLayout
       currentStep={4}
-      totalSteps={8}
+      totalSteps={6}
       completedSteps={completedSteps}
-      language={language}
-      onLanguageChange={handleLanguageChange}
       onStepClick={handleStepClick}
       onPrevious={handleBack}
       onNext={handleNext}
       onSkip={handleSkip}
       isSkipping={isSkipping}
       showBackButton={true}
-      stepTitle={getTranslation(language, "steps.healthRecords")}
+      stepTitle={t("steps.healthRecords")}
     >
       <div className="space-y-8">
       <HealthRecordsStep 
         formData={{ healthRecords }} 
         updateFormData={updateFormData} 
-        language={language} 
       />
       </div>
     </OnboardingLayout>

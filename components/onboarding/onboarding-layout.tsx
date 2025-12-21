@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Globe, Check, ArrowLeft, ArrowRight } from "lucide-react"
+import { Globe, Check, ArrowLeft, ArrowRight, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { type Language, getTranslation } from "@/lib/translations"
+import { type Language as TranslationLanguage } from "@/lib/translations"
+import { useLanguage } from "@/contexts/language-context"
 import Image from "next/image"
 
 interface Step {
@@ -19,8 +20,6 @@ interface OnboardingLayoutProps {
   currentStep: number
   totalSteps: number
   completedSteps: number[]
-  language: Language
-  onLanguageChange: (language: Language) => void
   onStepClick: (stepId: number) => void
   onPrevious: () => void
   onNext: () => void
@@ -32,23 +31,24 @@ interface OnboardingLayoutProps {
   stepTitle: string
 }
 
-const getSteps = (language: Language): Step[] => [
-  { id: 1, title: getTranslation(language, "steps.personalInfo"), icon: require("lucide-react").Users },
-  { id: 2, title: getTranslation(language, "steps.medicalCondition"), icon: require("lucide-react").Heart },
-  { id: 3, title: getTranslation(language, "steps.familyHistory"), icon: require("lucide-react").Users },
-  { id: 4, title: getTranslation(language, "steps.healthRecords"), icon: require("lucide-react").FileText },
-  { id: 5, title: getTranslation(language, "steps.healthPlan"), icon: require("lucide-react").Calendar },
-  { id: 6, title: getTranslation(language, "steps.appointments"), icon: require("lucide-react").Calendar },
-  { id: 7, title: getTranslation(language, "steps.permissions"), icon: require("lucide-react").Settings },
-  { id: 8, title: getTranslation(language, "steps.settings"), icon: require("lucide-react").Settings },
-]
+// Map context language to translation language format
+const contextToTranslationMap: Record<"en" | "es" | "pt", TranslationLanguage> = {
+  "en": "en-US",
+  "es": "es-ES",
+  "pt": "pt-PT"
+}
+
+// Map translation language to context language format
+const translationToContextMap: Record<TranslationLanguage, "en" | "es" | "pt"> = {
+  "en-US": "en",
+  "es-ES": "es",
+  "pt-PT": "pt"
+}
 
 export function OnboardingLayout({
   currentStep,
   totalSteps,
   completedSteps,
-  language,
-  onLanguageChange,
   onStepClick,
   onPrevious,
   onNext,
@@ -59,8 +59,29 @@ export function OnboardingLayout({
   children,
   stepTitle,
 }: OnboardingLayoutProps) {
-  const steps = getSteps(language)
+  const { language: contextLanguage, setLanguage: setContextLanguage, t } = useLanguage()
+  
+  // Convert context language to translation format for display
+  const displayLanguage = contextToTranslationMap[contextLanguage]
+  
+  const steps = [
+    { id: 1, title: t("steps.personalInfo"), icon: require("lucide-react").Users },
+    { id: 2, title: t("steps.medicalCondition"), icon: require("lucide-react").Heart },
+    { id: 3, title: t("steps.familyHistory"), icon: require("lucide-react").Users },
+    { id: 4, title: t("steps.healthRecords"), icon: require("lucide-react").FileText },
+    { id: 5, title: t("steps.permissions") || "Permissions", icon: require("lucide-react").Shield },
+    { id: 6, title: t("steps.integrations") || "Integrations", icon: require("lucide-react").Activity },
+  ]
+  
   const progress = (currentStep / totalSteps) * 100
+  
+  // Handle language change - convert from translation format to context format
+  const handleLanguageChange = (newLanguage: TranslationLanguage) => {
+    const contextLang = translationToContextMap[newLanguage]
+    if (contextLang) {
+      setContextLanguage(contextLang)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-card to-background">
@@ -74,20 +95,20 @@ export function OnboardingLayout({
           {/* Language Selector */}
           <div className="flex items-center space-x-2">
             <Globe className="w-4 h-4 text-teal-600" />
-            <Select value={language} onValueChange={onLanguageChange}>
+            <Select value={displayLanguage} onValueChange={handleLanguageChange}>
               <SelectTrigger className="w-40 bg-white text-teal-600 border-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="en-US">{getTranslation(language, "languages.en-US")}</SelectItem>
-                <SelectItem value="es-ES">{getTranslation(language, "languages.es-ES")}</SelectItem>
-                <SelectItem value="pt-PT">{getTranslation(language, "languages.pt-PT")}</SelectItem>
+                <SelectItem value="en-US">{t("languages.en-US")}</SelectItem>
+                <SelectItem value="es-ES">{t("languages.es-ES")}</SelectItem>
+                <SelectItem value="pt-PT">{t("languages.pt-PT")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="text-sm text-teal-600">
-            {getTranslation(language, "navigation.step")} {currentStep} {getTranslation(language, "navigation.of")}{" "}
+            {t("navigation.step")} {currentStep} {t("navigation.of")}{" "}
             {totalSteps}
           </div>
         </div>
@@ -150,7 +171,7 @@ export function OnboardingLayout({
         <div className="flex justify-between mt-6">
           {showBackButton ? (
             <Button variant="outline" onClick={onPrevious} disabled={currentStep === 1}>
-              {getTranslation(language, "navigation.previous")}
+              {t("navigation.previous")}
             </Button>
           ) : (
             <div></div>
@@ -167,7 +188,7 @@ export function OnboardingLayout({
               disabled={isSkipping}
               type="button"
             >
-              {isSkipping ? "Skipping..." : getTranslation(language, "navigation.skip")}
+              {isSkipping ? "Skipping..." : t("navigation.skip")}
             </Button>
             <Button
               onClick={onNext}
@@ -177,16 +198,16 @@ export function OnboardingLayout({
               {isLoading ? (
                 <>
                   <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  {getTranslation(language, "navigation.saving")}
+                  {t("navigation.saving")}
                 </>
               ) : currentStep === totalSteps ? (
                 <>
                   <Check className="w-4 h-4" />
-                  {getTranslation(language, "navigation.complete")}
+                  {t("navigation.complete")}
                 </>
               ) : (
                 <>
-                  {getTranslation(language, "navigation.next")}
+                  {t("navigation.next")}
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

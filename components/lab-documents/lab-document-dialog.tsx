@@ -646,22 +646,22 @@ export function LabDocumentDialog({
           
           // If we have analysis results and they weren't rejected, create health records via bulk endpoint
           // The bulk endpoint will create both the document and health records
-          // Use original lab_data (not translated) for database storage to preserve source language
+          // Use translated data from editableResults (which contains translated values when translation is applied)
           if (editableResults.length > 0 && !rejectedResults) {
             // Map editableResults back to original data structure
-            // We need to match editableResults with originalLabData by index
+            // editableResults contains translated data when translation is applied, so use that for storage
             const recordsToSend = editableResults.map((editedResult, index) => {
-              // If we have original data, use it (preserves original language)
-              // But use edited values if user made changes
+              // Use editedResult first (contains translated data), fall back to original if needed
+              // This ensures translated values are saved when translation was applied
               const originalRecord = originalLabData[index] || {}
               return {
                 lab_name: formData.provider || 'Unknown Lab',
-                type_of_analysis: originalRecord.type_of_analysis || editedResult.type_of_analysis || 'General Lab Analysis',
-                metric_name: originalRecord.metric_name || editedResult.metric_name,
+                type_of_analysis: editedResult.type_of_analysis || originalRecord.type_of_analysis || 'General Lab Analysis',
+                metric_name: editedResult.metric_name || originalRecord.metric_name,
                 date_of_value: editedResult.date_of_value || dateForBackend,
                 value: editedResult.value,  // Use edited value
                 unit: editedResult.unit || originalRecord.unit || '',
-                reference: originalRecord.reference || originalRecord.reference_range || editedResult.reference_range || ''
+                reference: editedResult.reference_range || originalRecord.reference || originalRecord.reference_range || ''
               }
             })
             

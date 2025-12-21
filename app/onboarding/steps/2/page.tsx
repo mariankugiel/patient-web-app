@@ -20,11 +20,11 @@ import { AuthApiService } from '@/lib/api/auth-api'
 import { MedicalConditionApiService } from '@/lib/api/medical-condition-api'
 import { MedicalConditionStep } from '@/components/onboarding/steps/medical-condition-step'
 import { OnboardingLayout } from '@/components/onboarding/onboarding-layout'
-import { type Language, getTranslation } from '@/lib/translations'
 import { toast } from 'react-toastify'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertTriangle, X } from 'lucide-react'
 import { useOnboardingSkip } from '@/hooks/use-onboarding-skip'
+import { useLanguage } from '@/contexts/language-context'
 
 export default function MedicalConditionPage() {
   const router = useRouter()
@@ -33,8 +33,8 @@ export default function MedicalConditionPage() {
   const medicalConditions = useSelector((state: RootState) => state.onboarding.medicalConditions)
   const completedSteps = useSelector((state: RootState) => state.onboarding.completedSteps)
   const { skipOnboarding, isSkipping } = useOnboardingSkip()
+  const { t } = useLanguage()
   
-  const [language, setLanguage] = useState<Language>("en-US")
   const [showValidationSummary, setShowValidationSummary] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(false)
   const hasLoadedData = useRef(false)
@@ -103,7 +103,7 @@ export default function MedicalConditionPage() {
       } catch (error) {
         console.error('Error saving progress:', error)
         if (!skipValidation) {
-          toast.error("Failed to save medical information. Please try again.")
+          toast.error(t("onboarding.messages.medicalInfoSaveError"))
         }
         throw error // Re-throw for error handling in calling functions
       }
@@ -133,11 +133,11 @@ export default function MedicalConditionPage() {
     try {
       await saveProgress()
       dispatch(addCompletedStep(2))
-      toast.success("Medical information saved successfully!")
+      toast.success(t("onboarding.messages.medicalInfoSavedSuccess"))
       router.push('/onboarding/steps/3')
     } catch (error) {
       console.error('Error saving progress:', error)
-      toast.error("Failed to save medical information. Please try again.")
+      toast.error(t("onboarding.messages.medicalInfoSaveError"))
     }
   }
 
@@ -151,10 +151,6 @@ export default function MedicalConditionPage() {
       // Don't show error toast for back navigation - just navigate
       router.push('/onboarding/steps/1')
     }
-  }
-
-  const handleLanguageChange = (newLanguage: Language) => {
-    setLanguage(newLanguage)
   }
 
   const handleStepClick = (stepId: number) => {
@@ -175,7 +171,7 @@ export default function MedicalConditionPage() {
       
       if (medicalConditions.errors.length > 0) {
         // Show validation errors but allow skipping
-        toast.warning("Some medical information has validation errors, but you can still skip onboarding.")
+        toast.warning(t("onboarding.messages.medicalInfoValidationErrors"))
         medicalConditions.errors.forEach(error => {
           toast.error(error)
         })
@@ -186,7 +182,7 @@ export default function MedicalConditionPage() {
         await saveProgress(true) // skipValidation = true
       } catch (error) {
         console.error('Error saving data during skip:', error)
-        toast.warning("Could not save medical data, but continuing with skip...")
+        toast.warning(t("onboarding.messages.medicalDataSaveWarning"))
       }
     }
     
@@ -196,17 +192,15 @@ export default function MedicalConditionPage() {
   return (
     <OnboardingLayout
       currentStep={2}
-      totalSteps={8}
+      totalSteps={6}
       completedSteps={completedSteps}
-      language={language}
-      onLanguageChange={handleLanguageChange}
       onStepClick={handleStepClick}
       onPrevious={handleBack}
       onNext={handleNext}
       onSkip={handleSkip}
       isSkipping={isSkipping}
       showBackButton={true}
-      stepTitle={getTranslation(language, "steps.medicalCondition")}
+      stepTitle={t("steps.medicalCondition")}
     >
       {/* Validation Summary */}
       {showValidationSummary && (
@@ -216,7 +210,7 @@ export default function MedicalConditionPage() {
             <AlertDescription className="text-red-800">
               <div className="flex items-center justify-between">
                 <div>
-                  <strong>Please fix the following validation errors before proceeding:</strong>
+                  <strong>{t("onboarding.validation.fixValidationErrors")}</strong>
                   <ul className="mt-2 list-disc list-inside space-y-1">
                     {medicalConditions.errors.map((error, index) => (
                       <li key={index} className="text-sm">{error}</li>
@@ -236,7 +230,7 @@ export default function MedicalConditionPage() {
       )}
 
 
-      <MedicalConditionStep language={language} />
+      <MedicalConditionStep />
     </OnboardingLayout>
   )
 }

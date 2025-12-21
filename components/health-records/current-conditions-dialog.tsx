@@ -27,6 +27,7 @@ import {
 import { Plus, Trash2, Loader2 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { CurrentCondition } from "@/hooks/use-medical-conditions"
+import { ChronicDiseaseAutocomplete } from "@/components/ui/chronic-disease-autocomplete"
 
 interface CurrentConditionsDialogProps {
   open: boolean
@@ -228,12 +229,11 @@ export function CurrentConditionsDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="condition">{t('health.dialog.conditionName')} <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="condition"
+                    <ChronicDiseaseAutocomplete
                       value={editingCondition.condition}
-                      onChange={(e) => updateSingleConditionField('condition', e.target.value)}
+                      onChange={(value) => updateSingleConditionField('condition', value)}
                       placeholder={t('health.dialog.enterConditionName')}
-                      className={validationErrors.condition ? "border-red-500" : ""}
+                      error={validationErrors.condition}
                     />
                     {validationErrors.condition && (
                       <p className="text-sm text-red-500">{validationErrors.condition}</p>
@@ -301,12 +301,11 @@ export function CurrentConditionsDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="add_condition">{t('health.dialog.conditionName')} <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="add_condition"
+                    <ChronicDiseaseAutocomplete
                       value={editingCondition.condition}
-                      onChange={(e) => updateSingleConditionField('condition', e.target.value)}
+                      onChange={(value) => updateSingleConditionField('condition', value)}
                       placeholder={t('health.dialog.enterConditionName')}
-                      className={validationErrors.condition ? "border-red-500" : ""}
+                      error={validationErrors.condition}
                     />
                     {validationErrors.condition && (
                       <p className="text-sm text-red-500">{validationErrors.condition}</p>

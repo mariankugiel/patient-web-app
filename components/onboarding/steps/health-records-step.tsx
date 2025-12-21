@@ -12,15 +12,15 @@ import { LabDocumentDialog } from '@/components/lab-documents/lab-document-dialo
 import { medicalDocumentsApiService, MedicalDocument } from '@/lib/api/medical-documents-api'
 import { medicalImagesApiService, MedicalImageData } from '@/lib/api/medical-images-api'
 import { toast } from 'react-toastify'
+import { useLanguage } from '@/contexts/language-context'
 
 interface HealthRecordsStepProps {
   formData: { healthRecords: any }
   updateFormData: (data: any) => void
-  language: Language
 }
 
-export function HealthRecordsStep({ formData, updateFormData, language }: HealthRecordsStepProps) {
-  const t = getTranslation(language, "steps.healthRecords")
+export function HealthRecordsStep({ formData, updateFormData }: HealthRecordsStepProps) {
+  const { t } = useLanguage()
   
   // Dialog states
   const [showLabDocumentsDialog, setShowLabDocumentsDialog] = useState(false)
@@ -47,8 +47,8 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
       setLabDocuments(documents)
     } catch (error: any) {
       console.error('Failed to fetch lab documents:', error)
-      setLabDocumentsError(error.message || 'Failed to load lab documents')
-      toast.error('Failed to load lab documents')
+      setLabDocumentsError(error.message || t('onboarding.healthRecords.failedToLoadLabDocuments'))
+      toast.error(t('onboarding.healthRecords.failedToLoadLabDocuments'))
     } finally {
       setLabDocumentsLoading(false)
     }
@@ -63,8 +63,8 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
       setMedicalImages(response.images || [])
     } catch (error: any) {
       console.error('Failed to fetch medical images:', error)
-      setMedicalImagesError(error.message || 'Failed to load medical images')
-      toast.error('Failed to load medical images')
+      setMedicalImagesError(error.message || t('onboarding.healthRecords.failedToLoadMedicalImages'))
+      toast.error(t('onboarding.healthRecords.failedToLoadMedicalImages'))
     } finally {
       setMedicalImagesLoading(false)
     }
@@ -82,7 +82,7 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
     fetchLabDocuments()
     setShowLabDocumentsDialog(false)
     if (document) {
-      toast.success('Lab document uploaded successfully!')
+      toast.success(t('onboarding.healthRecords.labDocumentUploadedSuccess'))
     }
   }
 
@@ -91,7 +91,7 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
     fetchLabDocuments()
     setShowEditLabDocumentDialog(false)
     setSelectedLabDocument(null)
-    toast.success('Lab document updated successfully!')
+    toast.success(t('onboarding.healthRecords.labDocumentUpdatedSuccess'))
   }
 
   const handleEditLabDocument = (document: MedicalDocument) => {
@@ -103,7 +103,7 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
     // Refresh the medical images list
     fetchMedicalImages()
     setShowMedicalImagesDialog(false)
-    toast.success('Medical image uploaded successfully!')
+    toast.success(t('onboarding.healthRecords.medicalImageUploadedSuccess'))
   }
 
   const handleMedicalImageUpdated = (image: MedicalImageData) => {
@@ -111,7 +111,7 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
     fetchMedicalImages()
     setShowEditMedicalImageDialog(false)
     setSelectedMedicalImage(null)
-    toast.success('Medical image updated successfully!')
+    toast.success(t('onboarding.healthRecords.medicalImageUpdatedSuccess'))
   }
 
   const handleMedicalImageDeleted = (imageId: number) => {
@@ -119,7 +119,7 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
     fetchMedicalImages()
     setShowEditMedicalImageDialog(false)
     setSelectedMedicalImage(null)
-    toast.success('Medical image deleted successfully!')
+    toast.success(t('onboarding.healthRecords.medicalImageDeletedSuccess'))
   }
 
   const handleEditMedicalImage = (image: MedicalImageData) => {
@@ -132,15 +132,15 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
       // Get download URL from backend
       const response = await medicalDocumentsApiService.downloadMedicalDocument(documentId)
       window.open(response.download_url, '_blank')
-      toast.success('Opening document...')
+      toast.success(t('onboarding.healthRecords.openingDocument'))
     } catch (error) {
       console.error('Failed to download document:', error)
-      toast.error('Failed to download document')
+      toast.error(t('onboarding.healthRecords.failedToDownloadDocument'))
     }
   }
 
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'No date'
+    if (!dateString) return t('onboarding.healthRecords.noDate')
     try {
       return new Date(dateString).toLocaleDateString()
     } catch {
@@ -157,15 +157,15 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
             <div>
             <CardTitle className="text-lg flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Lab Results
+              {t('onboarding.healthRecords.labResults')}
             </CardTitle>
               <CardDescription>
-                Upload and manage your lab test results
+                {t('onboarding.healthRecords.labResultsDesc')}
               </CardDescription>
             </div>
             <Button onClick={() => setShowLabDocumentsDialog(true)} size="sm">
               <Plus className="h-4 w-4 mr-2" />
-              Add Lab Result
+              {t('onboarding.healthRecords.addLabResult')}
             </Button>
           </div>
         </CardHeader>
@@ -173,25 +173,25 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
           {labDocumentsLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin" />
-              <span className="ml-2">Loading lab documents...</span>
+              <span className="ml-2">{t('onboarding.healthRecords.loadingLabDocuments')}</span>
             </div>
           ) : labDocumentsError ? (
             <div className="text-center py-8 text-red-600">
-              <p>Error loading lab documents: {labDocumentsError}</p>
+              <p>{t('onboarding.healthRecords.errorLoadingLabDocuments')} {labDocumentsError}</p>
               <Button 
                 onClick={fetchLabDocuments} 
                 variant="outline" 
                 size="sm" 
                 className="mt-4"
               >
-                Retry
+                {t('onboarding.healthRecords.retry')}
               </Button>
             </div>
           ) : labDocuments.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>No lab results uploaded yet.</p>
-              <p className="text-sm mt-2">Click "Add Lab Result" to upload your first lab document.</p>
+              <p>{t('onboarding.healthRecords.noLabResults')}</p>
+              <p className="text-sm mt-2">{t('onboarding.healthRecords.noLabResultsDesc')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -225,7 +225,7 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
                       variant="ghost"
                       onClick={() => handleDownloadLabDocument(doc.id, doc.file_name)}
                       className="h-8 w-8 p-0 hover:bg-gray-200 flex-shrink-0"
-                      title="Download"
+                      title={t('onboarding.healthRecords.download')}
                     >
                       <Download className="h-4 w-4" />
                     </Button>
@@ -234,7 +234,7 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
                       variant="ghost"
                       onClick={() => handleEditLabDocument(doc)}
                       className="h-8 w-8 p-0 hover:bg-gray-200 flex-shrink-0"
-                      title="Edit"
+                      title={t('onboarding.healthRecords.edit')}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -253,15 +253,15 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
             <div>
             <CardTitle className="text-lg flex items-center gap-2">
               <Image className="h-5 w-5" />
-              Medical Images
+              {t('onboarding.healthRecords.medicalImages')}
             </CardTitle>
               <CardDescription>
-                Upload and manage your medical imaging results
+                {t('onboarding.healthRecords.medicalImagesDesc')}
               </CardDescription>
             </div>
             <Button onClick={() => setShowMedicalImagesDialog(true)} size="sm">
               <Plus className="h-4 w-4 mr-2" />
-              Add Medical Image
+              {t('onboarding.healthRecords.addMedicalImage')}
             </Button>
           </div>
         </CardHeader>
@@ -269,25 +269,25 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
           {medicalImagesLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin" />
-              <span className="ml-2">Loading medical images...</span>
+              <span className="ml-2">{t('onboarding.healthRecords.loadingMedicalImages')}</span>
             </div>
           ) : medicalImagesError ? (
             <div className="text-center py-8 text-red-600">
-              <p>Error loading medical images: {medicalImagesError}</p>
+              <p>{t('onboarding.healthRecords.errorLoadingMedicalImages')} {medicalImagesError}</p>
               <Button 
                 onClick={fetchMedicalImages} 
                 variant="outline" 
                 size="sm" 
                 className="mt-4"
               >
-                Retry
+                {t('onboarding.healthRecords.retry')}
               </Button>
             </div>
           ) : medicalImages.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <Image className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>No medical images uploaded yet.</p>
-              <p className="text-sm mt-2">Click "Add Medical Image" to upload your first medical image.</p>
+              <p>{t('onboarding.healthRecords.noMedicalImages')}</p>
+              <p className="text-sm mt-2">{t('onboarding.healthRecords.noMedicalImagesDesc')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -329,14 +329,14 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
                         try {
                           const response = await medicalImagesApiService.getMedicalImageViewUrl(image.id)
                           window.open(response.download_url, '_blank')
-                          toast.success('Opening image...')
+                          toast.success(t('onboarding.healthRecords.openingImage'))
                         } catch (error) {
                           console.error('Failed to view image:', error)
-                          toast.error('Failed to open image')
+                          toast.error(t('onboarding.healthRecords.failedToOpenImage'))
                         }
                       }}
                       className="h-8 w-8 p-0 hover:bg-gray-200 flex-shrink-0"
-                      title="View"
+                      title={t('onboarding.healthRecords.view')}
                     >
                       <Download className="h-4 w-4" />
                     </Button>
@@ -345,7 +345,7 @@ export function HealthRecordsStep({ formData, updateFormData, language }: Health
                       variant="ghost"
                       onClick={() => handleEditMedicalImage(image)}
                       className="h-8 w-8 p-0 hover:bg-gray-200 flex-shrink-0"
-                      title="Edit"
+                      title={t('onboarding.healthRecords.edit')}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>

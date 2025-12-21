@@ -17,10 +17,9 @@ import { getAllThryveDataSources, THRYVE_FIELD_TO_DATA_SOURCE_ID } from "@/lib/t
 interface IntegrationStepProps {
   formData: any
   updateFormData: (field: string, value: any) => void
-  language: string
 }
 
-export function IntegrationStep({ formData, updateFormData, language }: IntegrationStepProps) {
+export function IntegrationStep({ formData, updateFormData }: IntegrationStepProps) {
   const { t } = useLanguage()
   const user = useSelector((state: RootState) => state.auth.user)
   const [isLoading, setIsLoading] = useState(false)
@@ -128,12 +127,12 @@ export function IntegrationStep({ formData, updateFormData, language }: Integrat
       if (origin.includes('localhost') && origin.startsWith('https://')) {
         origin = origin.replace('https://', 'http://')
       }
-      const redirectUri = `${origin}/onboarding?dataSource=${dataSourceId}`
+      const redirectUri = `${origin}/onboarding/steps/6?dataSource=${dataSourceId}`
       
       let connectionResponse
       if (checked) {
         connectionResponse = await ThryveApiService.getConnectionUrl(dataSourceId, redirectUri)
-        toast.info("Redirecting to connect your account...")
+        toast.info(t("onboarding.integrations.redirectingToConnect"))
         window.location.href = connectionResponse.url
       } else {
         // Disconnect: Get disconnection URL and redirect
@@ -146,7 +145,7 @@ export function IntegrationStep({ formData, updateFormData, language }: Integrat
             // Update local state and reload integrations
             setSettings((p) => ({ ...p, [integrationKey]: false }))
             await loadIntegrations()
-            toast.success(`Integration removed successfully`)
+            toast.success(t("onboarding.integrations.integrationRemovedSuccess"))
             setConnectionState((prev) => {
               const newState = { ...prev }
               delete newState[integrationKey]
@@ -155,7 +154,7 @@ export function IntegrationStep({ formData, updateFormData, language }: Integrat
             return
           }
           
-          toast.info("Redirecting to disconnect your account...")
+          toast.info(t("onboarding.integrations.redirectingToDisconnect"))
           window.location.href = connectionResponse.url
         } catch (error: any) {
           // Check if error is about missing access token
@@ -163,7 +162,7 @@ export function IntegrationStep({ formData, updateFormData, language }: Integrat
             // No access token means integration is not connected - just remove it locally
             setSettings((p) => ({ ...p, [integrationKey]: false }))
             await loadIntegrations()
-            toast.success(`Integration removed successfully`)
+            toast.success(t("onboarding.integrations.integrationRemovedSuccess"))
             setConnectionState((prev) => {
               const newState = { ...prev }
               delete newState[integrationKey]
@@ -176,7 +175,7 @@ export function IntegrationStep({ formData, updateFormData, language }: Integrat
       }
     } catch (error: any) {
       console.error(`Error ${checked ? 'connecting' : 'disconnecting'} ${integrationKey}:`, error)
-      toast.error(error.message || `Failed to ${checked ? 'connect' : 'disconnect'} ${integrationKey}`)
+      toast.error(error.message || (checked ? t("onboarding.integrations.failedToConnect") : t("onboarding.integrations.failedToDisconnect")))
       setConnectionState((prev) => {
         const newState = { ...prev }
         delete newState[integrationKey]
@@ -201,7 +200,7 @@ export function IntegrationStep({ formData, updateFormData, language }: Integrat
 
   const save = async () => {
     if (!user?.id) {
-      toast.error("You must be logged in to update your integrations.")
+      toast.error(t("onboarding.integrations.mustBeLoggedIn"))
       return
     }
     
@@ -222,10 +221,10 @@ export function IntegrationStep({ formData, updateFormData, language }: Integrat
       })
       
       updateFormData('integrations', settings)
-      toast.success(t("preferences.savedSuccessfullyDesc") || "Your integration settings have been saved successfully.")
+      toast.success(t("onboarding.integrations.settingsSavedSuccess"))
     } catch (error: any) {
       console.error("Error saving integrations:", error)
-      toast.error(error.message || "An unexpected error occurred.")
+      toast.error(error.message || t("onboarding.integrations.unexpectedError"))
     } finally {
       setIsLoading(false)
     }
@@ -233,11 +232,12 @@ export function IntegrationStep({ formData, updateFormData, language }: Integrat
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-medium">{t("onboarding.integrations.wearableIntegrations")}</h3>
+      </div>
+
       <p className="text-sm text-muted-foreground">
-        {t("profile.syncDataDesc") || "Connect your wearable devices and health apps to automatically sync your health data."}
-      </p>
-      <p className="text-sm text-muted-foreground">
-        {t("profile.integrationNote") || "You can add or modify integrations later from your profile settings."}
+        {t("onboarding.integrations.syncDataDesc")}
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -270,21 +270,19 @@ export function IntegrationStep({ formData, updateFormData, language }: Integrat
                   disabled={isProcessing}
                 />
                 {connectionStatus === 'connecting' && (
-                  <span className="text-xs text-muted-foreground">{t("profile.connecting") || "Connecting..."}</span>
+                  <span className="text-xs text-muted-foreground">{t("onboarding.integrations.connecting")}</span>
                 )}
                 {connectionStatus === 'disconnecting' && (
-                  <span className="text-xs text-muted-foreground">{t("profile.disconnecting") || "Disconnecting..."}</span>
+                  <span className="text-xs text-muted-foreground">{t("onboarding.integrations.disconnecting")}</span>
+                )}
+                {isConnected && !isProcessing && (
+                  <Button size="sm" variant="outline" className="h-8 text-xs bg-transparent">{t("onboarding.integrations.sync")}</Button>
                 )}
               </div>
             </div>
           )
         })}
       </div>
-
-      <Button className="bg-teal-600 hover:bg-teal-700" onClick={save} disabled={isLoading}>
-        <Save className="mr-2 h-4 w-4" />
-        {isLoading ? (t("profile.saving") || "Saving...") : (t("profile.saveSettings") || "Save Settings")}
-      </Button>
     </div>
   )
 }

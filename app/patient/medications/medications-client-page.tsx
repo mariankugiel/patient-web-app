@@ -689,7 +689,7 @@ function MedicationsClientPageContent() {
                   {newMedication.startDate && newMedication.endDate && 
                    new Date(newMedication.endDate) <= new Date(newMedication.startDate) && (
                     <p className="text-xs text-red-500 mt-1">
-                      {language === "en" ? "End date must be after start date" : "La fecha de finalización debe ser posterior a la fecha de inicio"}
+                      {t("medications.endDateMustBeAfterStartDate")}
                     </p>
                   )}
                 </div>
@@ -1261,7 +1261,7 @@ function MedicationsClientPageContent() {
             <div className="space-y-4">
               <div className="rounded-lg border p-4">
                 <div className="mb-4 text-center">
-                  <h3 className="text-lg font-bold">Prescription #{selectedPrescription.number}</h3>
+                  <h3 className="text-lg font-bold">{t("medications.prescriptionNumber")} #{selectedPrescription.number}</h3>
                   <p className="text-sm text-gray-500">{selectedPrescription.pharmacy}</p>
                 </div>
 

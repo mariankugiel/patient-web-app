@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { LocationSearch } from "@/components/ui/location-search"
-import { type Language, getTranslation } from "@/lib/translations"
+import { useLanguage } from "@/contexts/language-context"
 
 const COUNTRY_CODES = [
   { code: "AF", dial: "+93", name: "Afghanistan" },
@@ -218,11 +218,11 @@ interface FormData {
 interface PersonalInformationStepProps {
   formData: FormData
   updateFormData: (field: string, value: any) => void
-  language: Language
   fieldErrors?: Record<string, string>
 }
 
-export function PersonalInformationStep({ formData, updateFormData, language, fieldErrors = {} }: PersonalInformationStepProps) {
+export function PersonalInformationStep({ formData, updateFormData, fieldErrors = {} }: PersonalInformationStepProps) {
+  const { t } = useLanguage()
   const [phoneCountrySearch, setPhoneCountrySearch] = useState("")
   const [emergencyCountrySearch, setEmergencyCountrySearch] = useState("")
 
@@ -235,12 +235,12 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
       {/* Personal Information Fields */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="firstName">{getTranslation(language, "fields.firstName")} *</Label>
+          <Label htmlFor="firstName">{t( "fields.firstName")} *</Label>
           <Input
             id="firstName"
             value={formData.firstName}
             onChange={(e) => updateFormData("firstName", e.target.value)}
-            placeholder={getTranslation(language, "placeholders.enterName")}
+            placeholder={t( "placeholders.enterName")}
             className={`border-2 ${fieldErrors.firstName ? 'border-red-500' : 'border-gray-300'}`}
           />
           {fieldErrors.firstName && (
@@ -248,12 +248,12 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
           )}
         </div>
         <div>
-          <Label htmlFor="lastName">{getTranslation(language, "fields.lastName")} *</Label>
+          <Label htmlFor="lastName">{t( "fields.lastName")} *</Label>
           <Input
             id="lastName"
             value={formData.lastName}
             onChange={(e) => updateFormData("lastName", e.target.value)}
-            placeholder={getTranslation(language, "placeholders.enterName")}
+            placeholder={t( "placeholders.enterName")}
             className={`border-2 ${fieldErrors.lastName ? 'border-red-500' : 'border-gray-300'}`}
           />
           {fieldErrors.lastName && (
@@ -264,7 +264,7 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="dateOfBirth">{getTranslation(language, "fields.dateOfBirth")} *</Label>
+          <Label htmlFor="dateOfBirth">{t( "fields.dateOfBirth")} *</Label>
           <Input
             type="date"
             id="dateOfBirth"
@@ -277,16 +277,16 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
           )}
         </div>
         <div>
-          <Label htmlFor="gender">{getTranslation(language, "fields.gender")}</Label>
+          <Label htmlFor="gender">{t( "fields.gender")}</Label>
           <Select value={formData.gender} onValueChange={(value) => updateFormData("gender", value)}>
             <SelectTrigger className={`border-2 ${fieldErrors.gender ? 'border-red-500' : 'border-gray-300'}`}>
-              <SelectValue placeholder={getTranslation(language, "placeholders.selectGender")} />
+              <SelectValue placeholder={t( "placeholders.selectGender")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="male">{getTranslation(language, "options.male")}</SelectItem>
-              <SelectItem value="female">{getTranslation(language, "options.female")}</SelectItem>
-              <SelectItem value="other">{getTranslation(language, "options.other")}</SelectItem>
-              <SelectItem value="preferNotToSay">{getTranslation(language, "options.preferNotToSay")}</SelectItem>
+              <SelectItem value="male">{t( "options.male")}</SelectItem>
+              <SelectItem value="female">{t( "options.female")}</SelectItem>
+              <SelectItem value="other">{t( "options.other")}</SelectItem>
+              <SelectItem value="preferNotToSay">{t( "options.preferNotToSay")}</SelectItem>
             </SelectContent>
           </Select>
           {fieldErrors.gender && (
@@ -297,7 +297,7 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
 
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <Label htmlFor="height">{getTranslation(language, "fields.height")}</Label>
+          <Label htmlFor="height">{t( "fields.height")}</Label>
           <div className="relative">
             <Input
               id="height"
@@ -306,14 +306,14 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
               min="0"
               value={formData.height}
               onChange={(e) => updateFormData("height", e.target.value)}
-              placeholder={getTranslation(language, "placeholders.enterHeight")}
+              placeholder={t( "placeholders.enterHeight")}
               className="border-2 border-gray-300 pr-10"
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">cm</span>
           </div>
         </div>
         <div>
-          <Label htmlFor="weight">{getTranslation(language, "fields.weight")}</Label>
+          <Label htmlFor="weight">{t( "fields.weight")}</Label>
           <div className="relative">
             <Input
               id="weight"
@@ -322,14 +322,14 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
               min="0"
               value={formData.weight}
               onChange={(e) => updateFormData("weight", e.target.value)}
-              placeholder={getTranslation(language, "placeholders.enterWeight")}
+              placeholder={t( "placeholders.enterWeight")}
               className="border-2 border-gray-300 pr-10"
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">kg</span>
           </div>
         </div>
         <div>
-          <Label htmlFor="waistDiameter">{getTranslation(language, "fields.waistDiameter")}</Label>
+          <Label htmlFor="waistDiameter">{t( "fields.waistDiameter")}</Label>
           <div className="relative">
             <Input
               id="waistDiameter"
@@ -338,7 +338,7 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
               min="0"
               value={formData.waistDiameter}
               onChange={(e) => updateFormData("waistDiameter", e.target.value)}
-              placeholder={getTranslation(language, "placeholders.enterWaist")}
+              placeholder={t( "placeholders.enterWaist")}
               className="border-2 border-gray-300 pr-10"
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">cm</span>
@@ -348,7 +348,7 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="location">{getTranslation(language, "fields.location")}</Label>
+          <Label htmlFor="location">{t( "fields.location")}</Label>
         <LocationSearch
           value={formData.location}
           onChange={(location, details) => {
@@ -357,13 +357,13 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
               updateFormData("locationDetails", details)
             }
           }}
-          placeholder={getTranslation(language, "placeholders.enterLocation")}
+          placeholder={t( "placeholders.enterLocation")}
           error={fieldErrors.location}
         />
         </div>
 
         <div>
-          <Label htmlFor="phone">{getTranslation(language, "fields.phone")} *</Label>
+          <Label htmlFor="phone">{t( "fields.phone")} *</Label>
           <div className="flex gap-2">
             <Select
               value={formData.phoneCountryCode}
@@ -397,7 +397,7 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
               id="phone"
               value={formData.phone}
               onChange={(e) => updateFormData("phone", e.target.value)}
-              placeholder={getTranslation(language, "placeholders.enterPhone")}
+              placeholder={t( "placeholders.enterPhone")}
               className={`flex-1 border-2 ${fieldErrors.phone ? 'border-red-500' : 'border-gray-300'}`}
             />
           </div>
@@ -410,25 +410,22 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
       {/* Emergency Contact */}
       <div className="mt-6 space-y-4">
         <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">
-          {getTranslation(language, "sections.emergencyContact")}
+          {t( "sections.emergencyContact")}
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-[1.5fr_2fr_1.2fr] gap-4">
           <div>
-            <Label htmlFor="emergencyContactName">{getTranslation(language, "fields.emergencyContactName")}</Label>
+            <Label htmlFor="emergencyContactName">{t( "fields.emergencyContactName")}</Label>
             <Input
               id="emergencyContactName"
               value={formData.emergencyContactName}
               onChange={(e) => updateFormData("emergencyContactName", e.target.value)}
-              placeholder={getTranslation(language, "placeholders.enterName")}
-              className={`border-2 ${fieldErrors.emergencyContactName ? 'border-red-500' : 'border-gray-300'}`}
+              placeholder={t( "placeholders.enterName")}
+              className="border-2 border-gray-300"
             />
-            {fieldErrors.emergencyContactName && (
-              <p className="text-red-500 text-sm mt-1">{fieldErrors.emergencyContactName}</p>
-            )}
           </div>
           <div>
-            <Label htmlFor="emergencyContactPhone">{getTranslation(language, "fields.emergencyContactPhone")}</Label>
+            <Label htmlFor="emergencyContactPhone">{t( "fields.emergencyContactPhone")}</Label>
             <div className="flex gap-2">
               <Select
                 value={formData.emergencyContactCountryCode || "+351"}
@@ -462,35 +459,29 @@ export function PersonalInformationStep({ formData, updateFormData, language, fi
                 id="emergencyContactPhone"
                 value={formData.emergencyContactPhone}
                 onChange={(e) => updateFormData("emergencyContactPhone", e.target.value)}
-                placeholder={getTranslation(language, "placeholders.enterPhone")}
-                className={`flex-1 border-2 ${fieldErrors.emergencyContactPhone ? 'border-red-500' : 'border-gray-300'}`}
+                placeholder={t( "placeholders.enterPhone")}
+                className="flex-1 border-2 border-gray-300"
               />
             </div>
-            {fieldErrors.emergencyContactPhone && (
-              <p className="text-red-500 text-sm mt-1">{fieldErrors.emergencyContactPhone}</p>
-            )}
           </div>
           <div>
-            <Label htmlFor="emergencyContactRelationship">{getTranslation(language, "fields.emergencyContactRelationship")}</Label>
+            <Label htmlFor="emergencyContactRelationship">{t( "fields.emergencyContactRelationship")}</Label>
             <Select
               value={formData.emergencyContactRelationship}
               onValueChange={(value) => updateFormData("emergencyContactRelationship", value)}
             >
-              <SelectTrigger className={`border-2 ${fieldErrors.emergencyContactRelationship ? 'border-red-500' : 'border-gray-300'}`}>
-                <SelectValue placeholder={getTranslation(language, "placeholders.selectRelationship")} />
+              <SelectTrigger className="border-2 border-gray-300">
+                <SelectValue placeholder={t( "placeholders.selectRelationship")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="spousePartner">{getTranslation(language, "options.spousePartner")}</SelectItem>
-                <SelectItem value="parent">{getTranslation(language, "options.parent")}</SelectItem>
-                <SelectItem value="sibling">{getTranslation(language, "options.sibling")}</SelectItem>
-                <SelectItem value="child">{getTranslation(language, "options.child")}</SelectItem>
-                <SelectItem value="friend">{getTranslation(language, "options.friend")}</SelectItem>
-                <SelectItem value="other">{getTranslation(language, "options.other")}</SelectItem>
+                <SelectItem value="spousePartner">{t( "options.spousePartner")}</SelectItem>
+                <SelectItem value="parent">{t( "options.parent")}</SelectItem>
+                <SelectItem value="sibling">{t( "options.sibling")}</SelectItem>
+                <SelectItem value="child">{t( "options.child")}</SelectItem>
+                <SelectItem value="friend">{t( "options.friend")}</SelectItem>
+                <SelectItem value="other">{t( "options.other")}</SelectItem>
               </SelectContent>
             </Select>
-            {fieldErrors.emergencyContactRelationship && (
-              <p className="text-red-500 text-sm mt-1">{fieldErrors.emergencyContactRelationship}</p>
-            )}
           </div>
         </div>
       </div>
