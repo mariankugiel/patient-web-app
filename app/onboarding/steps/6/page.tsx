@@ -36,9 +36,7 @@ export default function IntegrationsPage() {
   const handleNext = async () => {
     await saveProgress()
     dispatch(addCompletedStep(6))
-    // Mark onboarding as completed after integrations
-    toast.success(t("onboarding.messages.onboardingCompletedSuccess"))
-    router.push('/patient/health-records/summary')
+    router.push('/onboarding/steps/7')
   }
 
   const handleBack = async () => {
@@ -47,7 +45,7 @@ export default function IntegrationsPage() {
   }
 
   const handleStepClick = (stepId: number) => {
-    if (completedSteps.includes(stepId) || stepId <= 6) {
+    if (completedSteps.includes(stepId) || stepId <= 7) {
       router.push(`/onboarding/steps/${stepId}`)
     }
   }
@@ -60,7 +58,7 @@ export default function IntegrationsPage() {
   return (
     <OnboardingLayout
       currentStep={6}
-      totalSteps={6}
+      totalSteps={7}
       completedSteps={completedSteps}
       onStepClick={handleStepClick}
       onPrevious={handleBack}

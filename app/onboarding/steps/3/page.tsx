@@ -47,7 +47,7 @@ export default function FamilyHistoryPage() {
   return (
     <OnboardingLayout
       currentStep={3}
-      totalSteps={6}
+      totalSteps={7}
       completedSteps={completedSteps}
       onStepClick={handleStepClick}
       onPrevious={handleBack}

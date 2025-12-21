@@ -192,7 +192,7 @@ export default function MedicalConditionPage() {
   return (
     <OnboardingLayout
       currentStep={2}
-      totalSteps={6}
+      totalSteps={7}
       completedSteps={completedSteps}
       onStepClick={handleStepClick}
       onPrevious={handleBack}

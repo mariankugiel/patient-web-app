@@ -54,7 +54,7 @@ export default function PermissionsPage() {
   }
 
   const handleStepClick = (stepId: number) => {
-    if (completedSteps.includes(stepId) || stepId <= 6) {
+    if (completedSteps.includes(stepId) || stepId <= 7) {
       router.push(`/onboarding/steps/${stepId}`)
     }
   }
@@ -67,7 +67,7 @@ export default function PermissionsPage() {
   return (
     <OnboardingLayout
       currentStep={5}
-      totalSteps={6}
+      totalSteps={7}
       completedSteps={completedSteps}
       onStepClick={handleStepClick}
       onPrevious={handleBack}

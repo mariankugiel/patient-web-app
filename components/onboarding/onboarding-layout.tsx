@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Globe, Check, ArrowLeft, ArrowRight, Shield } from "lucide-react"
+import { Globe, Check, ArrowLeft, ArrowRight, Shield, CreditCard } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { type Language as TranslationLanguage } from "@/lib/translations"
 import { useLanguage } from "@/contexts/language-context"
@@ -71,6 +71,7 @@ export function OnboardingLayout({
     { id: 4, title: t("steps.healthRecords"), icon: require("lucide-react").FileText },
     { id: 5, title: t("steps.permissions") || "Permissions", icon: require("lucide-react").Shield },
     { id: 6, title: t("steps.integrations") || "Integrations", icon: require("lucide-react").Activity },
+    { id: 7, title: t("steps.payment") || "Payment", icon: require("lucide-react").CreditCard },
   ]
   
   const progress = (currentStep / totalSteps) * 100
@@ -157,15 +158,24 @@ export function OnboardingLayout({
       </div>
 
       {/* Form Content */}
-      <div className="max-w-2xl mx-auto p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl text-balance">{stepTitle}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
+      <div className={cn(
+        "mx-auto p-6",
+        currentStep === 7 ? "max-w-full" : "max-w-2xl"
+      )}>
+        {currentStep === 7 ? (
+          <div className="space-y-6">
             {children}
-          </CardContent>
-        </Card>
+          </div>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-2xl text-balance">{stepTitle}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {children}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Navigation */}
         <div className="flex justify-between mt-6">
