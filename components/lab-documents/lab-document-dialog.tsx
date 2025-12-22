@@ -253,6 +253,23 @@ export function LabDocumentDialog({
     user_language?: string
     translation_applied?: boolean
   } | null>(null)
+  const [similarityInfo, setSimilarityInfo] = useState<{
+    sections: Array<{
+      name: string
+      status: 'new' | 'exist' | 'similar'
+      similarity_score: number | null
+      existing_section_id: number | null
+      existing_display_name: string | null
+    }>
+    metrics: Array<{
+      metric_name: string
+      section_name: string
+      status: 'new' | 'exist' | 'similar'
+      similarity_score: number | null
+      existing_metric_id: number | null
+      existing_display_name: string | null
+    }>
+  } | null>(null)
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
   const [duplicateInfo, setDuplicateInfo] = useState<{
     existingDocument: any
@@ -306,6 +323,11 @@ export function LabDocumentDialog({
       }
       setFormData(newFormData)
       setInitialFormData(newFormData)
+    }
+    
+    // Reset similarity info when dialog closes
+    if (!open) {
+      setSimilarityInfo(null)
     }
   }, [open, mode, document])
 
@@ -362,6 +384,93 @@ export function LabDocumentDialog({
         toast.error('Please upload a PDF file')
       }
     }
+  }
+
+  const checkSimilarity = async (results: any[]) => {
+    try {
+      if (!results || results.length === 0) {
+        return
+      }
+
+      // Extract unique sections and metrics
+      const uniqueSections = Array.from(
+        new Set(results.map(r => r.type_of_analysis).filter(Boolean))
+      ).map(name => ({ name }))
+
+      const metrics = results.map(r => ({
+        metric_name: r.metric_name,
+        section_name: r.type_of_analysis || 'General Lab Analysis'
+      }))
+
+      const similarityRequest = {
+        sections: uniqueSections,
+        metrics: metrics,
+        health_record_type_id: 1
+      }
+
+      const response = await apiClient.post(
+        '/health-records/health-record-doc-lab/check-similarity',
+        similarityRequest
+      )
+
+      if (response.data.success) {
+        setSimilarityInfo({
+          sections: response.data.sections || [],
+          metrics: response.data.metrics || []
+        })
+      }
+    } catch (error) {
+      console.error('Failed to check similarity:', error)
+      // Don't show error to user, just log it
+    }
+  }
+
+  const getSimilarityTag = (metricName: string, sectionName: string) => {
+    if (!similarityInfo) return null
+
+    const metricInfo = similarityInfo.metrics.find(
+      m => m.metric_name === metricName && m.section_name === sectionName
+    )
+
+    if (!metricInfo) return null
+
+    const tagConfig = {
+      exist: {
+        label: 'EXIST',
+        color: 'bg-green-100 text-green-800 border-green-300',
+        tooltip: metricInfo.existing_display_name
+          ? `Already exists: ${metricInfo.existing_display_name}`
+          : 'Already exists'
+      },
+      similar: {
+        label: 'SIMILAR',
+        color: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+        tooltip: metricInfo.existing_display_name
+          ? `Similar to: ${metricInfo.existing_display_name} (${Math.round((metricInfo.similarity_score || 0) * 100)}% match)`
+          : `Similar metric found (${Math.round((metricInfo.similarity_score || 0) * 100)}% match)`
+      },
+      new: {
+        label: 'NEW',
+        color: 'bg-blue-100 text-blue-800 border-blue-300',
+        tooltip: 'New metric - will be created'
+      }
+    }
+
+    const config = tagConfig[metricInfo.status] || tagConfig.new
+
+    return (
+      <Badge
+        className={`${config.color} border font-medium text-xs px-2 py-0.5`}
+        title={config.tooltip}
+      >
+        {config.label}
+        {metricInfo.similarity_score && (
+          <span className="ml-1 text-xs opacity-75">
+            ({Math.round(metricInfo.similarity_score * 100)}%)
+          </span>
+        )}
+      </Badge>
+    )
   }
 
   const handleAnalyze = async (file: File) => {
@@ -460,6 +569,10 @@ export function LabDocumentDialog({
           setAnalysisResults(transformedResults)
           setEditableResults(transformedResults)
           setShowAnalysisResults(true)
+          
+          // Check similarity after analysis
+          await checkSimilarity(transformedResults)
+          
           toast.success('Document analyzed with OCR successfully!')
         } else {
           toast.error('OCR extraction also failed to find data')
@@ -514,6 +627,10 @@ export function LabDocumentDialog({
         setAnalysisResults(transformedResults)
         setEditableResults(transformedResults)
         setShowAnalysisResults(true)
+        
+        // Check similarity after analysis
+        await checkSimilarity(transformedResults)
+        
         toast.success('Document analyzed successfully!')
       } else {
         toast.error('Failed to analyze document')
@@ -1168,15 +1285,15 @@ export function LabDocumentDialog({
               {analyzing ? (
                 t("health.documents.analyzingDocumentPleaseWait")
               ) : (
-                <div className="flex items-center gap-3">
+                <>
                   <span>{t("health.documents.reviewExtractedValues")}</span>
                   {languageInfo?.translation_applied && (
-                    <Badge variant="outline" className="min-w-[90px] justify-center">
+                    <Badge variant="outline" className="min-w-[90px] justify-center ml-3 inline-flex">
                       <Languages className="h-3 w-3 mr-1" />
                       {languageInfo.detected_language?.toUpperCase()} → {languageInfo.user_language?.toUpperCase()}
                     </Badge>
                   )}
-                </div>
+                </>
               )}
             </DialogDescription>
           </DialogHeader>
@@ -1202,6 +1319,8 @@ export function LabDocumentDialog({
                               <h4 className="font-semibold text-lg text-blue-800">
                                 {result.metric_name}
                               </h4>
+                              {/* Similarity Tag */}
+                              {getSimilarityTag(result.metric_name, result.type_of_analysis)}
                               {result.status === 'abnormal' && (
                                 <Badge variant="destructive" className="ml-2">
                                   <AlertTriangle className="h-3 w-3 mr-1" /> {t("health.documents.abnormal")}

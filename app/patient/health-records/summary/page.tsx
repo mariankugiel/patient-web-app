@@ -29,6 +29,7 @@ import { formatMetricValue, formatReferenceRange, formatNumericValue } from "@/h
 import { useSelector } from "react-redux"
 import { RootState } from "@/lib/store"
 import { useEffect, useRef } from "react"
+import { AIAnalysisSection } from "@/components/health-records/ai-analysis-section"
 
 export default function SummaryPage() {
   const { t } = useLanguage()
@@ -42,27 +43,32 @@ export default function SummaryPage() {
     analysis: aiAnalysis, 
     loading: aiLoading, 
     error: aiError,
-    generateAnalysis 
+    generateAnalysis,
+    checkForUpdates,
+    clearAnalysis
   } = useAIAnalysis(1, patientId || null)
   
   // Track if we've attempted to fetch AI analysis to prevent infinite loops
   const aiAnalysisAttempted = useRef(false)
   
-  // Reset the attempted flag when patientId changes
+  // Reset the attempted flag and clear cached analysis when patientId or language changes
+  const { language } = useLanguage()
   useEffect(() => {
     aiAnalysisAttempted.current = false
-  }, [patientId])
+    // Clear cached analysis when language changes so it re-fetches in the new language
+    clearAnalysis()
+  }, [patientId, language, clearAnalysis])
   
-  // Auto-load AI analysis when page loads
+  // Auto-load AI analysis when page loads or language changes
   useEffect(() => {
-    if (!aiLoading && !aiAnalysis && !aiAnalysisAttempted.current) {
+    if (!aiLoading && !aiAnalysisAttempted.current) {
       aiAnalysisAttempted.current = true
       generateAnalysis(false).catch((err) => {
         console.error('Failed to generate AI analysis:', err)
         // Don't reset the flag on error to prevent infinite retries
       })
     }
-  }, [aiLoading, aiAnalysis, generateAnalysis, patientId])
+  }, [aiLoading, generateAnalysis, patientId, language])
 
   const renderTrendIcon = (trend?: string) => {
     if (trend === "improving") {
@@ -260,6 +266,33 @@ export default function SummaryPage() {
     )
   }
 
+  // Calculate overall health score from summary data
+  const calculateHealthScore = () => {
+    if (!summaryData) return 0
+    
+    const allMetrics = [
+      ...summaryData.wellness.recommended,
+      ...summaryData.wellness.recent,
+      ...summaryData.analysis.recommended,
+      ...summaryData.analysis.recent
+    ]
+    
+    // Remove duplicates by metric ID
+    const uniqueMetrics = Array.from(
+      new Map(allMetrics.map(m => [m.id, m])).values()
+    )
+    
+    if (uniqueMetrics.length === 0) return 0
+    
+    const normalCount = uniqueMetrics.filter(
+      (m) => m.latest_status === "normal"
+    ).length
+    
+    return Math.round((normalCount / uniqueMetrics.length) * 100)
+  }
+
+  const healthScore = summaryData ? calculateHealthScore() : 0
+
   // Render a section with recommended and recent rows
   const renderSection = (
     title: string,
@@ -342,85 +375,65 @@ export default function SummaryPage() {
           <CardDescription>{t("health.overallAssessmentDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg bg-muted/50 p-4 border border-muted">
-                <div className="flex items-start gap-3">
-                  <Brain className="h-5 w-5 text-teal-600 mt-0.5" />
-              <div className="space-y-3 flex-1">
-                {/* Areas of Concern */}
-                    <div>
-                      <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-red-600">
-                        <AlertTriangle className="h-4 w-4" />
-                        {t("health.areasOfConcern")}:
-                      </h4>
-                  {aiLoading ? (
-                    <p className="text-sm text-gray-500">{t("health.analyzingYourHealthData") || "Analyzing your health data..."}</p>
-                  ) : aiError ? (
-                    <p className="text-sm text-gray-500 italic">{t("health.unableToAnalyzeConcerns") || "Unable to analyze concerns at this time. Please try again later."}</p>
-                  ) : !aiAnalysis ? (
-                    <p className="text-sm text-gray-500 italic">{t("health.noAnalysisAvailableYet") || "No analysis available yet. AI analysis will appear here once generated."}</p>
-                  ) : (aiAnalysis?.analysis?.areas_of_concern || []).length === 0 ? (
-                    <p className="text-sm text-gray-500 italic">{t("health.noAreasOfConcernIdentified") || "No areas of concern identified in your current health data."}</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {(aiAnalysis?.analysis?.areas_of_concern || []).map((concern: string, index: number) => (
-                        <p key={index} className="text-sm">
-                          {typeof concern === 'string' ? concern : String(concern)}
-                        </p>
-                      ))}
-                    </div>
-                  )}
+          <div className="flex flex-col md:flex-row gap-6">
+            {/* Health Score */}
+            <div className="flex-shrink-0 md:w-48">
+              <div className="flex flex-col items-center justify-center">
+                <div className="relative h-36 w-36 flex items-center justify-center">
+                  <svg className="h-full w-full" viewBox="0 0 100 100">
+                    <circle
+                      className="text-muted stroke-current"
+                      strokeWidth="10"
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      fill="transparent"
+                    />
+                    <circle
+                      className={`${
+                        healthScore >= 80
+                          ? "text-green-500"
+                          : healthScore >= 60
+                            ? "text-yellow-500"
+                            : "text-red-500"
+                      } stroke-current`}
+                      strokeWidth="10"
+                      strokeLinecap="round"
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      fill="transparent"
+                      strokeDasharray={`${healthScore * 2.51} 251`}
+                      strokeDashoffset="0"
+                      transform="rotate(-90 50 50)"
+                    />
+                  </svg>
+                  <div className="absolute flex flex-col items-center justify-center">
+                    <span className="text-3xl font-bold">{healthScore}</span>
+                    <span className="text-sm text-muted-foreground">{t("health.healthScore")}</span>
+                  </div>
                 </div>
-                
-                {/* Positive Trends */}
-                    <div>
-                      <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-green-600">
-                        <ThumbsUp className="h-4 w-4" />
-                        {t("health.positiveTrends")}:
-                      </h4>
-                  {aiLoading ? (
-                    <p className="text-sm text-gray-500">{t("health.identifyingPositiveTrends") || "Identifying positive trends..."}</p>
-                  ) : aiError ? (
-                    <p className="text-sm text-gray-500 italic">{t("health.unableToIdentifyTrends") || "Unable to identify trends at this time. Please try again later."}</p>
-                  ) : !aiAnalysis ? (
-                    <p className="text-sm text-gray-500 italic">{t("health.noAnalysisAvailableYet") || "No analysis available yet. AI analysis will appear here once generated."}</p>
-                  ) : (aiAnalysis?.analysis?.positive_trends || []).length === 0 ? (
-                    <p className="text-sm text-gray-500 italic">{t("health.noPositiveTrendsIdentified") || "No positive trends identified in your current health data."}</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {(aiAnalysis?.analysis?.positive_trends || []).map((trend: string, index: number) => (
-                        <p key={index} className="text-sm">
-                          {typeof trend === 'string' ? trend : String(trend)}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Recommendations */}
-                    <div>
-                      <h4 className="font-medium text-sm mb-1 flex items-center gap-2 text-blue-600">
-                        <Lightbulb className="h-4 w-4" />
-                        {t("health.recommendations")}:
-                      </h4>
-                  {aiLoading ? (
-                    <p className="text-sm text-gray-500">{t("health.generatingPersonalizedRecommendations") || "Generating personalized recommendations..."}</p>
-                  ) : aiError ? (
-                    <p className="text-sm text-gray-500 italic">{t("health.unableToGenerateRecommendations") || "Unable to generate recommendations at this time. Please try again later."}</p>
-                  ) : !aiAnalysis ? (
-                    <p className="text-sm text-gray-500 italic">{t("health.noAnalysisAvailableYet") || "No analysis available yet. AI analysis will appear here once generated."}</p>
-                  ) : (aiAnalysis?.analysis?.recommendations || []).length === 0 ? (
-                    <p className="text-sm text-gray-500 italic">{t("health.noRecommendationsAvailable") || "No recommendations available for your current health data."}</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {(aiAnalysis?.analysis?.recommendations || []).map((recommendation: string, index: number) => (
-                        <p key={index} className="text-sm">
-                          {typeof recommendation === 'string' ? recommendation : String(recommendation)}
-                        </p>
-                      ))}
-                    </div>
-                  )}
+                <div className="mt-2 text-center">
+                  <p className="font-medium">
+                    {healthScore >= 80
+                      ? t("health.excellent")
+                      : healthScore >= 60
+                        ? t("health.good")
+                        : t("health.needsImprovement")}
+                  </p>
                 </div>
               </div>
+            </div>
+
+            {/* AI Analysis */}
+            <div className="flex-1 min-w-0">
+              <AIAnalysisSection
+                title={t("health.aiHealthAnalysis")}
+                analysis={aiAnalysis}
+                loading={aiLoading}
+                error={aiError}
+                onCheckForUpdates={checkForUpdates}
+              />
             </div>
           </div>
         </CardContent>
