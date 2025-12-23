@@ -13,7 +13,7 @@ import { toast } from 'react-toastify'
 import { medicalDocumentsApiService, MedicalDocument, MedicalDocumentUpdate } from '@/lib/api/medical-documents-api'
 import apiClient from '@/lib/api/axios-config'
 import { formatDateForInput } from '@/lib/date-utils'
-import { Loader2, Upload, FileText, CheckCircle, XCircle, AlertTriangle, Edit, Trash2, Languages } from 'lucide-react'
+import { Loader2, Upload, FileText, CheckCircle, XCircle, AlertTriangle, Edit, Trash2, Languages, ArrowLeftRight, RefreshCw } from 'lucide-react'
 import { useLanguage } from '@/contexts/language-context'
 import { DuplicateFileDialog } from '@/components/ui/duplicate-file-dialog'
 
@@ -254,22 +254,31 @@ export function LabDocumentDialog({
     translation_applied?: boolean
   } | null>(null)
   const [similarityInfo, setSimilarityInfo] = useState<{
-    sections: Array<{
-      name: string
-      status: 'new' | 'exist' | 'similar'
-      similarity_score: number | null
-      existing_section_id: number | null
-      existing_display_name: string | null
-    }>
-    metrics: Array<{
-      metric_name: string
+    results: Array<{
+      parsed_name: string
       section_name: string
-      status: 'new' | 'exist' | 'similar'
-      similarity_score: number | null
-      existing_metric_id: number | null
-      existing_display_name: string | null
+      best_match: {
+        existing_name: string
+        display_name: string
+        metric_id: number
+        similarity_score: number
+      } | null
+      suggested_name: string
+      can_toggle: boolean
     }>
   } | null>(null)
+  const [metricNameSelections, setMetricNameSelections] = useState<{
+    [index: number]: {
+      parsed_name: string
+      existing_name: string | null
+      suggested_name: string
+      selected_name: string
+      similarity_score: number | null
+      can_toggle: boolean
+      is_edited: boolean
+      edited_name: string | null
+    }
+  }>({})
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
   const [duplicateInfo, setDuplicateInfo] = useState<{
     existingDocument: any
@@ -325,9 +334,10 @@ export function LabDocumentDialog({
       setInitialFormData(newFormData)
     }
     
-    // Reset similarity info when dialog closes
+    // Reset similarity info and metric selections when dialog closes
     if (!open) {
       setSimilarityInfo(null)
+      setMetricNameSelections({})
     }
   }, [open, mode, document])
 
@@ -392,19 +402,14 @@ export function LabDocumentDialog({
         return
       }
 
-      // Extract unique sections and metrics
-      const uniqueSections = Array.from(
-        new Set(results.map(r => r.type_of_analysis).filter(Boolean))
-      ).map(name => ({ name }))
-
-      const metrics = results.map(r => ({
+      // Extract parsed metrics
+      const parsedMetrics = results.map(r => ({
         metric_name: r.metric_name,
         section_name: r.type_of_analysis || 'General Lab Analysis'
       }))
 
       const similarityRequest = {
-        sections: uniqueSections,
-        metrics: metrics,
+        parsed_metrics: parsedMetrics,
         health_record_type_id: 1
       }
 
@@ -415,9 +420,37 @@ export function LabDocumentDialog({
 
       if (response.data.success) {
         setSimilarityInfo({
-          sections: response.data.sections || [],
-          metrics: response.data.metrics || []
+          results: response.data.results || []
         })
+
+        // Initialize metricNameSelections
+        const selections: {
+          [index: number]: {
+            parsed_name: string
+            existing_name: string | null
+            suggested_name: string
+            selected_name: string
+            similarity_score: number | null
+            can_toggle: boolean
+            is_edited: boolean
+            edited_name: string | null
+          }
+        } = {}
+
+        response.data.results.forEach((result: any, index: number) => {
+          selections[index] = {
+            parsed_name: result.parsed_name,
+            existing_name: result.best_match?.display_name || null,
+            suggested_name: result.suggested_name,
+            selected_name: result.suggested_name, // Start with suggested
+            similarity_score: result.best_match?.similarity_score || null,
+            can_toggle: result.can_toggle,
+            is_edited: false,
+            edited_name: null
+          }
+        })
+
+        setMetricNameSelections(selections)
       }
     } catch (error) {
       console.error('Failed to check similarity:', error)
@@ -425,52 +458,90 @@ export function LabDocumentDialog({
     }
   }
 
-  const getSimilarityTag = (metricName: string, sectionName: string) => {
-    if (!similarityInfo) return null
+  const handleToggleMetricName = (index: number) => {
+    const selection = metricNameSelections[index]
+    if (!selection || !selection.can_toggle || selection.is_edited) return
+    
+    // Toggle between suggested and alternative
+    const alternative = selection.selected_name === selection.suggested_name
+      ? (selection.existing_name || selection.parsed_name)
+      : selection.suggested_name
+    
+    setMetricNameSelections(prev => ({
+      ...prev,
+      [index]: {
+        ...selection,
+        selected_name: alternative
+      }
+    }))
+  }
 
-    const metricInfo = similarityInfo.metrics.find(
-      m => m.metric_name === metricName && m.section_name === sectionName
-    )
-
-    if (!metricInfo) return null
-
-    const tagConfig = {
-      exist: {
-        label: 'EXIST',
-        color: 'bg-green-100 text-green-800 border-green-300',
-        tooltip: metricInfo.existing_display_name
-          ? `Already exists: ${metricInfo.existing_display_name}`
-          : 'Already exists'
-      },
-      similar: {
-        label: 'SIMILAR',
-        color: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-        tooltip: metricInfo.existing_display_name
-          ? `Similar to: ${metricInfo.existing_display_name} (${Math.round((metricInfo.similarity_score || 0) * 100)}% match)`
-          : `Similar metric found (${Math.round((metricInfo.similarity_score || 0) * 100)}% match)`
-      },
-      new: {
+  const getMetricNameStatus = (index: number) => {
+    const selection = metricNameSelections[index]
+    if (!selection) return null
+    
+    if (selection.is_edited) {
+      return {
+        type: 'edited',
+        label: 'EDITED',
+        color: 'bg-purple-100 text-purple-800 border-purple-300',
+        tooltip: `User edited from "${selection.parsed_name}"`
+      }
+    }
+    
+    const currentName = selection.selected_name || selection.suggested_name
+    
+    // First check if there's an existing match (similarity found)
+    const hasExistingMatch = selection.existing_name && selection.similarity_score !== null
+    
+    // If no existing match found, it's a NEW metric
+    if (!hasExistingMatch) {
+      return {
+        type: 'new',
         label: 'NEW',
         color: 'bg-blue-100 text-blue-800 border-blue-300',
         tooltip: 'New metric - will be created'
       }
     }
-
-    const config = tagConfig[metricInfo.status] || tagConfig.new
-
-    return (
-      <Badge
-        className={`${config.color} border font-medium text-xs px-2 py-0.5`}
-        title={config.tooltip}
-      >
-        {config.label}
-        {metricInfo.similarity_score && (
-          <span className="ml-1 text-xs opacity-75">
-            ({Math.round(metricInfo.similarity_score * 100)}%)
-          </span>
-        )}
-      </Badge>
-    )
+    
+    // Check if current name is the existing name (suggested from similarity)
+    if (selection.existing_name && currentName === selection.existing_name) {
+      return {
+        type: 'existing',
+        label: 'EXISTING',
+        color: 'bg-green-100 text-green-800 border-green-300',
+        tooltip: `Existing metric (${Math.round((selection.similarity_score || 0) * 100)}% match)`
+      }
+    }
+    
+    // Check if current name is the parsed name (original from document)
+    // But only show ORIGINAL if there IS an existing match (user chose original over existing)
+    if (currentName === selection.parsed_name && hasExistingMatch) {
+      return {
+        type: 'original',
+        label: 'ORIGINAL',
+        color: 'bg-blue-100 text-blue-800 border-blue-300',
+        tooltip: `Original name from document (existing: "${selection.existing_name}")`
+      }
+    }
+    
+    // Otherwise it's the suggested name (which could be existing or parsed)
+    if (selection.suggested_name === selection.existing_name) {
+      return {
+        type: 'suggested',
+        label: 'SUGGESTED',
+        color: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+        tooltip: `Suggested: existing metric (${Math.round((selection.similarity_score || 0) * 100)}% match)`
+      }
+    }
+    
+    // Fallback to new
+    return {
+      type: 'new',
+      label: 'NEW',
+      color: 'bg-blue-100 text-blue-800 border-blue-300',
+      tooltip: 'New metric - will be created'
+    }
   }
 
   const handleAnalyze = async (file: File) => {
@@ -663,8 +734,75 @@ export function LabDocumentDialog({
     const newResults = [...editableResults]
     newResults[index] = updatedResult
     setEditableResults(newResults)
+    
+    // Get the original parsed name before edit to find all matching metrics
+    const originalParsedName = metricNameSelections[index]?.parsed_name || editableResults[index]?.metric_name
+    const editedName = updatedResult.metric_name
+    
+    // Update metricNameSelections to mark as edited
+    // Also update all metrics with the same parsed_name
+    setMetricNameSelections(prev => {
+      const updated = { ...prev }
+      
+      // Find all indices with the same parsed_name
+      Object.keys(prev).forEach(key => {
+        const idx = parseInt(key)
+        const selection = prev[idx]
+        
+        // If this metric has the same parsed_name, apply the same edit
+        if (selection && selection.parsed_name === originalParsedName) {
+          updated[idx] = {
+            ...selection,
+            is_edited: true,
+            edited_name: editedName  // Apply same edited name to all matching metrics
+          }
+          
+          // Also update the editableResults for this index
+          if (editableResults[idx]) {
+            newResults[idx] = {
+              ...editableResults[idx],
+              metric_name: editedName
+            }
+          }
+        }
+      })
+      
+      // Ensure the current index is updated
+      updated[index] = {
+        ...(prev[index] || {
+          parsed_name: originalParsedName,
+          existing_name: null,
+          suggested_name: originalParsedName,
+          selected_name: originalParsedName,
+          similarity_score: null,
+          can_toggle: false
+        }),
+        is_edited: true,
+        edited_name: editedName
+      }
+      
+      return updated
+    })
+    
+    // Update all editableResults with the same parsed name
+    editableResults.forEach((result, idx) => {
+      if (result.metric_name === originalParsedName && idx !== index) {
+        newResults[idx] = {
+          ...result,
+          metric_name: editedName
+        }
+      }
+    })
+    
+    setEditableResults(newResults)
     setEditingIndex(null)
-    toast.success('Health record entry updated')
+    
+    const matchingCount = editableResults.filter(r => r.metric_name === originalParsedName).length
+    if (matchingCount > 1) {
+      toast.success(`Updated ${matchingCount} health record entries with the same metric name`)
+    } else {
+      toast.success('Health record entry updated')
+    }
   }
 
   const handleCancelEdit = () => {
@@ -768,15 +906,23 @@ export function LabDocumentDialog({
             // Map editableResults back to original data structure
             // editableResults contains translated data when translation is applied, so use that for storage
             const recordsToSend = editableResults.map((editedResult, index) => {
-              // Use editedResult first (contains translated data), fall back to original if needed
-              // This ensures translated values are saved when translation was applied
+              // Send exactly what the user sees and confirms in the dialog
+              // The display logic is: edited_name > selected_name > result.metric_name
+              // So we use the same logic here to ensure consistency
+              const selection = metricNameSelections[index]
               const originalRecord = originalLabData[index] || {}
+              
+              // Get metric name exactly as displayed to user (same logic as UI display)
+              const metricNameToUse = selection?.is_edited 
+                ? selection.edited_name 
+                : (selection?.selected_name || editedResult.metric_name)
+              
               return {
                 lab_name: formData.provider || 'Unknown Lab',
-                type_of_analysis: editedResult.type_of_analysis || originalRecord.type_of_analysis || 'General Lab Analysis',
-                metric_name: editedResult.metric_name || originalRecord.metric_name,
+                type_of_analysis: editedResult.type_of_analysis || 'General Lab Analysis',
+                metric_name: metricNameToUse,  // Exactly what user sees and confirms
                 date_of_value: editedResult.date_of_value || dateForBackend,
-                value: editedResult.value,  // Use edited value
+                value: editedResult.value,
                 unit: editedResult.unit || originalRecord.unit || '',
                 reference: editedResult.reference_range || originalRecord.reference || originalRecord.reference_range || ''
               }
@@ -790,7 +936,9 @@ export function LabDocumentDialog({
               lab_test_date: dateForBackend, // Use the same formatted date
               provider: formData.provider,
               document_type: formData.lab_test_type, // Send document type here
-              detected_language: languageInfo?.detected_language || 'en' // Pass detected language for proper source_language storage
+              detected_language: languageInfo?.detected_language || 'en', // Original document language
+              translation_applied: languageInfo?.translation_applied || false, // Whether translation was applied
+              user_language: languageInfo?.user_language || 'en' // User's language (language of data being sent)
             }
 
             const bulkResponse = await apiClient.post('/health-records/health-record-doc-lab/bulk', bulkData)
@@ -1285,17 +1433,17 @@ export function LabDocumentDialog({
               {analyzing ? (
                 t("health.documents.analyzingDocumentPleaseWait")
               ) : (
-                <>
-                  <span>{t("health.documents.reviewExtractedValues")}</span>
-                  {languageInfo?.translation_applied && (
-                    <Badge variant="outline" className="min-w-[90px] justify-center ml-3 inline-flex">
+                t("health.documents.reviewExtractedValues")
+              )}
+            </DialogDescription>
+            {!analyzing && languageInfo?.translation_applied && (
+              <div className="flex items-center gap-2 px-6 -mt-2 mb-2">
+                    <Badge variant="outline" className="min-w-[90px] justify-center">
                       <Languages className="h-3 w-3 mr-1" />
                       {languageInfo.detected_language?.toUpperCase()} → {languageInfo.user_language?.toUpperCase()}
                     </Badge>
-                  )}
-                </>
+                </div>
               )}
-            </DialogDescription>
           </DialogHeader>
           
           <div className="flex-1 overflow-y-auto space-y-4">
@@ -1317,10 +1465,72 @@ export function LabDocumentDialog({
                             <div className="flex items-center gap-2">
                               <FileText className="h-5 w-5 text-blue-600" />
                               <h4 className="font-semibold text-lg text-blue-800">
-                                {result.metric_name}
+                                {metricNameSelections[index]?.is_edited 
+                                  ? metricNameSelections[index].edited_name 
+                                  : (metricNameSelections[index]?.selected_name || result.metric_name)
+                                }
                               </h4>
-                              {/* Similarity Tag */}
-                              {getSimilarityTag(result.metric_name, result.type_of_analysis)}
+                              {/* Status badge - shows if name is original, existing, suggested, edited, or new */}
+                              {(() => {
+                                const status = getMetricNameStatus(index)
+                                const selection = metricNameSelections[index]
+                                if (!status) return null
+                                return (
+                                  <Badge
+                                    className={`${status.color} border font-medium text-xs px-2 py-0.5`}
+                                    title={status.tooltip}
+                                  >
+                                    {status.label}
+                                    {status.type === 'existing' && selection?.similarity_score && (
+                                      <span className="ml-1 text-xs opacity-75">
+                                        ({Math.round(selection.similarity_score * 100)}%)
+                                      </span>
+                                    )}
+                                  </Badge>
+                                )
+                              })()}
+                              {/* Toggle button - only show if can toggle, not edited, not 100% match, and not new */}
+                              {(() => {
+                                const selection = metricNameSelections[index]
+                                if (!selection) return null
+                                
+                                // Don't show if edited
+                                if (selection.is_edited) return null
+                                
+                                // Don't show if new (no existing match to swap with)
+                                if (!selection.existing_name || selection.similarity_score === null) return null
+                                
+                                // Don't show if can_toggle is false
+                                if (!selection.can_toggle) return null
+                                
+                                // Don't show if 100% match (exact match, no need to swap)
+                                // Check for exact 1.0 or very close to 1.0 (>= 0.9999) to handle floating point precision
+                                if (selection.similarity_score !== null && selection.similarity_score >= 0.9999) {
+                                  return null
+                                }
+                                
+                                // Don't show if suggested_name already equals existing_name (already using best match)
+                                // This handles cases where similarity is high but not exactly 1.0
+                                if (selection.suggested_name === selection.existing_name && 
+                                    selection.similarity_score !== null && 
+                                    selection.similarity_score >= 0.95) {
+                                  return null
+                                }
+                                
+                                return (
+                                  <button
+                                    onClick={() => handleToggleMetricName(index)}
+                                    className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                    title={`Switch to ${
+                                      selection.selected_name === selection.suggested_name
+                                        ? (selection.existing_name || selection.parsed_name)
+                                        : selection.suggested_name
+                                    }`}
+                                  >
+                                    <ArrowLeftRight className="h-4 w-4" />
+                                  </button>
+                                )
+                              })()}
                               {result.status === 'abnormal' && (
                                 <Badge variant="destructive" className="ml-2">
                                   <AlertTriangle className="h-3 w-3 mr-1" /> {t("health.documents.abnormal")}

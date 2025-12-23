@@ -235,7 +235,7 @@ export function PersonalInformationStep({ formData, updateFormData, fieldErrors 
       {/* Personal Information Fields */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="firstName">{t( "fields.firstName")} *</Label>
+          <Label htmlFor="firstName">{t( "fields.firstName")} <span className="text-red-500">*</span></Label>
           <Input
             id="firstName"
             value={formData.firstName}
@@ -248,7 +248,7 @@ export function PersonalInformationStep({ formData, updateFormData, fieldErrors 
           )}
         </div>
         <div>
-          <Label htmlFor="lastName">{t( "fields.lastName")} *</Label>
+          <Label htmlFor="lastName">{t( "fields.lastName")} <span className="text-red-500">*</span></Label>
           <Input
             id="lastName"
             value={formData.lastName}
@@ -264,7 +264,7 @@ export function PersonalInformationStep({ formData, updateFormData, fieldErrors 
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="dateOfBirth">{t( "fields.dateOfBirth")} *</Label>
+          <Label htmlFor="dateOfBirth">{t( "fields.dateOfBirth")} <span className="text-red-500">*</span></Label>
           <Input
             type="date"
             id="dateOfBirth"
@@ -363,7 +363,7 @@ export function PersonalInformationStep({ formData, updateFormData, fieldErrors 
         </div>
 
         <div>
-          <Label htmlFor="phone">{t( "fields.phone")} *</Label>
+          <Label htmlFor="phone">{t( "fields.phone")} <span className="text-red-500">*</span></Label>
           <div className="flex gap-2">
             <Select
               value={formData.phoneCountryCode}
