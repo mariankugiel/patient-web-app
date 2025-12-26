@@ -11,7 +11,9 @@ import type {
   HealthPlanSupportMessage,
   AppointmentReminderMessage,
   LabResultsMessage,
-  MessageAttachment
+  MessageAttachment,
+  AIChatRequest,
+  AIChatResponse
 } from '@/types/messages'
 
 export class MessagesApiService {
@@ -339,6 +341,19 @@ export class MessagesApiService {
       console.log('🗑️ API: Conversation deleted successfully')
     } catch (error) {
       console.error('🗑️ API: Failed to delete conversation:', error)
+      throw error
+    }
+  }
+
+  // Send message to AI chat (Saluso Support)
+  async sendAIChatMessage(request: AIChatRequest): Promise<AIChatResponse> {
+    try {
+      console.log('🤖 API: Sending AI chat message')
+      const response = await apiClient.post<AIChatResponse>('/messages/chat/ai', request)
+      console.log('🤖 API: AI chat response received')
+      return response.data
+    } catch (error) {
+      console.error('🤖 API: Failed to send AI chat message:', error)
       throw error
     }
   }

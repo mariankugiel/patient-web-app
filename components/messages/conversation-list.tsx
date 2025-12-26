@@ -26,7 +26,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { getProfilePictureUrl } from '@/lib/profile-utils'
-import type { Conversation, MessageType } from '@/types/messages'
+import type { Conversation, MessageType, BotConversation } from '@/types/messages'
+import { SALUSO_SUPPORT_CONVERSATION_ID } from '@/types/messages'
+import { Bot } from 'lucide-react'
 
 interface ConversationListProps {
   conversations: Conversation[]
@@ -170,16 +172,43 @@ export function ConversationList({
     onMarkAsRead(conversationId)
   }
 
+  // Create bot conversation
+  const botConversation: BotConversation = {
+    id: SALUSO_SUPPORT_CONVERSATION_ID,
+    user_id: 0,
+    contact_id: 0,
+    contact_name: 'Saluso Support',
+    contact_role: 'AI Assistant',
+    contact_initials: 'SS',
+    current_user_name: undefined,
+    current_user_role: undefined,
+    current_user_avatar: undefined,
+    current_user_initials: undefined,
+    messages: [],
+    unreadCount: 0,
+    lastMessageTime: new Date().toISOString(),
+    isArchived: false,
+    isPinned: false,
+    tags: [],
+    isBot: true
+  }
+
+  // Combine bot conversation with regular conversations, bot always first
+  const allConversations: (Conversation | BotConversation)[] = [
+    botConversation,
+    ...conversations
+  ]
+
   // Debug logging
   useEffect(() => {
     console.log('💬 [ConversationList] Rendering conversations:', {
-      count: conversations.length,
-      conversationIds: conversations.map(c => c.id),
-      conversationContacts: conversations.map(c => c.contact_name)
+      count: allConversations.length,
+      conversationIds: allConversations.map(c => c.id),
+      conversationContacts: allConversations.map(c => c.contact_name)
     })
   }, [conversations])
 
-  if (conversations.length === 0) {
+  if (allConversations.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-32 text-gray-500 dark:text-gray-400">
         <MessageSquare className="h-8 w-8 mb-2 opacity-50" />
@@ -191,7 +220,8 @@ export function ConversationList({
 
   return (
     <div className="space-y-2 w-full max-w-full overflow-hidden">
-      {conversations.map((conversation) => {
+      {allConversations.map((conversation) => {
+        const isBot = 'isBot' in conversation && conversation.isBot
         const isSelected = selectedConversationId === conversation.id
         const hasUnread = conversation.unreadCount > 0
         const hasActionRequired = conversation.lastMessage?.message_metadata?.actionRequired
@@ -216,25 +246,33 @@ export function ConversationList({
                 {/* Avatar with online status */}
                 <div className="relative">
                   <Avatar className="h-12 w-12">
-                    <AvatarImage
-                      src={loadedAvatars[conversation.id] || (conversation.contact_avatar && conversation.contact_avatar.trim() !== "" && conversation.contact_avatar !== "null" ? conversation.contact_avatar : undefined)}
-                      alt={conversation.contact_name || "Unknown"}
-                    />
-                    <AvatarFallback className="bg-blue-600 text-white">
-                      {conversation.contact_initials || 
-                       (conversation.contact_name ? 
-                         (conversation.contact_name.split(' ').length > 1 ? 
-                           conversation.contact_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() :
-                           conversation.contact_name.substring(0, 2).toUpperCase()
-                         ) : 
-                         "U"
-                       )}
-                    </AvatarFallback>
+                    {isBot ? (
+                      <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                        <Bot className="h-6 w-6" />
+                      </AvatarFallback>
+                    ) : (
+                      <>
+                        <AvatarImage
+                          src={loadedAvatars[conversation.id] || (conversation.contact_avatar && conversation.contact_avatar.trim() !== "" && conversation.contact_avatar !== "null" ? conversation.contact_avatar : undefined)}
+                          alt={conversation.contact_name || "Unknown"}
+                        />
+                        <AvatarFallback className="bg-blue-600 text-white">
+                          {conversation.contact_initials || 
+                           (conversation.contact_name ? 
+                             (conversation.contact_name.split(' ').length > 1 ? 
+                               conversation.contact_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() :
+                               conversation.contact_name.substring(0, 2).toUpperCase()
+                             ) : 
+                             "U"
+                           )}
+                        </AvatarFallback>
+                      </>
+                    )}
                   </Avatar>
                   
-                  {/* Online status indicator */}
+                  {/* Online status indicator - always online for bot */}
                   <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-gray-900 ${
-                    conversation.contact_id === 0 ? 'bg-gray-400' : 'bg-green-500'
+                    isBot ? 'bg-green-500' : (conversation.contact_id === 0 ? 'bg-gray-400' : 'bg-green-500')
                   }`} />
                 </div>
 
@@ -282,13 +320,14 @@ export function ConversationList({
                         <div className="w-2 h-2 bg-yellow-500 rounded-full" title="Action Required" />
                       )}
 
-                      {/* More options */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0"
+                      {/* More options - hide for bot */}
+                      {!isBot && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <MoreVertical className="h-3 w-3" />
@@ -311,6 +350,7 @@ export function ConversationList({
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      )}
                     </div>
                   </div>
 
@@ -353,6 +393,12 @@ export function ConversationList({
                           {conversation.lastMessage.message_type.replace('_', ' ')}
                         </Badge>
                       )}
+                    </div>
+                  ) : isBot ? (
+                    <div className="flex items-center gap-2 min-w-0 w-full">
+                      <p className="text-sm text-muted-foreground italic">
+                        AI Support Assistant
+                      </p>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 min-w-0 w-full">

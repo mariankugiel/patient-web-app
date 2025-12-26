@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useSelector } from "react-redux"
 import { 
   PlusCircle, Send, Filter, Search, Bell, MessageSquare, 
@@ -58,11 +58,14 @@ import { UserInfoPanel } from "@/components/messages/user-info-panel"
 import { RecipientAutocomplete, type Contact } from "@/components/messages/recipient-autocomplete"
 import { GlobalHeader } from "@/components/layout/global-header"
 import type { MessageFilters, MessageType, MessageAttachment, Message, MessagePriority, MessageStatus } from "@/types/messages"
+import { SALUSO_SUPPORT_CONVERSATION_ID } from "@/types/messages"
 import type { FileUploadItem } from "@/types/files"
 import { messagesApiService } from "@/lib/api/messages-api"
 import { s3UploadService } from "@/lib/api/s3-upload-api"
 import { usePatientContext } from "@/hooks/use-patient-context"
 import { useSwitchedPatient } from "@/contexts/patient-context"
+import { useAIChat } from "@/hooks/use-ai-chat"
+import { Bot } from "lucide-react"
 
 // Sample conversation data
 const conversations = [
@@ -413,6 +416,66 @@ function MessagesClientPageContent() {
     conversations: conversationsFromHook  // Get conversations directly from hook
   } = useMessages(patientId)
   
+  // AI Chat hook for Saluso Support
+  const {
+    messages: aiMessages,
+    isSending: isAISending,
+    error: aiError,
+    sendMessage: sendAIMessage,
+    clearHistory: clearAIHistory
+  } = useAIChat()
+  
+  // State to track if bot conversation is selected (since it's virtual, not in useMessages)
+  const [isBotSelected, setIsBotSelected] = useState(false)
+  
+  // Create virtual bot conversation object
+  const botConversation = useMemo(() => ({
+    id: SALUSO_SUPPORT_CONVERSATION_ID,
+    user_id: currentUserId || 0,
+    contact_id: 0,
+    contact_name: 'Saluso Support',
+    contact_role: 'AI Assistant',
+    contact_initials: 'SS',
+    messages: [],
+    unreadCount: 0,
+    lastMessageTime: new Date().toISOString(),
+    isArchived: false,
+    isPinned: false,
+    tags: [],
+    isBot: true as const
+  }), [currentUserId])
+  
+  // Determine the actual selected conversation (bot or regular)
+  const actualSelectedConversation = isBotSelected ? botConversation : selectedConversation
+  
+  // Check if selected conversation is the bot
+  const isBotConversation = isBotSelected || actualSelectedConversation?.id === SALUSO_SUPPORT_CONVERSATION_ID
+  
+  // Handle conversation selection (both bot and regular)
+  const handleSelectConversation = useCallback((conversationId: string) => {
+    if (conversationId === SALUSO_SUPPORT_CONVERSATION_ID) {
+      // Handle bot conversation selection
+      setIsBotSelected(true)
+      // Clear regular conversation selection
+      if (selectedConversation) {
+        selectConversation('') // Clear selection
+      }
+    } else {
+      // Handle regular conversation selection
+      setIsBotSelected(false)
+      selectConversation(conversationId)
+    }
+  }, [selectConversation, selectedConversation])
+  
+  // Auto-scroll when AI messages are added
+  useEffect(() => {
+    if (isBotConversation && aiMessages.length > 0) {
+      setTimeout(() => {
+        scrollToBottom()
+      }, 100)
+    }
+  }, [aiMessages.length, isBotConversation])
+  
   // Use conversations from useMessages hook (which respects patientId)
   // ALWAYS use conversations from the hook, not from global state
   // The hook properly filters by patientId and clears old data when switching
@@ -587,9 +650,9 @@ function MessagesClientPageContent() {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current)
         typingTimeoutRef.current = null
+        }
       }
-    }
-  }, [selectedConversation?.id, sendTypingIndicator])
+    }, [actualSelectedConversation?.id, sendTypingIndicator])
 
   // Toggle filter
   const toggleFilter = (filter: string) => {
@@ -642,13 +705,19 @@ function MessagesClientPageContent() {
   }
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedConversation) return
+    if (!newMessage.trim() || !actualSelectedConversation) return
 
     console.log('📤 handleSendMessage called with:', newMessage.trim())
-    console.log('📤 Selected conversation:', selectedConversation)
+    console.log('📤 Selected conversation:', actualSelectedConversation)
+    console.log('🤖 Is bot conversation:', isBotConversation)
 
     try {
-      await sendMessage(newMessage.trim())
+      // Use AI chat for bot, regular sendMessage for others
+      if (isBotConversation) {
+        await sendAIMessage(newMessage.trim())
+      } else {
+        await sendMessage(newMessage.trim())
+      }
       setNewMessage("")
       console.log('📤 Message sent successfully')
       
@@ -710,7 +779,7 @@ function MessagesClientPageContent() {
     // Create optimistic message for immediate display
     const optimisticMessage: Message = {
       id: `temp_upload_${Date.now()}`,
-      conversation_id: selectedConversation.id,
+      conversation_id: actualSelectedConversation.id,
       sender_id: currentUserId,
       content: messageContent,
       message_type: 'general' as MessageType,
@@ -1223,11 +1292,11 @@ function MessagesClientPageContent() {
                   </div>
                 </div>
               ) : (
-              <ConversationList
-                conversations={filteredConversations}
-                selectedConversationId={selectedConversation?.id || null}
+                <ConversationList
+                  conversations={filteredConversations}
+                  selectedConversationId={actualSelectedConversation?.id || null}
                   typingUsers={typingUsers} // Use typingUsers directly from useMessages
-                onSelectConversation={selectConversation}
+                  onSelectConversation={handleSelectConversation}
                 onArchiveConversation={archiveConversation}
                 onTogglePin={togglePin}
                 onMarkAsRead={markConversationAsRead}
@@ -1303,69 +1372,92 @@ function MessagesClientPageContent() {
           )}
         </div>
 
-        {/* Middle Panel - Conversation View */}
-        <div className="flex-1 flex flex-col">
-          {selectedConversation ? (
+          {/* Middle Panel - Conversation View */}
+          <div className="flex-1 flex flex-col">
+           {actualSelectedConversation ? (
             <>
               {/* Conversation Header */}
               <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Avatar 
-                      className="cursor-pointer"
-                      onClick={() => setShowUserInfo(!showUserInfo)}
-                    >
-                      <AvatarImage
-                        src={selectedConversation.contact_avatar || "/placeholder.svg"}
-                        alt={selectedConversation.contact_name || "Unknown"}
-                      />
-                      <AvatarFallback className="bg-blue-600 text-white">
-                        {selectedConversation.contact_initials || selectedConversation.contact_name?.charAt(0) || "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-gray-100">{selectedConversation.contact_name || "Unknown"}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                          <span className="flex items-center gap-1">
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            Online
-                          </span>
-                      </div>
-                    </div>
+                    {isBotConversation ? (
+                      <>
+                        <Avatar className="cursor-pointer">
+                          <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                            <Bot className="h-6 w-6" />
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">Saluso Support</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                            <span className="flex items-center gap-1">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              AI Assistant
+                            </span>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Avatar 
+                          className="cursor-pointer"
+                          onClick={() => setShowUserInfo(!showUserInfo)}
+                        >
+                          <AvatarImage
+                            src={selectedConversation.contact_avatar || "/placeholder.svg"}
+                            alt={selectedConversation.contact_name || "Unknown"}
+                          />
+                          <AvatarFallback className="bg-blue-600 text-white">
+                            {actualSelectedConversation.contact_initials || actualSelectedConversation.contact_name?.charAt(0) || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{actualSelectedConversation.contact_name || "Unknown"}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                              <span className="flex items-center gap-1">
+                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                Online
+                              </span>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                   
-                  <div className="flex items-center gap-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => togglePin(selectedConversation.id)}>
-                          <Pin className="h-4 w-4 mr-2" />
-                          {selectedConversation.isPinned ? 'Unpin' : 'Pin'} Conversation
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => archiveConversation(selectedConversation.id)}>
-                          <Archive className="h-4 w-4 mr-2" />
-                          Archive
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="text-red-600"
-                          onClick={() => deleteConversation(selectedConversation.id)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                  {!isBotConversation && (
+                    <div className="flex items-center gap-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => togglePin(actualSelectedConversation.id)}>
+                            <Pin className="h-4 w-4 mr-2" />
+                            {actualSelectedConversation.isPinned ? 'Unpin' : 'Pin'} Conversation
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => archiveConversation(actualSelectedConversation.id)}>
+                            <Archive className="h-4 w-4 mr-2" />
+                            Archive
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="text-red-600"
+                            onClick={() => deleteConversation(actualSelectedConversation.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Messages Area */}
               <ScrollArea className="flex-1 p-4 bg-white dark:bg-gray-900" ref={messagesContainerRef}>
-                {loadingMessages ? (
+                {loadingMessages && !isBotConversation ? (
                   <div className="flex items-center justify-center h-32">
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -1395,11 +1487,77 @@ function MessagesClientPageContent() {
                         </div>
                       )}
                       
-                      {(() => {
-                        console.log('📱 Total messages to render:', messages.length)
-                        return null
-                      })()}
-                      {messages.map((message) => {
+                      {/* Render AI messages for bot, regular messages for others */}
+                      {isBotConversation ? (
+                        <>
+                          {(() => {
+                            console.log('🤖 Total AI messages to render:', aiMessages.length)
+                            return null
+                          })()}
+                          {aiMessages.map((message) => {
+                            const isOwn = message.role === 'user'
+                            
+                            return (
+                              <div key={message.id} className={`flex items-end gap-2 w-full max-w-full ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                                {/* Avatar for bot messages */}
+                                {!isOwn && (
+                                  <Avatar className="h-8 w-8 flex-shrink-0">
+                                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                                      <Bot className="h-4 w-4" />
+                                    </AvatarFallback>
+                                  </Avatar>
+                                )}
+                                
+                                {/* Message bubble */}
+                                <div className={`max-w-[50%] min-w-0 p-3 rounded-lg ${
+                                  isOwn 
+                                    ? 'bg-blue-500 text-white dark:bg-blue-600' 
+                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                                }`}>
+                                  <div 
+                                    className="text-sm break-words overflow-wrap-anywhere hyphens-auto" 
+                                    style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}
+                                  >
+                                    {message.content}
+                                  </div>
+                                  
+                                  {/* Time */}
+                                  <div className={`text-xs mt-1 ${
+                                    isOwn ? 'text-blue-100 dark:text-blue-200' : 'text-gray-500 dark:text-gray-400'
+                                  }`}>
+                                    <span>
+                                      {message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : 'Unknown time'}
+                                    </span>
+                                  </div>
+                                </div>
+                                
+                                {/* Avatar for user messages */}
+                                {isOwn && user && (
+                                  <Avatar className="h-8 w-8 flex-shrink-0">
+                                    <AvatarFallback className="bg-blue-600 text-white">
+                                      {user.user_metadata?.full_name?.charAt(0) || user.email?.charAt(0) || "U"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                )}
+                              </div>
+                            )
+                          })}
+                          
+                          {aiMessages.length === 0 && (
+                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                              <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                              <p>Start a conversation with Saluso Support</p>
+                              <p className="text-xs mt-2">Ask questions about your health records, appointments, or platform features</p>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {(() => {
+                            console.log('📱 Total messages to render:', messages.length)
+                            return null
+                          })()}
+                          {messages.map((message) => {
                       // Use current user ID from backend (actual database ID)
                       if (!currentUserId) {
                         console.error('❌ No current user ID found from backend')
@@ -1482,31 +1640,49 @@ function MessagesClientPageContent() {
                           )}
                         </div>
                       )
-                  })}
-                  
-                  {messages.length === 0 && (
-                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                      <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No messages yet</p>
-                    </div>
-                  )}
+                          })}
+                          
+                          {messages.length === 0 && (
+                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                              <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                              <p>No messages yet</p>
+                            </div>
+                          )}
+                        </>
+                      )}
                 </div>
                 )}
               </ScrollArea>
 
               {/* Typing Indicator */}
               {(() => {
-                // Get typing user names from selected conversation
+                // Show typing indicator for bot when AI is sending
+                if (isBotConversation && isAISending) {
+                  return (
+                  <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                    <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                      <div className="flex space-x-1">
+                        <div className="w-1 h-1 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-1 h-1 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-1 h-1 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      </div>
+                      <span>Saluso Support is typing...</span>
+                    </div>
+                  </div>
+                  )
+                }
+                
+                // Get typing user names from selected conversation for regular conversations
                 const typingUserNames: string[] = []
-                if (selectedConversation && typingUsers.size > 0) {
+                if (actualSelectedConversation && typingUsers.size > 0 && !isBotConversation) {
                   typingUsers.forEach((userId) => {
                     // Check if it's the contact typing
-                    if (selectedConversation.contact_id === userId) {
-                      typingUserNames.push(selectedConversation.contact_name || 'Someone')
+                    if (actualSelectedConversation.contact_id === userId) {
+                      typingUserNames.push(actualSelectedConversation.contact_name || 'Someone')
                     }
                     // Check if it's the current user typing (shouldn't happen, but handle it)
-                    else if (selectedConversation.user_id === userId) {
-                      typingUserNames.push(selectedConversation.current_user_name || 'You')
+                    else if (actualSelectedConversation.user_id === userId) {
+                      typingUserNames.push(actualSelectedConversation.current_user_name || 'You')
                     }
                   })
                 }
@@ -1536,8 +1712,8 @@ function MessagesClientPageContent() {
                 onFileUpload={handleFileUpload}
                 onVoiceRecord={handleVoiceMessage}
                 placeholder={isViewingOtherPatient ? "Viewing another patient's messages. You cannot send messages." : "Type a message..."}
-                disabled={!isConnected || isViewingOtherPatient}
-                loading={sendingMessage}
+                disabled={(!isConnected && !isBotConversation) || isViewingOtherPatient}
+                loading={isBotConversation ? isAISending : sendingMessage}
               />
             </>
           ) : (
@@ -1552,13 +1728,13 @@ function MessagesClientPageContent() {
         </div>
 
         {/* Right Panel - User Info (Optional) */}
-        {showUserInfo && selectedConversation && (
+        {showUserInfo && actualSelectedConversation && !isBotConversation && (
           <UserInfoPanel
             contact={{
-              id: selectedConversation.contact_id.toString(),
-              name: selectedConversation.contact_name || "Unknown",
-              avatar: selectedConversation.contact_avatar,
-              role: selectedConversation.contact_role || "Unknown",
+              id: actualSelectedConversation.contact_id.toString(),
+              name: actualSelectedConversation.contact_name || "Unknown",
+              avatar: actualSelectedConversation.contact_avatar,
+              role: actualSelectedConversation.contact_role || "Unknown",
               type: "user" as const,
               isOnline: true,
               lastSeen: new Date().toISOString()

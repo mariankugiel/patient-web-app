@@ -226,3 +226,36 @@ export interface MessagesResponse {
   has_more: boolean
   current_user_id: number  // Add actual database user ID from backend
 }
+
+// AI Chat types for Saluso Support
+export const SALUSO_SUPPORT_CONVERSATION_ID = 'saluso-support'
+
+export interface AIChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+}
+
+export interface AIChatRequest {
+  message: string
+  conversation_history?: Array<{
+    role: 'user' | 'assistant'
+    content: string
+  }>
+}
+
+export interface AIChatResponse {
+  response: string
+}
+
+// Virtual bot conversation for UI
+export interface BotConversation extends Omit<Conversation, 'id' | 'contact_id'> {
+  id: typeof SALUSO_SUPPORT_CONVERSATION_ID
+  contact_id: 0  // Special ID for bot
+  contact_name: 'Saluso Support'
+  contact_role: 'AI Assistant'
+  contact_avatar?: string
+  contact_initials: 'SS'
+  isBot: true
+}

@@ -450,10 +450,54 @@ export function LabDocumentDialog({
           }
         })
 
+        // Ensure all metrics have an entry (in case backend returned fewer results)
+        results.forEach((result: any, index: number) => {
+          if (!selections[index]) {
+            selections[index] = {
+              parsed_name: result.metric_name,
+              existing_name: null,
+              suggested_name: result.metric_name,
+              selected_name: result.metric_name,
+              similarity_score: null,
+              can_toggle: false,
+              is_edited: false,
+              edited_name: null
+            }
+          }
+        })
+
         setMetricNameSelections(selections)
       }
     } catch (error) {
       console.error('Failed to check similarity:', error)
+      // Initialize all metrics as NEW if similarity check fails
+      const selections: {
+        [index: number]: {
+          parsed_name: string
+          existing_name: string | null
+          suggested_name: string
+          selected_name: string
+          similarity_score: number | null
+          can_toggle: boolean
+          is_edited: boolean
+          edited_name: string | null
+        }
+      } = {}
+      
+      results.forEach((result: any, index: number) => {
+        selections[index] = {
+          parsed_name: result.metric_name,
+          existing_name: null,
+          suggested_name: result.metric_name,
+          selected_name: result.metric_name,
+          similarity_score: null,
+          can_toggle: false,
+          is_edited: false,
+          edited_name: null
+        }
+      })
+      
+      setMetricNameSelections(selections)
       // Don't show error to user, just log it
     }
   }
@@ -478,7 +522,15 @@ export function LabDocumentDialog({
 
   const getMetricNameStatus = (index: number) => {
     const selection = metricNameSelections[index]
-    if (!selection) return null
+    // If no selection exists, it's a new metric (similarity check may not have run or failed)
+    if (!selection) {
+      return {
+        type: 'new',
+        label: 'NEW',
+        color: 'bg-blue-100 text-blue-800 border-blue-300',
+        tooltip: 'New metric - will be created'
+      }
+    }
     
     if (selection.is_edited) {
       return {
@@ -1147,7 +1199,9 @@ export function LabDocumentDialog({
           lab_test_date: dateForBackend,
           provider: formData.provider,
           document_type: formData.lab_test_type,
-          detected_language: languageInfo?.detected_language || 'en' // Pass detected language for proper source_language storage
+          detected_language: languageInfo?.detected_language || 'en', // Original document language
+          translation_applied: languageInfo?.translation_applied || false, // Whether translation was applied
+          user_language: languageInfo?.user_language || 'en' // User's language (language of confirmed data)
         }
 
         const bulkResponse = await apiClient.post('/health-records/health-record-doc-lab/bulk', bulkData)
