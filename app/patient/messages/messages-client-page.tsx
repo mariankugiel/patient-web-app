@@ -66,6 +66,8 @@ import { usePatientContext } from "@/hooks/use-patient-context"
 import { useSwitchedPatient } from "@/contexts/patient-context"
 import { useAIChat } from "@/hooks/use-ai-chat"
 import { Bot } from "lucide-react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 // Sample conversation data
 const conversations = [
@@ -777,6 +779,8 @@ function MessagesClientPageContent() {
     const messageContent = message.trim() || `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`
     
     // Create optimistic message for immediate display
+    if (!actualSelectedConversation) return
+    
     const optimisticMessage: Message = {
       id: `temp_upload_${Date.now()}`,
       conversation_id: actualSelectedConversation.id,
@@ -1373,11 +1377,11 @@ function MessagesClientPageContent() {
         </div>
 
           {/* Middle Panel - Conversation View */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
            {actualSelectedConversation ? (
             <>
               {/* Conversation Header */}
-              <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
+              <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {isBotConversation ? (
@@ -1404,8 +1408,8 @@ function MessagesClientPageContent() {
                           onClick={() => setShowUserInfo(!showUserInfo)}
                         >
                           <AvatarImage
-                            src={selectedConversation.contact_avatar || "/placeholder.svg"}
-                            alt={selectedConversation.contact_name || "Unknown"}
+                            src={('contact_avatar' in actualSelectedConversation ? actualSelectedConversation.contact_avatar : undefined) || "/placeholder.svg"}
+                            alt={actualSelectedConversation.contact_name || "Unknown"}
                           />
                           <AvatarFallback className="bg-blue-600 text-white">
                             {actualSelectedConversation.contact_initials || actualSelectedConversation.contact_name?.charAt(0) || "U"}
@@ -1456,7 +1460,7 @@ function MessagesClientPageContent() {
               </div>
 
               {/* Messages Area */}
-              <ScrollArea className="flex-1 p-4 bg-white dark:bg-gray-900" ref={messagesContainerRef}>
+              <ScrollArea className="flex-1 min-h-0 p-4 bg-white dark:bg-gray-900" ref={messagesContainerRef}>
                 {loadingMessages && !isBotConversation ? (
                   <div className="flex items-center justify-center h-32">
                     <div className="flex items-center gap-2">
@@ -1514,15 +1518,60 @@ function MessagesClientPageContent() {
                                     ? 'bg-blue-500 text-white dark:bg-blue-600' 
                                     : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
                                 }`}>
-                                  <div 
-                                    className="text-sm break-words overflow-wrap-anywhere hyphens-auto" 
-                                    style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}
-                                  >
-                                    {message.content}
-                                  </div>
+                                  {isOwn ? (
+                                    // User messages - render as plain text (no markdown)
+                                    <div 
+                                      className="text-sm break-words overflow-wrap-anywhere hyphens-auto" 
+                                      style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}
+                                    >
+                                      {message.content}
+                                    </div>
+                                  ) : (
+                                    // Bot messages only - render with markdown formatting
+                                    <div className="text-sm markdown-content">
+                                      <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                        components={{
+                                          // Style headings
+                                          h1: ({node, ...props}) => <h1 className="text-lg font-bold mb-3 mt-4 first:mt-0 text-gray-900 dark:text-gray-100" {...props} />,
+                                          h2: ({node, ...props}) => <h2 className="text-base font-bold mb-2.5 mt-3 first:mt-0 text-gray-900 dark:text-gray-100" {...props} />,
+                                          h3: ({node, ...props}) => <h3 className="text-sm font-semibold mb-2 mt-2.5 first:mt-0 text-gray-900 dark:text-gray-100" {...props} />,
+                                          // Style paragraphs - better spacing
+                                          p: ({node, ...props}) => <p className="mb-3 last:mb-0 leading-relaxed text-gray-900 dark:text-gray-100" {...props} />,
+                                          // Style lists - improved spacing between items
+                                          ul: ({node, ...props}) => <ul className="list-disc list-outside mb-3 ml-5 space-y-2 text-gray-900 dark:text-gray-100" {...props} />,
+                                          ol: ({node, ...props}) => <ol className="list-decimal list-outside mb-3 ml-5 space-y-2 text-gray-900 dark:text-gray-100" {...props} />,
+                                          li: ({node, ...props}) => <li className="pl-2 leading-relaxed text-gray-900 dark:text-gray-100" {...props} />,
+                                          // Style code blocks
+                                          code: ({node, inline, ...props}: any) => 
+                                            inline ? (
+                                              <code className="bg-gray-300 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-0.5 rounded text-xs font-mono" {...props} />
+                                            ) : (
+                                              <code className="block bg-gray-300 dark:bg-gray-800 text-gray-900 dark:text-gray-100 p-3 rounded text-xs font-mono overflow-x-auto mb-3 whitespace-pre" {...props} />
+                                            ),
+                                          pre: ({node, ...props}) => <pre className="bg-gray-300 dark:bg-gray-800 text-gray-900 dark:text-gray-100 p-3 rounded text-xs font-mono overflow-x-auto mb-3 whitespace-pre" {...props} />,
+                                          // Style links
+                                          a: ({node, ...props}) => <a className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
+                                          // Style bold and italic
+                                          strong: ({node, ...props}) => <strong className="font-semibold text-gray-900 dark:text-gray-100" {...props} />,
+                                          em: ({node, ...props}) => <em className="italic text-gray-900 dark:text-gray-100" {...props} />,
+                                          // Style blockquotes
+                                          blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-gray-400 dark:border-gray-500 pl-4 italic my-3 text-gray-700 dark:text-gray-300" {...props} />,
+                                          // Style horizontal rules
+                                          hr: ({node, ...props}) => <hr className="my-4 border-gray-400 dark:border-gray-600" {...props} />,
+                                          // Style tables
+                                          table: ({node, ...props}) => <div className="overflow-x-auto my-3"><table className="border-collapse border border-gray-400 dark:border-gray-600 w-full text-xs" {...props} /></div>,
+                                          th: ({node, ...props}) => <th className="border border-gray-400 dark:border-gray-600 px-3 py-2 bg-gray-300 dark:bg-gray-800 font-semibold text-gray-900 dark:text-gray-100 text-left" {...props} />,
+                                          td: ({node, ...props}) => <td className="border border-gray-400 dark:border-gray-600 px-3 py-2 text-gray-900 dark:text-gray-100" {...props} />,
+                                        }}
+                                      >
+                                        {message.content}
+                                      </ReactMarkdown>
+                                    </div>
+                                  )}
                                   
                                   {/* Time */}
-                                  <div className={`text-xs mt-1 ${
+                                  <div className={`text-xs mt-2 ${
                                     isOwn ? 'text-blue-100 dark:text-blue-200' : 'text-gray-500 dark:text-gray-400'
                                   }`}>
                                     <span>
@@ -1659,7 +1708,7 @@ function MessagesClientPageContent() {
                 // Show typing indicator for bot when AI is sending
                 if (isBotConversation && isAISending) {
                   return (
-                  <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                  <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
                     <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
                       <div className="flex space-x-1">
                         <div className="w-1 h-1 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
@@ -1682,13 +1731,14 @@ function MessagesClientPageContent() {
                     }
                     // Check if it's the current user typing (shouldn't happen, but handle it)
                     else if (actualSelectedConversation.user_id === userId) {
-                      typingUserNames.push(actualSelectedConversation.current_user_name || 'You')
+                      const currentUserName = 'current_user_name' in actualSelectedConversation ? actualSelectedConversation.current_user_name : undefined
+                      typingUserNames.push(currentUserName || 'You')
                     }
                   })
                 }
                 
                 return typingUserNames.length > 0 ? (
-                  <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                  <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
                     <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
                       <div className="flex space-x-1">
                         <div className="w-1 h-1 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
@@ -1702,6 +1752,7 @@ function MessagesClientPageContent() {
               })()}
 
               {/* Enhanced Message Input */}
+              <div className="flex-shrink-0">
               <EnhancedMessageInput
                 value={newMessage}
                 onChange={(value) => {
@@ -1715,6 +1766,7 @@ function MessagesClientPageContent() {
                 disabled={(!isConnected && !isBotConversation) || isViewingOtherPatient}
                 loading={isBotConversation ? isAISending : sendingMessage}
               />
+              </div>
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -1733,7 +1785,7 @@ function MessagesClientPageContent() {
             contact={{
               id: actualSelectedConversation.contact_id.toString(),
               name: actualSelectedConversation.contact_name || "Unknown",
-              avatar: actualSelectedConversation.contact_avatar,
+              avatar: 'contact_avatar' in actualSelectedConversation ? actualSelectedConversation.contact_avatar : undefined,
               role: actualSelectedConversation.contact_role || "Unknown",
               type: "user" as const,
               isOnline: true,
