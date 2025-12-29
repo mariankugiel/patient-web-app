@@ -92,6 +92,8 @@ export const translations = {
       relationshipChild: "Child",
       relationshipFriend: "Friend",
       relationshipOther: "Other",
+      noEmergencyContacts: "No Emergency Contacts",
+      noEmergencyContactsDesc: "You haven't added any emergency contacts yet. Click the button above to add your first contact so that healthcare providers can reach someone in case of emergency.",
       // Emergency Medical Information
       emergencyMedicalInfo: "Emergency Medical Information",
       emergencyMedicalInfoDesc: "Critical health information for emergency responders",
@@ -1742,6 +1744,7 @@ export const translations = {
       fridayFull: "Friday",
       saturdayFull: "Saturday",
       sundayFull: "Sunday",
+      loading: "Loading medications...",
     },
   },
   "es-ES": {
@@ -1834,6 +1837,8 @@ export const translations = {
       relationshipChild: "Hijo/Hija",
       relationshipFriend: "Amigo/Amiga",
       relationshipOther: "Otro",
+      noEmergencyContacts: "Sin Contactos de Emergencia",
+      noEmergencyContactsDesc: "Aún no has agregado ningún contacto de emergencia. Haz clic en el botón de arriba para agregar tu primer contacto para que los proveedores de atención médica puedan contactar a alguien en caso de emergencia.",
       // Emergency Medical Information
       emergencyMedicalInfo: "Información Médica de Emergencia",
       emergencyMedicalInfoDesc: "Información de salud crítica para los servicios de emergencia",
@@ -3577,6 +3582,8 @@ export const translations = {
       relationshipChild: "Filho/Filha",
       relationshipFriend: "Amigo/Amiga",
       relationshipOther: "Outro",
+      noEmergencyContacts: "Sem Contactos de Emergência",
+      noEmergencyContactsDesc: "Ainda não adicionou nenhum contacto de emergência. Clique no botão acima para adicionar o seu primeiro contacto para que os profissionais de saúde possam contactar alguém em caso de emergência.",
       // Emergency Medical Information
       emergencyMedicalInfo: "Informação Médica de Emergência",
       emergencyMedicalInfoDesc: "Informação de saúde crítica para os serviços de emergência",

@@ -38,7 +38,7 @@ export default function SummaryPage() {
   const { user } = useSelector((state: RootState) => state.auth)
   const { summaryData, loading, error } = useSummaryData()
   
-  // Fetch AI analysis for overall assessment (using type 1 for general analysis)
+  // Fetch AI analysis for overall assessment (using type 6 for summary)
   const { 
     analysis: aiAnalysis, 
     loading: aiLoading, 
@@ -46,7 +46,7 @@ export default function SummaryPage() {
     generateAnalysis,
     checkForUpdates,
     clearAnalysis
-  } = useAIAnalysis(1, patientId || null)
+  } = useAIAnalysis(6, patientId || null)
   
   // Track if we've attempted to fetch AI analysis to prevent infinite loops
   const aiAnalysisAttempted = useRef(false)

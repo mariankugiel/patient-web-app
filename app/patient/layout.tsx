@@ -122,7 +122,7 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
   return (
       <div className="flex min-h-screen flex-col md:flex-row">
         <PatientSidebar />
-        <main className="flex-1 pt-16 md:ml-64 md:pt-0 flex flex-col min-h-0">
+        <main className="flex-1 pt-16 md:ml-64 md:pt-0 flex flex-col min-h-0 h-screen">
           <div className="">
             <div className="flex items-center space-x-4 p-6 border-b">
               <div className="relative">
@@ -150,7 +150,7 @@ function PatientLayoutContent({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex-1 min-h-0">
-            <div className="h-full">
+            <div className="h-full flex flex-col overflow-y-auto">
               {children}
             </div>
           </div>

@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { LogOut, Plus, Save, X, Pencil, Smartphone, Lock, CheckCircle2, Circle } from "lucide-react"
+import { LogOut, Plus, Save, X, Pencil, Smartphone, Lock, CheckCircle2, Circle, Phone } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -757,42 +757,54 @@ export default function ProfileClientPage() {
                 </Button>
                     </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                {emergencyContacts.map((contact) => (
-                  <div key={contact.id} className="rounded-md border p-2.5 hover:bg-muted/50 transition-colors">
-                    <div className="flex justify-between items-start gap-2 mb-1.5">
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-sm truncate">{contact.name}</h4>
-                        <p className="text-xs text-muted-foreground">{contact.relationship}</p>
-                    </div>
-                      <div className="flex gap-0.5 flex-shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 hover:bg-muted"
-                          onClick={() => handleEditContact(contact)}
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => handleRemoveContact(contact.id)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                    </div>
+              {emergencyContacts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="rounded-full bg-muted p-4 mb-4">
+                    <Phone className="h-10 w-10 text-muted-foreground" />
                   </div>
-                    <div className="space-y-0.5">
-                      <p className="text-xs text-muted-foreground">
-                        {contact.countryCode} {contact.phone}
-                      </p>
-                      {contact.email && <p className="text-xs text-muted-foreground truncate">{contact.email}</p>}
+                  <h3 className="text-lg font-semibold mb-2">{t("profile.noEmergencyContacts")}</h3>
+                  <p className="text-muted-foreground mb-6 max-w-md">
+                    {t("profile.noEmergencyContactsDesc")}
+                  </p>
                 </div>
-                  </div>
-                ))}
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {emergencyContacts.map((contact) => (
+                    <div key={contact.id} className="rounded-md border p-2.5 hover:bg-muted/50 transition-colors">
+                      <div className="flex justify-between items-start gap-2 mb-1.5">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-sm truncate">{contact.name}</h4>
+                          <p className="text-xs text-muted-foreground">{contact.relationship}</p>
+                        </div>
+                        <div className="flex gap-0.5 flex-shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-muted"
+                            onClick={() => handleEditContact(contact)}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => handleRemoveContact(contact.id)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="space-y-0.5">
+                        <p className="text-xs text-muted-foreground">
+                          {contact.countryCode} {contact.phone}
+                        </p>
+                        {contact.email && <p className="text-xs text-muted-foreground truncate">{contact.email}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <Dialog open={emergencyContactDialogOpen} onOpenChange={setEmergencyContactDialogOpen}>
                 <DialogContent className="sm:max-w-[500px]">
