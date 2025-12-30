@@ -15,9 +15,9 @@ interface WelcomePageProps {
 
 export function WelcomePage({ language, onLanguageChange, onStart, onSkip }: WelcomePageProps) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-card to-background">
+    <div className="min-h-screen" style={{ backgroundColor: "#f0fdf4" }}>
       {/* Header */}
-      <div style={{ backgroundColor: "rgb(230, 247, 247)" }} className="text-teal-700 p-4">
+      <div className="text-white p-4" style={{ backgroundColor: "rgb(230, 247, 247)" }}>
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <Image src="/images/saluso-logo-horizontal.png" alt="Saluso" width={120} height={40} className="h-8 w-auto" />
@@ -41,39 +41,53 @@ export function WelcomePage({ language, onLanguageChange, onStart, onSkip }: Wel
       </div>
 
       {/* Welcome Content */}
-      <div className="max-w-2xl mx-auto p-6 mt-12">
-        <Card className="text-center">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-3xl text-balance mb-2">{getTranslation(language, "welcome.title")}</CardTitle>
-            <p className="text-xl text-muted-foreground text-balance">{getTranslation(language, "welcome.subtitle")}</p>
+      <div className="max-w-2xl mx-auto px-6 py-12 md:py-16">
+        <Card className="shadow-lg border-0" style={{ backgroundColor: "#f0fdfa" }}>
+          <CardHeader className="pb-8 pt-10 px-10 text-center">
+            <CardTitle className="text-4xl font-bold mb-3" style={{ color: "#0f766e" }}>
+              {getTranslation(language, "welcome.title")}
+            </CardTitle>
+            <p className="text-xl font-medium" style={{ color: "#14b8a6" }}>
+              {getTranslation(language, "welcome.subtitle")}
+            </p>
           </CardHeader>
 
-          <CardContent className="space-y-6">
-            <p className="text-muted-foreground text-balance leading-relaxed">
+          <CardContent className="px-10 pb-10 space-y-8">
+            {/* Description */}
+            <p className="text-base leading-relaxed text-center text-gray-600 max-w-xl mx-auto">
               {getTranslation(language, "welcome.description")}
             </p>
 
+            {/* Information Blocks */}
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="flex items-center space-x-3 p-4 bg-muted/50 rounded-lg">
-                <Clock className="w-5 h-5 text-teal-600 flex-shrink-0" />
-                <p className="text-sm text-muted-foreground text-balance">
+              <div className="flex items-start space-x-3 p-4 rounded-lg" style={{ backgroundColor: "#e6fffa" }}>
+                <Clock className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#0d9488" }} />
+                <p className="text-sm leading-relaxed text-gray-600">
                   {getTranslation(language, "welcome.timeEstimate")}
                 </p>
               </div>
 
-              <div className="flex items-center space-x-3 p-4 bg-muted/50 rounded-lg">
-                <RotateCcw className="w-5 h-5 text-teal-600 flex-shrink-0" />
-                <p className="text-sm text-muted-foreground text-balance">
+              <div className="flex items-start space-x-3 p-4 rounded-lg" style={{ backgroundColor: "#e6fffa" }}>
+                <RotateCcw className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#0d9488" }} />
+                <p className="text-sm leading-relaxed text-gray-600">
                   {getTranslation(language, "welcome.flexibility")}
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 pt-4">
-              <Button onClick={onStart} className="flex-1 bg-teal-600 hover:bg-teal-700 text-white" size="lg">
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+              <Button 
+                onClick={onStart} 
+                className="flex-1 text-white font-medium rounded-lg h-12 text-base bg-teal-600 hover:bg-teal-700 transition-colors" 
+              >
                 {getTranslation(language, "welcome.startButton")}
               </Button>
-              <Button onClick={onSkip} variant="outline" className="flex-1 bg-transparent" size="lg">
+              <Button 
+                onClick={onSkip} 
+                variant="outline" 
+                className="flex-1 bg-white border-gray-300 font-medium rounded-lg h-12 text-base hover:bg-gray-50 text-gray-700" 
+              >
                 {getTranslation(language, "welcome.skipButton")}
               </Button>
             </div>

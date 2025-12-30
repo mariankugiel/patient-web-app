@@ -9,7 +9,6 @@ import { RootState, AppDispatch } from "@/lib/store"
 import { Loader2 } from "lucide-react"
 import { signInWithGoogle } from "@/lib/auth-helpers"
 import { toast } from "react-toastify"
-import { TOTP } from 'otpauth'
 import {
   Dialog,
   DialogContent,
@@ -51,9 +50,12 @@ export function LoginForm() {
   }, [isAuthenticated, showMfaDialog, router])
 
   // Function to generate and log current TOTP code
-  const generateAndLogTOTPCode = useCallback((secret: string) => {
+  const generateAndLogTOTPCode = useCallback(async (secret: string) => {
     try {
       if (!secret) return
+      
+      // Dynamically import otpauth to avoid webpack issues
+      const { TOTP } = await import('otpauth')
       
       const totp = new TOTP({
         issuer: 'YourHealth1Place',

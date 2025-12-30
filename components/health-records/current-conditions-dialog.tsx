@@ -27,7 +27,6 @@ import {
 import { Plus, Trash2, Loader2 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { CurrentCondition } from "@/hooks/use-medical-conditions"
-import { ChronicDiseaseAutocomplete } from "@/components/ui/chronic-disease-autocomplete"
 
 interface CurrentConditionsDialogProps {
   open: boolean
@@ -65,12 +64,17 @@ export function CurrentConditionsDialog({
       
       if (selectedCondition) {
         // Edit mode - edit single condition
+        // Map backend field names to frontend field names
         setIsEditMode(true)
-        const formattedCondition = {
-          ...selectedCondition,
-          diagnosedDate: selectedCondition.diagnosedDate?.includes('T') 
-            ? selectedCondition.diagnosedDate.split('T')[0] 
-            : selectedCondition.diagnosedDate || ''
+        const formattedCondition: CurrentCondition = {
+          id: selectedCondition.id,
+          condition: selectedCondition.condition_name || selectedCondition.condition || '',
+          diagnosedDate: selectedCondition.diagnosed_date?.includes('T') 
+            ? selectedCondition.diagnosed_date.split('T')[0] 
+            : selectedCondition.diagnosed_date || selectedCondition.diagnosedDate || '',
+          status: selectedCondition.status || 'uncontrolled',
+          treatedWith: selectedCondition.treatment_plan || selectedCondition.treatedWith || '',
+          notes: selectedCondition.description || selectedCondition.notes || ''
         }
         setEditingCondition(formattedCondition)
       } else {
@@ -229,11 +233,12 @@ export function CurrentConditionsDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="condition">{t('health.dialog.conditionName')} <span className="text-red-500">*</span></Label>
-                    <ChronicDiseaseAutocomplete
-                      value={editingCondition.condition}
-                      onChange={(value) => updateSingleConditionField('condition', value)}
+                    <Input
+                      id="condition"
+                      value={editingCondition.condition || ''}
+                      onChange={(e) => updateSingleConditionField('condition', e.target.value)}
                       placeholder={t('health.dialog.enterConditionName')}
-                      error={validationErrors.condition}
+                      className={validationErrors.condition ? 'border-red-500' : ''}
                     />
                     {validationErrors.condition && (
                       <p className="text-sm text-red-500">{validationErrors.condition}</p>
@@ -301,11 +306,12 @@ export function CurrentConditionsDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="add_condition">{t('health.dialog.conditionName')} <span className="text-red-500">*</span></Label>
-                    <ChronicDiseaseAutocomplete
-                      value={editingCondition.condition}
-                      onChange={(value) => updateSingleConditionField('condition', value)}
+                    <Input
+                      id="add_condition"
+                      value={editingCondition.condition || ''}
+                      onChange={(e) => updateSingleConditionField('condition', e.target.value)}
                       placeholder={t('health.dialog.enterConditionName')}
-                      error={validationErrors.condition}
+                      className={validationErrors.condition ? 'border-red-500' : ''}
                     />
                     {validationErrors.condition && (
                       <p className="text-sm text-red-500">{validationErrors.condition}</p>

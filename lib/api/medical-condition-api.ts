@@ -261,14 +261,19 @@ export class MedicalConditionApiService {
   // PAST MEDICAL CONDITIONS
   // ============================================================================
 
-  static async createPastMedicalCondition(condition: PastMedicalCondition): Promise<BackendMedicalCondition> {
+  static async createPastMedicalCondition(condition: PastMedicalCondition | any): Promise<BackendMedicalCondition> {
     try {
+      // Handle both PastMedicalCondition (from API) and PastCondition (from dialog)
+      const conditionName = condition.condition || ''
+      const description = condition.comments || condition.notes || ''
+      const treatment = condition.treatment || condition.treatedWith || ''
+      
       const backendData: any = {
-        condition_name: condition.condition,
-        description: condition.comments,
+        condition_name: conditionName,
+        description: description,
         status: 'resolved',
         source: 'Self Diagnosis',
-        treatment_plan: condition.treatment
+        treatment_plan: treatment
       }
 
       // Include dates if we have valid dates
@@ -323,13 +328,24 @@ export class MedicalConditionApiService {
     }
   }
 
-  static async updatePastMedicalCondition(id: number, condition: PastMedicalCondition): Promise<BackendMedicalCondition> {
+  static async updatePastMedicalCondition(id: number, condition: PastMedicalCondition | any): Promise<BackendMedicalCondition> {
     try {
+      // Handle both PastMedicalCondition (from API) and PastCondition (from dialog)
+      const conditionName = condition.condition || ''
+      const description = condition.comments || condition.notes || ''
+      const treatment = condition.treatment || condition.treatedWith || ''
+      
+      // Determine status based on whether resolvedDate is provided
+      // If no resolvedDate, it's a current condition (default to 'uncontrolled')
+      // If resolvedDate is provided, it's a past/resolved condition
+      const hasResolvedDate = (condition.resolvedDate && condition.resolvedDate.trim()) || 
+                              (condition.yearResolved && condition.yearResolved.trim())
+      
       const backendData: any = {
-        condition_name: condition.condition,
-        description: condition.comments,
-        treatment_plan: condition.treatment,
-        status: 'resolved'
+        condition_name: conditionName,
+        description: description,
+        treatment_plan: treatment,
+        status: hasResolvedDate ? 'resolved' : 'uncontrolled' // Default to 'uncontrolled' if not resolved
       }
 
       // Include dates if we have valid dates
@@ -350,6 +366,7 @@ export class MedicalConditionApiService {
         backendData.diagnosed_date = `${condition.yearOfDiagnosis}-01-01T00:00:00`
       }
       
+      // Only set resolved_date if provided
       if (condition.resolvedDate && condition.resolvedDate.trim()) {
         const isoDateTime = convertToISODateTime(condition.resolvedDate)
         if (isoDateTime) {
@@ -358,6 +375,9 @@ export class MedicalConditionApiService {
       } else if (condition.yearResolved && condition.yearResolved.trim()) {
         // Fallback to year-only format
         backendData.resolved_date = `${condition.yearResolved}-01-01T00:00:00`
+      } else {
+        // If resolvedDate is being cleared, also clear resolved_date in backend
+        backendData.resolved_date = null
       }
 
       console.log('Sending past condition update data:', JSON.stringify(backendData, null, 2))
@@ -502,7 +522,7 @@ export class MedicalConditionApiService {
       const data = response.data?.surgeries || (Array.isArray(response.data) ? response.data : [])
       console.log('getPastSurgeries data array:', data)
       
-      // Transform surgery data to match the expected format
+      // Transform surgery data to match the expected format, but preserve original fields
       return data.map((surgery: any) => ({
         id: surgery.id,
         condition_name: `Surgery: ${surgery.name}`,
@@ -514,7 +534,16 @@ export class MedicalConditionApiService {
         resolved_date: surgery.procedure_date,
         outcome: surgery.recovery_status,
         created_at: surgery.created_at,
-        updated_at: surgery.updated_at
+        updated_at: surgery.updated_at,
+        // Preserve original surgery fields for dialog use
+        procedure_type: surgery.procedure_type,
+        name: surgery.name,
+        procedure_date: surgery.procedure_date,
+        reason: surgery.reason,
+        treatment: surgery.treatment,
+        body_area: surgery.body_area,
+        recovery_status: surgery.recovery_status,
+        notes: surgery.notes
       }))
     } catch (error: any) {
       const message = error.response?.data?.detail || error.message || 'Failed to get past surgeries'

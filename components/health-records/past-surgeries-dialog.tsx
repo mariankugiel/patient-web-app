@@ -54,8 +54,22 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
       
       if (selectedSurgery) {
         // Edit mode - edit single surgery
+        // Map backend fields to frontend fields
         setIsEditMode(true)
-        setEditingSurgery({ ...selectedSurgery })
+        const formattedSurgery = {
+          id: selectedSurgery.id,
+          procedure_type: selectedSurgery.procedure_type || 'surgery',
+          name: selectedSurgery.name || selectedSurgery.condition_name?.replace('Surgery: ', '') || '',
+          procedure_date: selectedSurgery.procedure_date?.includes('T') 
+            ? selectedSurgery.procedure_date.split('T')[0] 
+            : selectedSurgery.procedure_date || selectedSurgery.diagnosed_date?.split('T')[0] || '',
+          reason: selectedSurgery.reason || '',
+          treatment: selectedSurgery.treatment || selectedSurgery.treatment_plan || '',
+          body_area: selectedSurgery.body_area || '',
+          recovery_status: selectedSurgery.recovery_status || selectedSurgery.outcome || 'full_recovery',
+          notes: selectedSurgery.notes || selectedSurgery.description || ''
+        }
+        setEditingSurgery(formattedSurgery)
       } else {
         // Add mode - create new single surgery
         setIsEditMode(false)
@@ -110,14 +124,31 @@ export function PastSurgeriesDialog({ open, onOpenChange, onRefresh, selectedSur
     
     setSaving(true)
     try {
+      // Format procedure_date to ISO datetime if it's just a date
+      const formatProcedureDate = (dateStr: string) => {
+        if (!dateStr) return ''
+        // If it's already in ISO format with time, return as is
+        if (dateStr.includes('T')) return dateStr
+        // If it's just a date (YYYY-MM-DD), add time
+        if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          return `${dateStr}T00:00:00`
+        }
+        return dateStr
+      }
+
+      const surgeryData = {
+        ...editingSurgery,
+        procedure_date: formatProcedureDate(editingSurgery?.procedure_date || '')
+      }
+
       if (isEditMode && editingSurgery) {
         // Edit single surgery
         if (editingSurgery.id) {
-          await updateSurgery(editingSurgery.id, editingSurgery)
+          await updateSurgery(editingSurgery.id, surgeryData)
         }
       } else if (!isEditMode && editingSurgery) {
         // Add mode - add single new surgery
-        await createSurgery(editingSurgery)
+        await createSurgery(surgeryData)
       }
       
       if (onRefresh) {

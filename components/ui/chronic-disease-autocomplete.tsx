@@ -73,14 +73,14 @@ export function ChronicDiseaseAutocomplete({
 
   // Filter diseases based on search query
   useEffect(() => {
-    if (!value.trim()) {
+    if (!value || typeof value !== 'string' || !value.trim()) {
       setFilteredDiseases(translatedDiseases)
       return
     }
 
     const query = value.toLowerCase().trim()
     const filtered = translatedDiseases.filter(disease =>
-      disease.toLowerCase().includes(query)
+      disease && typeof disease === 'string' && disease.toLowerCase().includes(query)
     )
 
     setFilteredDiseases(filtered)

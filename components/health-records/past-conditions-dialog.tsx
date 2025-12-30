@@ -63,15 +63,19 @@ export function PastConditionsDialog({
       
       if (selectedCondition) {
         // Edit mode - edit single condition
+        // Map backend fields to frontend fields
         setIsEditMode(true)
-        const formattedCondition = {
-          ...selectedCondition,
-          diagnosedDate: selectedCondition.diagnosedDate?.includes('T') 
-            ? selectedCondition.diagnosedDate.split('T')[0] 
-            : selectedCondition.diagnosedDate || '',
-          resolvedDate: selectedCondition.resolvedDate?.includes('T') 
-            ? selectedCondition.resolvedDate.split('T')[0] 
-            : selectedCondition.resolvedDate || ''
+        const formattedCondition: PastCondition = {
+          id: selectedCondition.id,
+          condition: selectedCondition.condition_name || selectedCondition.condition || '',
+          diagnosedDate: selectedCondition.diagnosed_date?.includes('T') 
+            ? selectedCondition.diagnosed_date.split('T')[0] 
+            : selectedCondition.diagnosed_date || selectedCondition.diagnosedDate || '',
+          resolvedDate: selectedCondition.resolved_date?.includes('T') 
+            ? selectedCondition.resolved_date.split('T')[0] 
+            : selectedCondition.resolved_date || selectedCondition.resolvedDate || '',
+          treatedWith: selectedCondition.treatment_plan || selectedCondition.treatedWith || selectedCondition.treatment || '',
+          notes: selectedCondition.description || selectedCondition.notes || selectedCondition.comments || ''
         }
         setEditingCondition(formattedCondition)
       } else {
@@ -114,9 +118,7 @@ export function PastConditionsDialog({
       errors.diagnosedDate = t('health.dialog.dateDiagnosedRequired')
     }
     
-    if (!editingCondition?.resolvedDate?.trim()) {
-      errors.resolvedDate = t('health.dialog.dateResolvedRequired')
-    }
+    // resolvedDate is optional - if not set, entry will go to current conditions list
     
     setValidationErrors(errors)
     return Object.keys(errors).length === 0
@@ -265,7 +267,7 @@ export function PastConditionsDialog({
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="resolvedDate">{t('health.dialog.dateResolved')} <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="resolvedDate">{t('health.dialog.dateResolved')}</Label>
                     <Input
                       id="resolvedDate"
                       type="date"
@@ -335,7 +337,7 @@ export function PastConditionsDialog({
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="add_resolvedDate">{t('health.dialog.dateResolved')} <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="add_resolvedDate">{t('health.dialog.dateResolved')}</Label>
                     <Input
                       id="add_resolvedDate"
                       type="date"

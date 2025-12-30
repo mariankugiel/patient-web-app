@@ -15,6 +15,15 @@ import { useLanguage } from '@/contexts/language-context'
 interface MedicalConditionStepProps {
 }
 
+// Helper function to format frequency string (e.g., "twice-daily" -> "Twice daily")
+const formatFrequency = (frequency: string): string => {
+  if (!frequency) return ''
+  return frequency
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
 export function MedicalConditionStep({}: MedicalConditionStepProps) {
   const { t } = useLanguage()
   
@@ -90,14 +99,17 @@ export function MedicalConditionStep({}: MedicalConditionStepProps) {
         MedicalConditionApiService.getMedications()
       ])
 
-      // Filter conditions by status
+      // Filter conditions by status and resolved_date
+      // Current conditions: status is not 'resolved' OR no resolved_date
+      // Past conditions: status is 'resolved' AND has resolved_date
       const currentProblems = allConditions.filter(condition =>
-        condition.status === 'uncontrolled' ||
-        condition.status === 'controlled' ||
-        condition.status === 'partiallyControlled'
+        (condition.status === 'uncontrolled' ||
+         condition.status === 'controlled' ||
+         condition.status === 'partiallyControlled') ||
+        (condition.status === 'resolved' && !condition.resolved_date)
       )
       const pastConditions = allConditions.filter(condition =>
-        condition.status === 'resolved'
+        condition.status === 'resolved' && condition.resolved_date
       )
 
       setCurrentHealthProblems(currentProblems)
@@ -117,10 +129,12 @@ export function MedicalConditionStep({}: MedicalConditionStepProps) {
     console.log('refreshCurrentConditions called')
     try {
       const allConditions = await MedicalConditionApiService.getAllMedicalConditions()
+      // Current conditions: status is not 'resolved' OR no resolved_date
       const currentProblems = allConditions.filter(condition =>
-        condition.status === 'uncontrolled' ||
-        condition.status === 'controlled' ||
-        condition.status === 'partiallyControlled'
+        (condition.status === 'uncontrolled' ||
+         condition.status === 'controlled' ||
+         condition.status === 'partiallyControlled') ||
+        (condition.status === 'resolved' && !condition.resolved_date)
       )
       setCurrentHealthProblems(currentProblems)
     } catch (err) {
@@ -132,8 +146,9 @@ export function MedicalConditionStep({}: MedicalConditionStepProps) {
     console.log('refreshPastConditions called')
     try {
       const allConditions = await MedicalConditionApiService.getAllMedicalConditions()
+      // Past conditions: status is 'resolved' AND has resolved_date
       const pastConditions = allConditions.filter(condition =>
-        condition.status === 'resolved'
+        condition.status === 'resolved' && condition.resolved_date
       )
       setPastMedicalConditions(pastConditions)
     } catch (err) {
@@ -169,11 +184,37 @@ export function MedicalConditionStep({}: MedicalConditionStepProps) {
   // Targeted update functions for better performance
 
   // Save handlers for dialogs
-  const handleMedicationSave = (medication: any) => {
-    console.log('Medication saved:', medication)
-    setShowMedicationsDialog(false)
-    setSelectedMedication(null)
-    refreshMedications() // Refresh medications data
+  const handleMedicationSave = async (medication: any) => {
+    try {
+      const { medicationsApiService } = await import('@/lib/api/medications-api')
+      
+      // Map dialog medication format to API format
+      const apiData = {
+        medication_name: medication.drugName,
+        medication_type: 'prescription' as const,
+        dosage: medication.dosage,
+        frequency: medication.frequency,
+        purpose: medication.purpose,
+        start_date: new Date().toISOString().split('T')[0],
+        instructions: medication.hasReminder 
+          ? `Reminder: ${medication.reminderTime} on ${medication.reminderDays?.join(', ') || 'daily'}`
+          : ''
+      }
+
+      if (medication.id && typeof medication.id === 'number') {
+        // Update existing medication
+        await medicationsApiService.updateMedication(medication.id, apiData)
+      } else {
+        // Create new medication
+        await medicationsApiService.createMedication(apiData)
+      }
+      
+      setShowMedicationsDialog(false)
+      setSelectedMedication(null)
+      await refreshMedications()
+    } catch (error) {
+      console.error('Failed to save medication:', error)
+    }
   }
 
   // ============================================================================
@@ -186,7 +227,11 @@ export function MedicalConditionStep({}: MedicalConditionStepProps) {
   }
 
   const openMedicationsDialog = (medication?: any) => {
-    setSelectedMedication(medication || null)
+    if (medication) {
+      setSelectedMedication(medication)
+    } else {
+      setSelectedMedication(null)
+    }
     setShowMedicationsDialog(true)
   }
 
@@ -319,24 +364,24 @@ export function MedicalConditionStep({}: MedicalConditionStepProps) {
               <Card className="p-4 border-l-4 border-l-purple-500 bg-purple-50 group-hover:border-blue-300">
                 <div className="flex items-start mb-3">
                 <div className="flex items-center gap-2">
-                    <h4 className="font-medium text-gray-900">{medication.drugName || medication.drug_name}</h4>
+                    <h4 className="font-medium text-gray-900">{medication.medication_name}</h4>
                     <CheckCircle className="w-4 h-4 text-purple-600" />
               </div>
                 </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <div>
-                  <span className="font-medium">{t('onboarding.medicalConditions.fields.purpose')}</span> {medication.purpose}
+                  <span className="font-medium">{t('onboarding.medicalConditions.fields.purpose')}</span> {medication.purpose || t('onboarding.medicalConditions.notSpecified')}
                 </div>
                 <div>
-                  <span className="font-medium">{t('onboarding.medicalConditions.fields.dosage')}</span> {medication.dosage}
+                  <span className="font-medium">{t('onboarding.medicalConditions.fields.dosage')}</span> {medication.dosage || t('onboarding.medicalConditions.notSpecified')}
                 </div>
                 <div>
-                  <span className="font-medium">{t('onboarding.medicalConditions.fields.frequency')}</span> {medication.frequency}
+                  <span className="font-medium">{t('onboarding.medicalConditions.fields.frequency')}</span> {medication.frequency ? formatFrequency(medication.frequency) : t('onboarding.medicalConditions.notSpecified')}
                 </div>
-                  {medication.has_reminder && (
+                  {medication.instructions && medication.instructions.includes('Reminder:') && (
                     <div>
-                      <span className="font-medium">{t('onboarding.medicalConditions.fields.reminder')}</span> {medication.reminder_time} ({medication.reminder_days?.join(', ') || t('onboarding.medicalConditions.daily')})
+                      <span className="font-medium">{t('onboarding.medicalConditions.fields.reminder')}</span> {medication.instructions.replace('Reminder: ', '')}
                   </div>
                 )}
                 </div>
@@ -483,6 +528,34 @@ export function MedicalConditionStep({}: MedicalConditionStepProps) {
         }}
         selectedCondition={selectedCurrentCondition}
         onRefresh={refreshCurrentConditions}
+        addCondition={async (condition) => {
+          const backendData = {
+            condition: condition.condition,
+            diagnosedDate: condition.diagnosedDate,
+            status: condition.status,
+            treatment: condition.treatedWith,
+            comments: condition.notes
+          }
+          await MedicalConditionApiService.createCurrentHealthProblem(backendData)
+          await refreshCurrentConditions()
+          return { id: 0, ...condition } as any
+        }}
+        updateCondition={async (id, condition) => {
+          const backendData = {
+            condition: condition.condition,
+            diagnosedDate: condition.diagnosedDate,
+            status: condition.status,
+            treatment: condition.treatedWith,
+            comments: condition.notes
+          }
+          await MedicalConditionApiService.updateCurrentHealthProblem(id, backendData)
+          await refreshCurrentConditions()
+          return { id, ...condition } as any
+        }}
+        deleteCondition={async (id) => {
+          await MedicalConditionApiService.deleteCurrentHealthProblem(id)
+          await refreshCurrentConditions()
+        }}
       />
 
       <MedicationsDialog
@@ -492,7 +565,7 @@ export function MedicalConditionStep({}: MedicalConditionStepProps) {
           setSelectedMedication(null)
         }}
         onSave={handleMedicationSave}
-        editingMedication={selectedMedication}
+        editingMedication={showMedicationsDialog ? selectedMedication : null}
       />
 
       <PastConditionsDialog
@@ -505,6 +578,9 @@ export function MedicalConditionStep({}: MedicalConditionStepProps) {
         }}
         selectedCondition={selectedPastCondition}
         onRefresh={refreshPastConditions}
+        addCondition={MedicalConditionApiService.createPastMedicalCondition}
+        updateCondition={MedicalConditionApiService.updatePastMedicalCondition}
+        deleteCondition={MedicalConditionApiService.deletePastMedicalCondition}
       />
 
       <PastSurgeriesDialog

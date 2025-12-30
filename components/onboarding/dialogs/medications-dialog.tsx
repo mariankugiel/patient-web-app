@@ -72,22 +72,32 @@ export function MedicationsDialog({ isOpen, onClose, onSave, editingMedication }
   const [errors, setErrors] = useState<string[]>([])
 
   useEffect(() => {
-    if (editingMedication) {
-      setFormData({
-        ...editingMedication
-      })
-    } else {
-      setFormData({
-        drugName: '',
-        purpose: '',
-        dosage: '',
-        frequency: '',
-        hasReminder: false,
-        reminderTime: '',
-        reminderDays: []
-      })
+    if (isOpen) {
+      if (editingMedication && editingMedication.id && typeof editingMedication.id === 'number') {
+        // Edit mode - map backend medication format to dialog format
+        setFormData({
+          drugName: editingMedication.medication_name || editingMedication.drugName || editingMedication.drug_name || '',
+          purpose: editingMedication.purpose || '',
+          dosage: editingMedication.dosage || '',
+          frequency: editingMedication.frequency || '',
+          hasReminder: editingMedication.has_reminder || editingMedication.hasReminder || false,
+          reminderTime: editingMedication.reminder_time || editingMedication.reminderTime || '',
+          reminderDays: editingMedication.reminder_days || editingMedication.reminderDays || []
+        })
+      } else {
+        // Add mode - reset form
+        setFormData({
+          drugName: '',
+          purpose: '',
+          dosage: '',
+          frequency: '',
+          hasReminder: false,
+          reminderTime: '',
+          reminderDays: []
+        })
+      }
+      setErrors([])
     }
-    setErrors([])
   }, [editingMedication, isOpen])
 
   const validateForm = (): boolean => {
@@ -156,7 +166,7 @@ export function MedicationsDialog({ isOpen, onClose, onSave, editingMedication }
     }
   }
 
-  const isEditing = !!editingMedication
+  const isEditing = !!(editingMedication && editingMedication.id && typeof editingMedication.id === 'number')
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
